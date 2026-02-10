@@ -1,0 +1,53 @@
+<?php
+
+use App\Http\Controllers\Api\Admin\ConsultationController as AdminConsultationController;
+use App\Http\Controllers\Api\Admin\HealthcareProfessionalController as AdminHealthcareProfessionalController;
+use App\Http\Controllers\Api\Admin\InstitutionController as AdminInstitutionController;
+use App\Http\Controllers\Api\Admin\PrescriptionController as AdminPrescriptionController;
+use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
+use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\Patient\ConsultationController as PatientConsultationController;
+use App\Http\Controllers\Api\Patient\DashboardController as PatientDashboardController;
+use App\Http\Controllers\Api\Patient\DoctorController as PatientDoctorController;
+use App\Http\Controllers\Api\Patient\PrescriptionController as PatientPrescriptionController;
+use Illuminate\Support\Facades\Route;
+
+Route::prefix('v1')->group(function () {
+    // Public routes
+    Route::get('/health', fn () => response()->json([
+        'status' => 'ok',
+        'service' => 'doctor-o-api',
+        'timestamp' => now()->toISOString(),
+    ]));
+    Route::post('/register', [AuthController::class, 'register']);
+    Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+    Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+
+    // Protected routes
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/logout', [AuthController::class, 'logout']);
+        Route::get('/user', [AuthController::class, 'user']);
+        Route::patch('/user', [AuthController::class, 'updateProfile']);
+
+        Route::middleware('patient')->group(function () {
+            Route::get('/dashboard/summary', [PatientDashboardController::class, 'summary']);
+            Route::get('/doctors', [PatientDoctorController::class, 'index']);
+            Route::get('/consultations', [PatientConsultationController::class, 'index']);
+            Route::post('/consultations/book', [PatientConsultationController::class, 'store']);
+            Route::get('/consultations/{consultationId}', [PatientConsultationController::class, 'show']);
+            Route::patch('/consultations/{consultationId}/cancel', [PatientConsultationController::class, 'cancel']);
+            Route::patch('/consultations/{consultationId}/reschedule', [PatientConsultationController::class, 'reschedule']);
+            Route::get('/prescriptions', [PatientPrescriptionController::class, 'index']);
+        });
+
+        // Admin routes
+        Route::prefix('admin')->middleware('admin')->group(function () {
+            Route::apiResource('users', AdminUserController::class)->only(['index', 'show', 'update', 'destroy']);
+            Route::apiResource('institutions', AdminInstitutionController::class);
+            Route::apiResource('healthcare-professionals', AdminHealthcareProfessionalController::class);
+            Route::apiResource('consultations', AdminConsultationController::class);
+            Route::apiResource('prescriptions', AdminPrescriptionController::class);
+        });
+    });
+});

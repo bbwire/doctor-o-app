@@ -1,0 +1,14 @@
+{
+  "name": "doctor-o",
+  "private": true,
+  "packageManager": "yarn@1.22.22",
+  "scripts": {
+    "dev": "concurrently -k -n API,PWA -c blue,green \"yarn dev:api\" \"yarn dev:pwa\"",
+    "dev:api": "cd api && php artisan serve --host=127.0.0.1 --port=8000",
+    "dev:pwa": "cd pwa && yarn dev --port 3001"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
+
