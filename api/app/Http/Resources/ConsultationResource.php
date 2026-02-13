@@ -37,6 +37,13 @@ class ConsultationResource extends JsonResource
                 'email' => $this->doctor?->email,
                 'role' => $this->doctor?->role,
             ]),
+            'prescriptions' => $this->whenLoaded('prescriptions', fn () => $this->prescriptions->map(fn ($p) => [
+                'id' => $p->id,
+                'medications' => $p->medications,
+                'instructions' => $p->instructions,
+                'issued_at' => $p->issued_at?->toISOString(),
+                'status' => $p->status,
+            ])),
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
         ];

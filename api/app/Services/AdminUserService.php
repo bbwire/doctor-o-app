@@ -5,9 +5,29 @@ namespace App\Services;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Hash;
 
 class AdminUserService
 {
+    /**
+     * Create a new user (patient, doctor, or admin).
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    public function create(array $validated): User
+    {
+        $user = User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => Hash::make($validated['password']),
+            'role' => $validated['role'],
+            'phone' => $validated['phone'] ?? null,
+            'date_of_birth' => $validated['date_of_birth'] ?? null,
+        ]);
+
+        return $user->load('healthcareProfessional.institution');
+    }
+
     /**
      * @param  array<string, mixed>  $filters
      */

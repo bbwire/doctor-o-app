@@ -35,6 +35,24 @@
               <UInput v-model="state.scheduled_at" type="datetime-local" :min="minimumDateTime" required />
             </UFormGroup>
 
+            <div v-if="suggestedSlots.length" class="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
+              <p class="text-xs font-medium text-amber-800 dark:text-amber-300 mb-2">
+                Suggested available slots
+              </p>
+              <div class="flex flex-wrap gap-2">
+                <UButton
+                  v-for="slot in suggestedSlots"
+                  :key="slot"
+                  size="xs"
+                  color="amber"
+                  variant="soft"
+                  @click="applySuggestedSlot(slot)"
+                >
+                  {{ formatSlot(slot) }}
+                </UButton>
+              </div>
+            </div>
+
             <UFormGroup label="Consultation Type">
               <USelectMenu v-model="state.consultation_type" :options="consultationTypes" />
             </UFormGroup>
@@ -75,6 +93,7 @@ const errorMessage = ref('')
 const isApiOffline = computed(() => hasApiStatusChecked.value && !isApiReachable.value)
 const retryDoctorsWhenOnline = ref(false)
 const reconnectRetryInProgress = ref(false)
+const suggestedSlots = ref<string[]>([])
 
 interface DoctorOption {
   label: string
@@ -159,6 +178,7 @@ const onSubmit = async () => {
 
   submitting.value = true
   errorMessage.value = ''
+  suggestedSlots.value = []
 
   try {
     await $fetch('/consultations/book', {
@@ -180,12 +200,52 @@ const onSubmit = async () => {
     })
 
     await router.push('/consultations')
-  } catch (error: any) {
-    const validationMessage = error?.data?.errors?.scheduled_at?.[0]
-    errorMessage.value = validationMessage || error?.data?.message || 'Failed to book consultation.'
+  } catch (error) {
+    const err = error && typeof error === 'object' ? error : null
+    const validationMessage = err && 'data' in err && err.data && typeof err.data === 'object' && 'errors' in err.data
+      ? err.data.errors?.scheduled_at?.[0]
+      : null
+    const message = err && 'data' in err && err.data && typeof err.data === 'object' && 'message' in err.data
+      ? err.data.message
+      : null
+
+    errorMessage.value = validationMessage || (typeof message === 'string' ? message : 'Failed to book consultation.')
+
+    if (typeof validationMessage === 'string' && validationMessage.includes('already booked') && state.doctor_id) {
+      await fetchSuggestedSlots(state.doctor_id, new Date(state.scheduled_at).toISOString())
+    }
   } finally {
     submitting.value = false
   }
+}
+
+const fetchSuggestedSlots = async (doctorId: number, from: string) => {
+  try {
+    const response = await $fetch<{ data?: { available_slots?: string[] } }>(`/doctors/${doctorId}/availability`, {
+      baseURL: config.public.apiBase,
+      headers: apiHeaders.value,
+      query: {
+        from,
+        limit: 5
+      }
+    })
+
+    suggestedSlots.value = response?.data?.available_slots || []
+  } catch {
+    suggestedSlots.value = []
+  }
+}
+
+const applySuggestedSlot = (slot: string) => {
+  state.scheduled_at = toLocalDateTimeInput(slot)
+}
+
+const formatSlot = (slot: string) => new Date(slot).toLocaleString()
+
+const toLocalDateTimeInput = (value: string) => {
+  const date = new Date(value)
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset())
+  return date.toISOString().slice(0, 16)
 }
 
 onMounted(async () => {
@@ -197,6 +257,16 @@ watch([isApiReachable, hasApiStatusChecked], async ([reachable, checked]) => {
     reconnectRetryInProgress.value = true
     await fetchDoctors()
     reconnectRetryInProgress.value = false
+  }
+})
+
+watch(() => state.doctor_id, () => {
+  suggestedSlots.value = []
+})
+
+watch(() => state.scheduled_at, () => {
+  if (suggestedSlots.value.length > 0) {
+    suggestedSlots.value = []
   }
 })
 </script>

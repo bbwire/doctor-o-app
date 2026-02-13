@@ -10,8 +10,6 @@ use Illuminate\Validation\ValidationException;
 
 class PatientConsultationService
 {
-    private const MINIMUM_ACTION_LEAD_HOURS = 2;
-
     /**
      * @param  array<string, mixed>  $filters
      */
@@ -49,7 +47,7 @@ class PatientConsultationService
             ]);
         }
 
-        return Consultation::create([
+        $consultation = Consultation::create([
             'patient_id' => $patient->id,
             'doctor_id' => $validated['doctor_id'],
             'scheduled_at' => $scheduledAt->toDateTimeString(),
@@ -57,7 +55,25 @@ class PatientConsultationService
             'status' => 'scheduled',
             'reason' => $validated['reason'],
             'notes' => $validated['notes'] ?? null,
-        ])->load(['doctor.healthcareProfessional.institution']);
+        ])->load(['doctor.healthcareProfessional.institution', 'patient']);
+
+        $notificationService = app(NotificationService::class);
+        $notificationService->createForUser(
+            $patient->id,
+            'consultation_booked',
+            'Appointment confirmed',
+            'Your consultation has been scheduled for ' . $scheduledAt->format('M j, Y \a\t g:i A') . '.',
+            ['consultation_id' => $consultation->id]
+        );
+        $notificationService->createForUser(
+            (int) $validated['doctor_id'],
+            'consultation_booked',
+            'New appointment',
+            'A new consultation has been booked for ' . $scheduledAt->format('M j, Y \a\t g:i A') . '.',
+            ['consultation_id' => $consultation->id]
+        );
+
+        return $consultation;
     }
 
     public function findForPatientOrFail(User $patient, int $consultationId): Consultation
@@ -80,6 +96,14 @@ class PatientConsultationService
                 'cancelled_by' => 'patient',
             ]),
         ]);
+
+        app(NotificationService::class)->createForUser(
+            (int) $consultation->doctor_id,
+            'consultation_cancelled',
+            'Appointment cancelled',
+            'A patient has cancelled their consultation scheduled for ' . $consultation->scheduled_at->format('M j, Y \a\t g:i A') . '.',
+            ['consultation_id' => $consultation->id]
+        );
 
         return $consultation->refresh()->load(['doctor.healthcareProfessional.institution', 'prescriptions']);
     }
@@ -126,11 +150,91 @@ class PatientConsultationService
             ]);
         }
 
-        $minimumManageTime = now()->addHours(self::MINIMUM_ACTION_LEAD_HOURS);
+        $minimumManageTime = now()->addHours($this->minimumActionLeadHours());
         if ($consultation->scheduled_at && $consultation->scheduled_at->lte($minimumManageTime)) {
             throw ValidationException::withMessages([
-                'scheduled_at' => ['Consultation can only be changed at least 2 hours before start time.'],
+                'scheduled_at' => ['Consultation can only be changed at least '.$this->minimumActionLeadHours().' hours before start time.'],
             ]);
         }
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function suggestAvailableSlots(int $doctorId, ?string $from = null, int $limit = 5): array
+    {
+        $limit = max(1, min($limit, 10));
+        $slotIntervalMinutes = $this->slotIntervalMinutes();
+        $availabilityWindowDays = $this->availabilityWindowDays();
+
+        $start = $from ? Carbon::parse($from) : now();
+        $minimumStart = now()->addMinutes($slotIntervalMinutes);
+        if ($start->lt($minimumStart)) {
+            $start = $minimumStart;
+        }
+
+        $candidate = $this->alignToSlot($start, $slotIntervalMinutes);
+        $windowEnd = $candidate->copy()->addDays($availabilityWindowDays);
+
+        $taken = Consultation::query()
+            ->where('doctor_id', $doctorId)
+            ->where('status', 'scheduled')
+            ->whereBetween('scheduled_at', [$candidate->toDateTimeString(), $windowEnd->toDateTimeString()])
+            ->pluck('scheduled_at')
+            ->map(fn ($value) => Carbon::parse($value)->toDateTimeString())
+            ->flip();
+
+        $suggestions = [];
+        $maxIterations = (int) ceil(($availabilityWindowDays * 24 * 60) / $slotIntervalMinutes);
+        $iterations = 0;
+
+        while (count($suggestions) < $limit && $iterations < $maxIterations) {
+            $key = $candidate->toDateTimeString();
+            if (! $taken->has($key)) {
+                $suggestions[] = $candidate->toISOString();
+            }
+
+            $candidate->addMinutes($slotIntervalMinutes);
+            $iterations++;
+        }
+
+        return $suggestions;
+    }
+
+    private function slotIntervalMinutes(): int
+    {
+        $configured = (int) config('consultations.slot_interval_minutes', 60);
+
+        return max(15, min($configured, 120));
+    }
+
+    private function availabilityWindowDays(): int
+    {
+        $configured = (int) config('consultations.availability_window_days', 14);
+
+        return max(1, min($configured, 30));
+    }
+
+    private function minimumActionLeadHours(): int
+    {
+        $configured = (int) config('consultations.minimum_action_lead_hours', 2);
+
+        return max(1, min($configured, 72));
+    }
+
+    private function alignToSlot(Carbon $date, int $slotIntervalMinutes): Carbon
+    {
+        $aligned = $date->copy()->setSecond(0);
+        $remainder = $aligned->minute % $slotIntervalMinutes;
+
+        if ($remainder !== 0) {
+            $aligned->addMinutes($slotIntervalMinutes - $remainder);
+        }
+
+        if ($aligned->lt($date)) {
+            $aligned->addMinutes($slotIntervalMinutes);
+        }
+
+        return $aligned;
     }
 }

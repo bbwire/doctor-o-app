@@ -13,12 +13,10 @@ export const useApiHealth = () => {
     isCheckingApiHealth.value = true
 
     try {
+      const apiBase = config.public.apiBase as string
       await $fetch('/health', {
-        baseURL: config.public.apiBase,
-        headers: {
-          Accept: 'application/json'
-        },
-        retry: 0,
+        baseURL: apiBase,
+        headers: { Accept: 'application/json' },
         timeout: 4000
       })
 

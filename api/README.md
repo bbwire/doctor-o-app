@@ -9,11 +9,69 @@
 
 ## Doctor O API
 
-- API Contract: `docs/API_CONTRACT.md`
-- Base path: `/api/v1`
-- Auth: Laravel Sanctum bearer tokens
-- Run tests: `php artisan test`
-- Format code: `vendor/bin/pint`
+Laravel API for Dr. O. Base path: `/api/v1`. Auth: Laravel Sanctum bearer tokens.
+
+- **API contract:** `docs/API_CONTRACT.md`
+- **Run tests:** `php artisan test`
+- **Format code:** `vendor/bin/pint`
+
+### Environment
+
+Copy `.env.example` to `.env`, then:
+
+```bash
+php artisan key:generate
+```
+
+Important variables:
+
+| Variable | Description |
+|----------|-------------|
+| `APP_KEY` | Required; set via `php artisan key:generate` |
+| `APP_URL` | App URL (e.g. `http://localhost:8000`) |
+| `APP_FRONTEND_URL` | PWA origin for CORS (e.g. `http://localhost:3001`) |
+| `DB_CONNECTION` | `sqlite` (default), `mysql`, etc. |
+| `CONSULTATION_SLOT_INTERVAL_MINUTES` | Slot length for consultations (default `60`) |
+| `CONSULTATION_AVAILABILITY_WINDOW_DAYS` | Days ahead for availability (default `14`) |
+
+For SQLite (default), ensure `database/database.sqlite` exists or run:
+
+```bash
+touch database/database.sqlite
+php artisan migrate
+```
+
+### Seeders
+
+Seed the database (e.g. admin user for the admin app):
+
+```bash
+php artisan db:seed
+```
+
+Or run a single seeder:
+
+```bash
+php artisan db:seed --class=AdminUserSeeder
+```
+
+`AdminUserSeeder` creates an admin user: email `admin@dro.com`, password `2succeeD?`.
+
+### Running the API
+
+```bash
+php artisan serve
+```
+
+Serves at `http://localhost:8000` by default. Use `--host` and `--port` to change.
+
+### Tests
+
+```bash
+php artisan test
+```
+
+Feature and unit tests live in `tests/`. Use in-memory SQLite or `.env.testing` if you need a dedicated test environment.
 
 ## About Laravel
 

@@ -64,7 +64,15 @@
               <span class="font-medium">Reason:</span> {{ consultation.reason || 'No reason provided' }}
             </p>
 
-            <div class="mt-4">
+            <div class="mt-4 flex gap-2">
+              <UButton
+                v-if="consultation.status === 'scheduled'"
+                :to="`/consultations/${consultation.id}/room`"
+                size="sm"
+                icon="i-lucide-log-in"
+              >
+                Join
+              </UButton>
               <UButton
                 :to="`/consultations/${consultation.id}`"
                 size="sm"

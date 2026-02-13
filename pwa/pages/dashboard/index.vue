@@ -70,15 +70,23 @@
             </p>
           </div>
 
-          <UButton
-            v-if="summary.next_consultation"
-            :to="`/consultations/${summary.next_consultation.id}`"
-            size="sm"
-            variant="outline"
-            icon="i-lucide-arrow-right"
-          >
-            View
-          </UButton>
+          <div v-if="summary.next_consultation" class="flex gap-2">
+            <UButton
+              :to="`/consultations/${summary.next_consultation.id}/room`"
+              size="sm"
+              icon="i-lucide-log-in"
+            >
+              Join
+            </UButton>
+            <UButton
+              :to="`/consultations/${summary.next_consultation.id}`"
+              size="sm"
+              variant="outline"
+              icon="i-lucide-arrow-right"
+            >
+              View
+            </UButton>
+          </div>
         </div>
       </UCard>
 

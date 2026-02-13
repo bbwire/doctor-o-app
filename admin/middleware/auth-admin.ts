@@ -1,11 +1,12 @@
-export default defineNuxtRouteMiddleware((to, from) => {
-  const { user } = useAuth()
+export default defineNuxtRouteMiddleware(async () => {
+  const { user, restoreSession, clearAuth } = useAuth()
 
   if (!user.value) {
-    return navigateTo('/login')
+    await restoreSession()
   }
 
-  if (user.value.role !== 'admin') {
+  if (!user.value || user.value.role !== 'admin') {
+    clearAuth()
     return navigateTo('/login')
   }
 })

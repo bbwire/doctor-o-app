@@ -10,7 +10,7 @@
           Set a new password
         </h2>
         <p class="mt-2 text-center text-sm text-gray-600 dark:text-gray-300">
-          Enter your email and new password to complete reset.
+          Use the reset link from your email to set a new password.
         </p>
       </div>
 
@@ -24,10 +24,24 @@
               type="email"
               placeholder="you@example.com"
               size="lg"
+              :disabled="hasPrefilledEmail"
             />
           </UFormGroup>
 
-          <UFormGroup label="Reset token" name="token" required>
+          <div
+            v-if="hasPrefilledToken"
+            class="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300"
+          >
+            Reset link verified for <span class="font-semibold">{{ state.email || 'your account' }}</span>.
+          </div>
+
+          <UFormGroup
+            v-else
+            label="Reset token"
+            name="token"
+            required
+            help="Paste the token from your reset email if the link did not open this page automatically."
+          >
             <UInput
               v-model="state.token"
               placeholder="Paste token from email"
@@ -81,11 +95,14 @@ const config = useRuntimeConfig()
 const toast = useToast()
 const { isApiReachable, hasApiStatusChecked } = useApiHealth()
 
+const queryEmail = typeof route.query.email === 'string' ? route.query.email : ''
+const queryToken = typeof route.query.token === 'string' ? route.query.token : ''
+
 const loading = ref(false)
 const showPasswords = ref(false)
 const isApiOffline = computed(() => hasApiStatusChecked.value && !isApiReachable.value)
-const queryEmail = typeof route.query.email === 'string' ? route.query.email : ''
-const queryToken = typeof route.query.token === 'string' ? route.query.token : ''
+const hasPrefilledEmail = computed(() => !!queryEmail)
+const hasPrefilledToken = computed(() => !!queryToken)
 
 const state = reactive({
   email: queryEmail,

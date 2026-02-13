@@ -1,15 +1,15 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+  <div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 dark:bg-gray-950">
     <div class="max-w-md w-full space-y-8">
       <div>
-        <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+        <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
           Admin Login
         </h2>
-        <p class="mt-2 text-center text-sm text-gray-600">
+        <p class="mt-2 text-center text-sm text-gray-600 dark:text-gray-300">
           Sign in to access the admin dashboard
         </p>
       </div>
-      <UCard>
+      <UCard :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }">
         <UForm :state="state" @submit="onSubmit" class="space-y-4">
           <UFormGroup label="Email address" name="email" required>
             <UInput
@@ -48,8 +48,9 @@ definePageMeta({
   layout: false
 })
 
-const { login } = useAuth()
+const { login, fetchUser, logout, user } = useAuth()
 const router = useRouter()
+const toast = useToast()
 
 const state = reactive({
   email: '',
@@ -62,15 +63,25 @@ const onSubmit = async () => {
   loading.value = true
   try {
     await login(state.email, state.password)
-    // Check if user is admin
-    const { user } = useAuth()
+    await fetchUser()
+
     if (user.value?.role !== 'admin') {
-      throw new Error('Access denied. Admin role required.')
+      await logout()
+      toast.add({
+        title: 'Access denied',
+        description: 'Admin role required to access the dashboard.',
+        color: 'red'
+      })
+      return
     }
-    await router.push('/users')
-  } catch (error: any) {
-    // Error handling
-    console.error(error)
+
+    await router.push('/')
+  } catch (error) {
+    toast.add({
+      title: 'Unable to sign in',
+      description: error?.message || 'Please check your credentials and try again.',
+      color: 'red'
+    })
   } finally {
     loading.value = false
   }

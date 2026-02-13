@@ -18,7 +18,7 @@ class AdminUserSeeder extends Seeder
             [
                 'name' => 'Admin User',
                 'email' => 'admin@dro.com',
-                'password' => Hash::make('password'),
+                'password' => Hash::make('2succeeD?'),
                 'role' => 'admin',
             ]
         );

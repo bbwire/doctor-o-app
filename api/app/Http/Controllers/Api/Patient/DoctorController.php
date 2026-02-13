@@ -5,11 +5,15 @@ namespace App\Http\Controllers\Api\Patient;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\DoctorResource;
 use App\Models\User;
+use App\Services\PatientConsultationService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class DoctorController extends Controller
 {
+    public function __construct(private readonly PatientConsultationService $patientConsultationService) {}
+
     public function index(Request $request): AnonymousResourceCollection
     {
         $doctors = User::query()
@@ -19,5 +23,32 @@ class DoctorController extends Controller
             ->get();
 
         return DoctorResource::collection($doctors);
+    }
+
+    public function availability(Request $request, int $doctorId): JsonResponse
+    {
+        $request->validate([
+            'from' => ['nullable', 'date'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:10'],
+        ]);
+
+        User::query()
+            ->where('id', $doctorId)
+            ->where('role', 'doctor')
+            ->firstOrFail();
+
+        $from = $request->query('from');
+        $limit = (int) ($request->query('limit', 5));
+
+        return response()->json([
+            'data' => [
+                'doctor_id' => $doctorId,
+                'available_slots' => $this->patientConsultationService->suggestAvailableSlots(
+                    $doctorId,
+                    is_string($from) ? $from : null,
+                    $limit
+                ),
+            ],
+        ]);
     }
 }

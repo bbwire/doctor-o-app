@@ -1,31 +1,225 @@
 <template>
-  <UApp>
-    <UHeader>
-      <template #logo>
-        <NuxtLink to="/users" class="flex items-center space-x-2">
-          <span class="text-xl font-bold text-primary-600">Dr. O Admin</span>
+  <div class="min-h-screen flex bg-gray-50 dark:bg-gray-950">
+    <!-- Mobile overlay when sidebar open -->
+    <div
+      v-if="sidebarOpen"
+      class="fixed inset-0 z-20 bg-black/50 lg:hidden"
+      aria-hidden="true"
+      @click="sidebarOpen = false"
+    />
+
+    <!-- Sidebar -->
+    <aside
+      class="fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900/95 lg:static lg:z-auto lg:shadow-none"
+      :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
+    >
+      <div class="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 px-4 dark:border-gray-800">
+        <NuxtLink to="/" class="text-xl font-bold tracking-tight text-primary-600 dark:text-primary-400">
+          Dr. O Admin
         </NuxtLink>
-      </template>
+        <UButton
+          icon="i-lucide-x"
+          variant="ghost"
+          size="sm"
+          class="lg:hidden"
+          @click="sidebarOpen = false"
+        />
+      </div>
 
-      <template #right>
-        <UDropdown :items="userMenuItems">
-          <UAvatar
-            :alt="user?.name || 'Admin'"
+      <nav class="flex-1 overflow-y-auto px-3 py-4">
+        <ul class="space-y-1">
+          <li>
+            <NuxtLink
+              to="/"
+              class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
+              :class="isActive('/') ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/25 dark:text-primary-300 border-l-2 border-primary-500 -ml-px pl-[11px]' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'"
+              @click="sidebarOpen = false"
+            >
+              <UIcon name="i-lucide-layout-dashboard" class="h-4 w-4 shrink-0" />
+              Dashboard
+            </NuxtLink>
+          </li>
+          <li>
+            <NuxtLink
+              to="/institutions"
+              class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
+              :class="isActive('/institutions') ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/25 dark:text-primary-300 border-l-2 border-primary-500 -ml-px pl-[11px]' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'"
+              @click="sidebarOpen = false"
+            >
+              <UIcon name="i-lucide-building-2" class="h-4 w-4 shrink-0" />
+              Institutions
+            </NuxtLink>
+          </li>
+          <li>
+            <NuxtLink
+              to="/healthcare-professionals"
+              class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
+              :class="isActive('/healthcare-professionals') ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/25 dark:text-primary-300 border-l-2 border-primary-500 -ml-px pl-[11px]' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'"
+              @click="sidebarOpen = false"
+            >
+              <UIcon name="i-lucide-stethoscope" class="h-4 w-4 shrink-0" />
+              Professionals
+            </NuxtLink>
+          </li>
+          <li>
+            <NuxtLink
+              to="/consultations"
+              class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
+              :class="isActive('/consultations') ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/25 dark:text-primary-300 border-l-2 border-primary-500 -ml-px pl-[11px]' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'"
+              @click="sidebarOpen = false"
+            >
+              <UIcon name="i-lucide-calendar" class="h-4 w-4 shrink-0" />
+              Consultations
+            </NuxtLink>
+          </li>
+          <li>
+            <NuxtLink
+              to="/prescriptions"
+              class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
+              :class="isActive('/prescriptions') ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/25 dark:text-primary-300 border-l-2 border-primary-500 -ml-px pl-[11px]' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'"
+              @click="sidebarOpen = false"
+            >
+              <UIcon name="i-lucide-file-text" class="h-4 w-4 shrink-0" />
+              Prescriptions
+            </NuxtLink>
+          </li>
+          <li>
+            <NuxtLink
+              to="/notifications"
+              class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
+              :class="isActive('/notifications') ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/25 dark:text-primary-300 border-l-2 border-primary-500 -ml-px pl-[11px]' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'"
+              @click="sidebarOpen = false"
+            >
+              <UIcon name="i-lucide-bell" class="h-4 w-4 shrink-0" />
+              Notifications
+            </NuxtLink>
+          </li>
+          <li>
+            <NuxtLink
+              to="/users"
+              class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
+              :class="isActive('/users') ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/25 dark:text-primary-300 border-l-2 border-primary-500 -ml-px pl-[11px]' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'"
+              @click="sidebarOpen = false"
+            >
+              <UIcon name="i-lucide-users" class="h-4 w-4 shrink-0" />
+              Users
+            </NuxtLink>
+          </li>
+          <li>
+            <NuxtLink
+              to="/settings"
+              class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
+              :class="isActive('/settings') ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/25 dark:text-primary-300 border-l-2 border-primary-500 -ml-px pl-[11px]' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'"
+              @click="sidebarOpen = false"
+            >
+              <UIcon name="i-lucide-settings" class="h-4 w-4 shrink-0" />
+              Settings
+            </NuxtLink>
+          </li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Main content -->
+    <div class="flex min-w-0 flex-1 flex-col">
+      <header class="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 dark:border-gray-800 dark:bg-gray-900 lg:px-6">
+        <div class="flex items-center gap-3">
+          <UButton
+            icon="i-lucide-menu"
+            variant="ghost"
             size="sm"
+            class="lg:hidden"
+            @click="sidebarOpen = true"
           />
-        </UDropdown>
-      </template>
-    </UHeader>
+          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+            {{ currentPageTitle }}
+          </span>
+        </div>
+        <div class="flex items-center gap-3">
+          <UDropdown :items="notificationMenuItems" :popper="{ placement: 'bottom-end' }">
+            <UButton
+              icon="i-lucide-bell"
+              variant="ghost"
+              size="sm"
+              color="neutral"
+              aria-label="Notifications"
+            />
+          </UDropdown>
+          <UButton
+            :icon="isDark ? 'i-lucide-sun-medium' : 'i-lucide-moon-star'"
+            variant="ghost"
+            size="sm"
+            color="neutral"
+            aria-label="Toggle theme"
+            @click="toggleTheme"
+          />
+          <UDropdown :items="userMenuItems">
+            <UAvatar :alt="user?.name || 'Admin'" size="sm" class="cursor-pointer" />
+          </UDropdown>
+        </div>
+      </header>
 
-    <UMain>
-      <slot />
-    </UMain>
-  </UApp>
+      <main class="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <div class="mx-auto max-w-7xl">
+          <slot />
+        </div>
+      </main>
+    </div>
+  </div>
 </template>
 
-<script setup>
-const { user, logout } = useAuth()
+<script setup lang="ts">
+const { user, logout, clearAuth } = useAuth()
 const router = useRouter()
+const toast = useToast()
+const route = useRoute()
+const theme = useState('theme')
+const isDark = computed(() => theme.value === 'dark')
+const sidebarOpen = ref(false)
+
+function isActive (path) {
+  const p = route.path
+  if (path === '/') return p === '/'
+  return p === path || p.startsWith(path + '/')
+}
+
+const currentPageTitle = computed(() => {
+  const path = route.path
+  if (path === '/') return 'Dashboard'
+  if (path.startsWith('/users')) return 'Users'
+  if (path.startsWith('/institutions')) return 'Institutions'
+  if (path.startsWith('/healthcare-professionals')) return 'Professionals'
+  if (path.startsWith('/consultations')) return 'Consultations'
+  if (path.startsWith('/prescriptions')) return 'Prescriptions'
+  if (path.startsWith('/notifications')) return 'Notifications'
+  if (path.startsWith('/settings')) return 'Settings'
+  return 'Admin'
+})
+
+const toggleTheme = () => {
+  theme.value = isDark.value ? 'light' : 'dark'
+}
+
+const recentNotifications = useState<Array<{ id: number; title: string; body?: string; read_at?: string; created_at?: string }>>('layout.recentNotifications', () => [])
+const { get } = useAdminApi()
+
+const notificationMenuItems = computed(() => {
+  const list = recentNotifications.value || []
+  const items = list.length
+    ? list.slice(0, 5).map(n => ({ label: n.title, icon: 'i-lucide-bell', to: '/notifications' }))
+    : [{ label: 'No notifications', icon: 'i-lucide-bell-off', to: '/notifications' }]
+  return [items, [{ label: 'View all', icon: 'i-lucide-list', to: '/notifications' }]]
+})
+
+onMounted(async () => {
+  try {
+    const res = await get('notifications', { query: { per_page: '5' } })
+    const data = (res as { data?: unknown[] })?.data ?? []
+    recentNotifications.value = Array.isArray(data) ? data : []
+  } catch (_) {
+    recentNotifications.value = []
+  }
+})
 
 const userMenuItems = [
   [{
@@ -42,4 +236,28 @@ const userMenuItems = [
     }
   }]
 ]
+
+// Idle timeout: after 30 min inactivity, clear session and redirect to login
+let stopIdle = null
+watch(user, (u) => {
+  if (stopIdle) {
+    stopIdle()
+    stopIdle = null
+  }
+  if (u) {
+    const { start } = useIdleTimeout({
+      timeoutMs: 30 * 60 * 1000,
+      onIdle: () => {
+        clearAuth()
+        toast.add({ title: 'Session expired', description: 'Please sign in again.', color: 'amber' })
+        navigateTo('/login')
+      }
+    })
+    stopIdle = start()
+  }
+}, { immediate: true })
+
+onUnmounted(() => {
+  if (stopIdle) stopIdle()
+})
 </script>

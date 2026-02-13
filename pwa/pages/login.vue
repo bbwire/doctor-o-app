@@ -65,7 +65,7 @@ definePageMeta({
   layout: false
 })
 
-const { login } = useAuth()
+const { login, fetchUser, user } = useAuth()
 const router = useRouter()
 const toast = useToast()
 const { isApiReachable, hasApiStatusChecked } = useApiHealth()
@@ -92,7 +92,13 @@ const onSubmit = async () => {
   loading.value = true
   try {
     await login(state.email, state.password)
-    await router.push('/dashboard')
+    await fetchUser()
+
+    if (user.value?.role === 'doctor') {
+      await router.push('/doctor/dashboard')
+    } else {
+      await router.push('/dashboard')
+    }
   } catch (error) {
     toast.add({
       title: 'Unable to sign in',

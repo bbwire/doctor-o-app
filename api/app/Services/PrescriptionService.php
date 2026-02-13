@@ -44,7 +44,17 @@ class PrescriptionService
     {
         $this->validateParticipantsForConsultation($validated);
 
-        return Prescription::create($validated)->load(['consultation', 'patient', 'doctor']);
+        $prescription = Prescription::create($validated)->load(['consultation', 'patient', 'doctor']);
+
+        app(NotificationService::class)->createForUser(
+            (int) $prescription->patient_id,
+            'prescription_issued',
+            'Prescription ready',
+            'A new prescription has been issued for you.',
+            ['prescription_id' => $prescription->id]
+        );
+
+        return $prescription;
     }
 
     /**

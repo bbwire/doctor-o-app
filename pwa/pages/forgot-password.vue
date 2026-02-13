@@ -10,7 +10,7 @@
           Reset your password
         </h2>
         <p class="mt-2 text-center text-sm text-gray-600 dark:text-gray-300">
-          Enter your email and we will send reset instructions.
+          Enter your email and we will send a link to open the reset page and choose a new password.
         </p>
       </div>
 

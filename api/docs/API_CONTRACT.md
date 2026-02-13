@@ -244,6 +244,7 @@ All routes below require `auth:sanctum` and patient role.
 ### Doctors Directory
 
 - `GET /doctors`
+- `GET /doctors/{doctorId}/availability`
 
 Response `200`:
 - Paginated collection format is not used here (simple `data` collection).
@@ -253,6 +254,27 @@ Response `200`:
   - `email`
   - `speciality` (nullable)
   - `institution` (nullable)
+
+Doctor availability response `200`:
+
+```json
+{
+  "data": {
+    "doctor_id": 12,
+    "available_slots": [
+      "2026-02-21T10:00:00.000000Z",
+      "2026-02-21T11:00:00.000000Z",
+      "2026-02-21T12:00:00.000000Z"
+    ]
+  }
+}
+```
+
+Availability behavior:
+- Slot suggestions are generated using configurable interval minutes.
+- Defaults:
+  - `CONSULTATION_SLOT_INTERVAL_MINUTES=60`
+  - `CONSULTATION_AVAILABILITY_WINDOW_DAYS=14`
 
 ### Dashboard (Patient)
 
@@ -311,6 +333,7 @@ Booking rules:
 - A doctor cannot have two `scheduled` consultations at the exact same `scheduled_at` time.
 - Patients can only cancel/reschedule consultations that are currently `scheduled`.
 - Patients can only cancel/reschedule at least 2 hours before consultation start time.
+- Minimum lead-time is configurable via `CONSULTATION_MIN_ACTION_LEAD_HOURS` (default `2`).
 
 Reschedule payload:
 

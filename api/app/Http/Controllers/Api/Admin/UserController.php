@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ListUsersRequest;
+use App\Http\Requests\Admin\StoreUserRequest;
 use App\Http\Requests\Admin\UpdateUserRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
@@ -23,6 +24,18 @@ class UserController extends Controller
         $users = $this->adminUserService->paginate($request->validated());
 
         return UserResource::collection($users);
+    }
+
+    /**
+     * Store a newly created user
+     */
+    public function store(StoreUserRequest $request): JsonResponse
+    {
+        $user = $this->adminUserService->create($request->validated());
+
+        return (new UserResource($user))
+            ->response()
+            ->setStatusCode(201);
     }
 
     /**
