@@ -36,7 +36,7 @@
         @select="goToDetail"
       >
         <template #scheduled_at-data="{ row }">
-          {{ formatDate(row.scheduled_at) }}
+          {{ formatDateTime(row.scheduled_at) }}
         </template>
         <template #patient-data="{ row }">
           {{ row.patient?.name || `Patient #${row.patient_id}` }}
@@ -62,6 +62,7 @@ definePageMeta({
 const config = useRuntimeConfig()
 const { token } = useAuth()
 const router = useRouter()
+const { formatDateTime } = useDateFormat()
 
 const status = ref<string | null>(null)
 const statusOptions = [
@@ -84,8 +85,6 @@ const columns = [
   { key: 'consultation_type', label: 'Type' },
   { key: 'status', label: 'Status' }
 ]
-
-const formatDate = (value: string) => value ? new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '–'
 
 watch([page, status], () => {
   fetchConsultations()

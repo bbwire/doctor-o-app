@@ -1,11 +1,50 @@
 <template>
-  <div class="space-y-6">
+  <div class="space-y-4">
     <div>
       <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Profile</h1>
       <p class="text-gray-600 dark:text-gray-300">Manage your account details and profile picture</p>
     </div>
 
-    <section>
+    <!-- Tabs -->
+    <div class="border-b border-gray-200 dark:border-gray-800">
+      <nav class="-mb-px flex gap-4 text-sm">
+        <button
+          type="button"
+          class="pb-2 border-b-2 transition-colors"
+          :class="activeProfileTab === 'account'
+            ? 'border-primary-500 text-primary-600 dark:text-primary-300'
+            : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'"
+          @click="activeProfileTab = 'account'"
+        >
+          Account
+        </button>
+
+        <button
+          v-if="user?.role === 'doctor'"
+          type="button"
+          class="pb-2 border-b-2 transition-colors"
+          :class="activeProfileTab === 'academic'
+            ? 'border-primary-500 text-primary-600 dark:text-primary-300'
+            : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'"
+          @click="activeProfileTab = 'academic'"
+        >
+          Academic documents
+        </button>
+
+        <button
+          type="button"
+          class="pb-2 border-b-2 transition-colors"
+          :class="activeProfileTab === 'dependants'
+            ? 'border-primary-500 text-primary-600 dark:text-primary-300'
+            : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'"
+          @click="activeProfileTab = 'dependants'"
+        >
+          Dependants
+        </button>
+      </nav>
+    </div>
+
+    <section v-if="activeProfileTab === 'account'">
       <UCard :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }">
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-6 border-b border-gray-200 dark:border-gray-800">
           <div class="flex items-center gap-4">
@@ -102,6 +141,198 @@
         </UForm>
       </UCard>
     </section>
+
+    <section v-if="user?.role === 'doctor' && activeProfileTab === 'academic'">
+      <UCard :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }">
+        <div class="mb-4">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Academic documents</h2>
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            Upload the required academic and professional documents for verification.
+          </p>
+        </div>
+
+        <input
+          ref="academicInput"
+          type="file"
+          class="hidden"
+          accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,application/pdf"
+          @change="onAcademicSelected"
+        >
+
+        <UAlert
+          v-if="academicError"
+          icon="i-lucide-alert-triangle"
+          color="red"
+          variant="soft"
+          :title="academicError"
+          class="mb-3"
+        />
+
+        <div class="space-y-3">
+          <div
+            v-for="docType in academicRequiredTypes"
+            :key="docType.key"
+            class="flex items-center justify-between rounded-lg border border-gray-200 dark:border-gray-800 px-3 py-2"
+          >
+            <div class="flex items-center gap-3 min-w-0">
+              <UIcon :name="docType.icon" class="w-5 h-5 text-primary-500 shrink-0" />
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-gray-900 dark:text-white">
+                  {{ docType.label }}
+                </p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                  {{ docType.help }}
+                </p>
+                <div v-if="docType.current" class="mt-1">
+                  <a
+                    :href="docType.current.url"
+                    target="_blank"
+                    rel="noopener"
+                    class="inline-flex items-center text-xs text-primary-600 dark:text-primary-300 hover:underline"
+                  >
+                    {{ docType.current.name }}
+                  </a>
+                  <span class="ml-2 text-[11px] text-gray-500 dark:text-gray-400">
+                    ({{ formatAcademicMeta(docType.current) }})
+                  </span>
+                </div>
+                <p v-else class="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                  Not uploaded yet
+                </p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <UButton
+                size="xs"
+                color="primary"
+                variant="soft"
+                icon="i-lucide-upload-cloud"
+                :loading="uploadingAcademic && activeAcademicType === docType.key"
+                :disabled="isApiOffline"
+                @click="openAcademicPicker(docType.key)"
+              >
+                {{ docType.current ? 'Replace' : 'Upload' }}
+              </UButton>
+              <UButton
+                v-if="docType.current"
+                icon="i-lucide-trash-2"
+                color="red"
+                variant="ghost"
+                size="xs"
+                :loading="removingAcademicId === docType.current.id"
+                @click="removeAcademic(docType.current.id)"
+              />
+            </div>
+          </div>
+        </div>
+      </UCard>
+    </section>
+
+    <section v-if="activeProfileTab === 'dependants'">
+      <UCard :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Dependants</h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              Manage dependants under 18 years linked to your account.
+            </p>
+          </div>
+          <UButton
+            size="sm"
+            icon="i-lucide-plus"
+            :disabled="isApiOffline"
+            @click="showAddDependant = true"
+          >
+            Add dependant
+          </UButton>
+        </div>
+
+        <div v-if="dependants.length" class="space-y-2">
+          <div
+            v-for="d in dependants"
+            :key="d.id"
+            class="flex items-center justify-between rounded-lg border border-gray-200 dark:border-gray-800 px-3 py-2"
+          >
+            <div>
+              <p class="font-medium text-gray-900 dark:text-white">
+                {{ d.name }}
+                <span v-if="d.relationship" class="text-xs text-gray-500 dark:text-gray-400">
+                  ({{ d.relationship }})
+                </span>
+              </p>
+              <p class="text-xs text-gray-500 dark:text-gray-400">
+                Date of birth: {{ formatDob(d.date_of_birth) }} • Age: {{ d.age }}
+              </p>
+            </div>
+            <UButton
+              icon="i-lucide-trash-2"
+              color="red"
+              variant="ghost"
+              size="xs"
+              :loading="removingDependantId === d.id"
+              @click="removeDependant(d.id)"
+            />
+          </div>
+        </div>
+        <p v-else class="text-sm text-gray-500 dark:text-gray-400">
+          You have not added any dependants yet.
+        </p>
+
+        <UModal v-model="showAddDependant">
+          <UCard
+            :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }"
+            class="max-w-md mx-auto"
+          >
+            <template #header>
+              <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                Add dependant
+              </h3>
+            </template>
+
+            <UForm :state="newDependant" class="space-y-4" @submit="onAddDependant">
+              <UFormGroup label="Full name" name="name" required>
+                <UInput v-model="newDependant.name" />
+              </UFormGroup>
+
+              <UFormGroup label="Date of birth" name="date_of_birth" required>
+                <UInput v-model="newDependant.date_of_birth" type="date" />
+              </UFormGroup>
+
+              <UFormGroup label="Relationship" name="relationship">
+                <UInput v-model="newDependant.relationship" placeholder="e.g. Child, Sibling" />
+              </UFormGroup>
+
+              <UAlert
+                v-if="dependantErrorMessage"
+                icon="i-lucide-alert-triangle"
+                color="red"
+                variant="soft"
+                :title="dependantErrorMessage"
+              />
+
+              <div class="flex justify-end gap-2">
+                <UButton
+                  type="button"
+                  color="gray"
+                  variant="ghost"
+                  :disabled="creatingDependant"
+                  @click="closeDependantModal"
+                >
+                  Cancel
+                </UButton>
+                <UButton
+                  type="submit"
+                  :loading="creatingDependant"
+                  :disabled="isApiOffline"
+                >
+                  Save
+                </UButton>
+              </div>
+            </UForm>
+          </UCard>
+        </UModal>
+      </UCard>
+    </section>
   </div>
 </template>
 
@@ -155,6 +386,104 @@ const state = reactive({
   phone: '',
   date_of_birth: '',
   preferred_language: ''
+})
+
+const activeProfileTab = ref<'account' | 'academic' | 'dependants'>('account')
+
+type AcademicDocument = {
+  id: number
+  type?: string | null
+  name: string
+  url: string
+  mime_type?: string | null
+  size?: number | null
+  uploaded_at?: string | null
+}
+
+type Dependant = {
+  id: number
+  name: string
+  date_of_birth: string
+  relationship?: string | null
+  age: number
+}
+
+const dependants = ref<Dependant[]>([])
+const showAddDependant = ref(false)
+const creatingDependant = ref(false)
+const dependantErrorMessage = ref('')
+const removingDependantId = ref<number | null>(null)
+
+const newDependant = reactive({
+  name: '',
+  date_of_birth: '',
+  relationship: ''
+})
+
+const academicDocuments = ref<AcademicDocument[]>([])
+const academicInput = ref<HTMLInputElement | null>(null)
+const uploadingAcademic = ref(false)
+const academicError = ref('')
+const removingAcademicId = ref<number | null>(null)
+const activeAcademicType = ref<string | null>(null)
+
+const academicRequiredTypes = computed(() => {
+  const byType = new Map<string, AcademicDocument>()
+  for (const doc of academicDocuments.value) {
+    if (doc.type && !byType.has(doc.type)) {
+      byType.set(doc.type, doc)
+    }
+  }
+
+  const items = [
+    {
+      key: 'o_level',
+      label: 'O level certificate',
+      help: 'Upload your O level certificate.',
+      icon: 'i-lucide-file-text'
+    },
+    {
+      key: 'a_level',
+      label: 'A level certificate',
+      help: 'Upload your A level certificate.',
+      icon: 'i-lucide-file-text'
+    },
+    {
+      key: 'bachelors',
+      label: "Bachelor's degree",
+      help: "Upload your bachelor's degree certificate.",
+      icon: 'i-lucide-graduation-cap'
+    },
+    {
+      key: 'masters_or_fellowship',
+      label: 'Masters / fellowship',
+      help: 'For specialists, upload your masters or fellowship certificate.',
+      icon: 'i-lucide-award'
+    },
+    {
+      key: 'medical_council_registration',
+      label: 'Medical council registration',
+      help: 'Upload your registration certificate with the medical council.',
+      icon: 'i-lucide-id-card'
+    },
+    {
+      key: 'annual_practicing_license',
+      label: 'Annual practicing license',
+      help: 'Upload your current annual practicing license.',
+      icon: 'i-lucide-badge-check'
+    },
+    {
+      key: 'cv',
+      label: 'Curriculum Vitae (CV)',
+      help: 'Upload your most recent CV.',
+      icon: 'i-lucide-file-pen'
+    }
+  ]
+
+  return items.map(item => ({
+    ...item,
+    current: byType.get(item.key) || null
+  }))
 })
 
 type UserProfileResponse = {
@@ -257,6 +586,91 @@ const hasUnsavedChanges = computed(() => {
   return profileFieldsChanged || photoChanged
 })
 
+const formatAcademicMeta = (doc: AcademicDocument) => {
+  const parts: string[] = []
+  if (doc.size != null) {
+    const kb = doc.size / 1024
+    const sizeLabel = kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(kb))} KB`
+    parts.push(sizeLabel)
+  }
+  if (doc.uploaded_at) {
+    try {
+      const d = new Date(doc.uploaded_at)
+      const dd = String(d.getDate()).padStart(2, '0')
+      const mm = String(d.getMonth() + 1).padStart(2, '0')
+      const yyyy = d.getFullYear()
+      parts.push(`Uploaded ${dd}-${mm}-${yyyy}`)
+    } catch {
+      // ignore formatting error
+    }
+  }
+  return parts.join(' • ')
+}
+
+const formatDob = (value: string) => {
+  if (!value) return '—'
+  try {
+    const [year, month, day] = value.split('-').map(Number)
+    if (!year || !month || !day) return value
+    const dd = String(day).padStart(2, '0')
+    const mm = String(month).padStart(2, '0')
+    return `${dd}-${mm}-${year}`
+  } catch {
+    return value
+  }
+}
+
+const computeAge = (value: string) => {
+  if (!value) return 0
+  const dob = new Date(value)
+  if (Number.isNaN(dob.getTime())) return 0
+  const today = new Date()
+  let age = today.getFullYear() - dob.getFullYear()
+  const m = today.getMonth() - dob.getMonth()
+  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+    age--
+  }
+  return age
+}
+
+const hydrateDependants = async () => {
+  try {
+    const response = await $fetch<{ data?: Array<{ id: number; name: string; date_of_birth: string; relationship?: string | null }> }>('/dependants', {
+      baseURL: config.public.apiBase,
+      headers: {
+        Authorization: `Bearer ${tokenCookie.value || ''}`,
+        Accept: 'application/json'
+      }
+    })
+    const items = response?.data || []
+    dependants.value = items.map(d => ({
+      id: d.id,
+      name: d.name,
+      date_of_birth: d.date_of_birth,
+      relationship: d.relationship ?? null,
+      age: computeAge(d.date_of_birth)
+    }))
+  } catch {
+    // silently ignore for now
+  }
+}
+
+const hydrateAcademicDocuments = async () => {
+  if (user.value?.role !== 'doctor') return
+  try {
+    const response = await $fetch<{ data?: Array<AcademicDocument> }>('/doctor/academic-documents', {
+      baseURL: config.public.apiBase,
+      headers: {
+        Authorization: `Bearer ${tokenCookie.value || ''}`,
+        Accept: 'application/json'
+      }
+    })
+    academicDocuments.value = response?.data || []
+  } catch {
+    // ignore initial load errors
+  }
+}
+
 const onCancelChanges = () => {
   errorMessage.value = ''
   revokePreviewUrl()
@@ -270,6 +684,209 @@ const onCancelChanges = () => {
   state.date_of_birth = initialProfile.value.date_of_birth
   state.preferred_language = initialProfile.value.preferred_language
   avatarPreview.value = initialProfile.value.profile_photo_url
+}
+
+const openAcademicPicker = (type: string | null = null) => {
+  academicError.value = ''
+  activeAcademicType.value = type
+  academicInput.value?.click()
+}
+
+const onAcademicSelected = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  target.value = ''
+
+  const maxBytes = 10 * 1024 * 1024
+  if (file.size > maxBytes) {
+    academicError.value = 'Document must be 10MB or less.'
+    return
+  }
+
+  if (isApiOffline.value) {
+    academicError.value = 'API is currently unreachable. Please retry when connection is restored.'
+    return
+  }
+
+  uploadingAcademic.value = true
+  academicError.value = ''
+
+  try {
+    const formData = new FormData()
+    if (activeAcademicType.value) {
+      formData.append('type', activeAcademicType.value)
+    }
+    formData.append('file', file)
+
+    const response = await $fetch<{ data?: AcademicDocument }>('/doctor/academic-documents', {
+      method: 'POST',
+      baseURL: config.public.apiBase,
+      headers: {
+        Authorization: `Bearer ${tokenCookie.value || ''}`,
+        Accept: 'application/json'
+      },
+      body: formData
+    })
+
+    if (response.data) {
+      academicDocuments.value = [response.data, ...academicDocuments.value]
+    }
+
+    toast.add({
+      title: 'Document uploaded',
+      description: 'Your academic document was uploaded successfully.',
+      color: 'green'
+    })
+  } catch (error) {
+    const err = error as { data?: { message?: string; errors?: Record<string, string[]> } }
+    const firstValidationMessage = err?.data?.errors
+      ? Object.values(err.data.errors)[0]?.[0]
+      : null
+
+    academicError.value = firstValidationMessage || err?.data?.message || 'Unable to upload document.'
+  } finally {
+    uploadingAcademic.value = false
+    activeAcademicType.value = null
+  }
+}
+
+const removeAcademic = async (id: number) => {
+  if (isApiOffline.value || removingAcademicId.value !== null) return
+  removingAcademicId.value = id
+
+  try {
+    await $fetch(`/doctor/academic-documents/${id}`, {
+      method: 'DELETE',
+      baseURL: config.public.apiBase,
+      headers: {
+        Authorization: `Bearer ${tokenCookie.value || ''}`,
+        Accept: 'application/json'
+      }
+    })
+
+    academicDocuments.value = academicDocuments.value.filter(doc => doc.id !== id)
+    toast.add({
+      title: 'Document removed',
+      description: 'The academic document has been deleted.',
+      color: 'green'
+    })
+  } catch (error) {
+    const err = error as { data?: { message?: string } }
+    toast.add({
+      title: 'Unable to remove document',
+      description: err?.data?.message || 'Please try again.',
+      color: 'red'
+    })
+  } finally {
+    removingAcademicId.value = null
+  }
+}
+
+const closeDependantModal = () => {
+  dependantErrorMessage.value = ''
+  newDependant.name = ''
+  newDependant.date_of_birth = ''
+  newDependant.relationship = ''
+  showAddDependant.value = false
+}
+
+const onAddDependant = async () => {
+  if (!newDependant.name.trim() || !newDependant.date_of_birth) {
+    dependantErrorMessage.value = 'Name and date of birth are required.'
+    return
+  }
+
+  const age = computeAge(newDependant.date_of_birth)
+  if (age >= 18) {
+    dependantErrorMessage.value = 'Dependants must be below 18 years old.'
+    return
+  }
+
+  if (isApiOffline.value) {
+    dependantErrorMessage.value = 'API is currently unreachable. Please retry when connection is restored.'
+    return
+  }
+
+  creatingDependant.value = true
+  dependantErrorMessage.value = ''
+
+  try {
+    const response = await $fetch<{ data?: { id: number; name: string; date_of_birth: string; relationship?: string | null } }>('/dependants', {
+      method: 'POST',
+      baseURL: config.public.apiBase,
+      headers: {
+        Authorization: `Bearer ${tokenCookie.value || ''}`,
+        Accept: 'application/json'
+      },
+      body: {
+        name: newDependant.name,
+        date_of_birth: newDependant.date_of_birth,
+        relationship: newDependant.relationship || null
+      }
+    })
+
+    const d = response?.data
+    if (d) {
+      dependants.value.push({
+        id: d.id,
+        name: d.name,
+        date_of_birth: d.date_of_birth,
+        relationship: d.relationship ?? null,
+        age: computeAge(d.date_of_birth)
+      })
+    }
+
+    closeDependantModal()
+
+    toast.add({
+      title: 'Dependant added',
+      description: 'Dependant was added to your account.',
+      color: 'green'
+    })
+  } catch (error) {
+    const err = error as { data?: { message?: string; errors?: Record<string, string[]> } }
+    const firstValidationMessage = err?.data?.errors
+      ? Object.values(err.data.errors)[0]?.[0]
+      : null
+
+    dependantErrorMessage.value = firstValidationMessage || err?.data?.message || 'Unable to add dependant.'
+  } finally {
+    creatingDependant.value = false
+  }
+}
+
+const removeDependant = async (id: number) => {
+  if (isApiOffline.value || removingDependantId.value !== null) return
+  removingDependantId.value = id
+
+  try {
+    await $fetch(`/dependants/${id}`, {
+      method: 'DELETE',
+      baseURL: config.public.apiBase,
+      headers: {
+        Authorization: `Bearer ${tokenCookie.value || ''}`,
+        Accept: 'application/json'
+      }
+    })
+
+    dependants.value = dependants.value.filter(d => d.id !== id)
+    toast.add({
+      title: 'Dependant removed',
+      description: 'Dependant has been removed from your account.',
+      color: 'green'
+    })
+  } catch (error) {
+    const err = error as { data?: { message?: string } }
+    toast.add({
+      title: 'Unable to remove dependant',
+      description: err?.data?.message || 'Please try again.',
+      color: 'red'
+    })
+  } finally {
+    removingDependantId.value = null
+  }
 }
 
 const onSubmit = async () => {
@@ -346,6 +963,11 @@ const onSubmit = async () => {
 
 onBeforeUnmount(() => {
   revokePreviewUrl()
+})
+
+onMounted(async () => {
+  await hydrateDependants()
+  await hydrateAcademicDocuments()
 })
 </script>
 

@@ -65,7 +65,7 @@
             </p>
             <div v-else class="mt-1">
               <p class="text-sm text-gray-700 dark:text-gray-300">
-                {{ formatDate(summary.next_consultation.scheduled_at) }}
+                {{ formatDateTime(summary.next_consultation.scheduled_at) }}
               </p>
               <p class="text-sm text-gray-600 dark:text-gray-400 capitalize">
                 {{ summary.next_consultation.consultation_type }} with
@@ -96,7 +96,7 @@
           @select="goToDetail"
         >
           <template #scheduled_at-data="{ row }">
-            {{ formatDate(row.scheduled_at) }}
+          {{ formatDateTime(row.scheduled_at) }}
           </template>
           <template #patient-data="{ row }">
             {{ row.patient?.name || `Patient #${row.patient_id}` }}
@@ -131,6 +131,7 @@ definePageMeta({
 })
 
 const config = useRuntimeConfig()
+const { formatDateTime } = useDateFormat()
 const { user, token } = useAuth()
 const router = useRouter()
 const tokenCookie = useCookie('auth_token')
@@ -151,8 +152,6 @@ const columns = [
   { key: 'consultation_type', label: 'Type' },
   { key: 'status', label: 'Status' }
 ]
-
-const formatDate = (value: string) => value ? new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '–'
 
 function goToDetail (row: any) {
   if (row?.id) {

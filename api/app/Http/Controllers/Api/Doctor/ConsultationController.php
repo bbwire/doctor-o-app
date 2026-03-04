@@ -30,7 +30,11 @@ class ConsultationController extends Controller
 
     public function show(Request $request, Consultation $consultation)
     {
-        abort_unless($consultation->doctor_id === $request->user()->id, 403);
+        abort_unless(
+            (int) $consultation->doctor_id === (int) $request->user()->id,
+            403,
+            'You do not have access to this consultation.'
+        );
 
         $consultation->load(['patient', 'prescriptions']);
 
@@ -39,7 +43,11 @@ class ConsultationController extends Controller
 
     public function update(Request $request, Consultation $consultation): JsonResponse
     {
-        abort_unless($consultation->doctor_id === $request->user()->id, 403);
+        abort_unless(
+            (int) $consultation->doctor_id === (int) $request->user()->id,
+            403,
+            'You do not have access to this consultation.'
+        );
 
         $validated = $request->validate([
             'status' => ['sometimes', Rule::in(['scheduled', 'completed', 'cancelled'])],

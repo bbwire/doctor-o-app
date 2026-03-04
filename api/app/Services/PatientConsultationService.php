@@ -47,6 +47,19 @@ class PatientConsultationService
             ]);
         }
 
+        $type = $validated['consultation_type'];
+        $pricing = config('consultations.pricing', []);
+        $amount = (float) ($pricing[$type] ?? 0);
+
+        if ($amount > 0) {
+            $currentBalance = (float) ($patient->wallet_balance ?? 0);
+            if ($currentBalance < $amount) {
+                throw ValidationException::withMessages([
+                    'wallet' => ['You do not have enough credit for this consultation.'],
+                ]);
+            }
+        }
+
         $consultation = Consultation::create([
             'patient_id' => $patient->id,
             'doctor_id' => $validated['doctor_id'],
@@ -56,6 +69,10 @@ class PatientConsultationService
             'reason' => $validated['reason'],
             'notes' => $validated['notes'] ?? null,
         ])->load(['doctor.healthcareProfessional.institution', 'patient']);
+
+        if ($amount > 0) {
+            app(WalletService::class)->chargeForConsultation($patient, $consultation, $amount);
+        }
 
         $notificationService = app(NotificationService::class);
         $notificationService->createForUser(

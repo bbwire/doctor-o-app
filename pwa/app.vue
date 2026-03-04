@@ -1,11 +1,13 @@
 <template>
   <div>
+    <VitePwaManifest />
     <ApiStatusBanner />
     <UNotifications />
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>
     <UModals />
+    <PwaInstallPrompt />
   </div>
 </template>
 
@@ -31,14 +33,15 @@ watch(theme, (value) => {
 
 useHead({
   meta: [
-    { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
+    { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content' },
     { name: 'theme-color', content: '#0f172a' },
     { name: 'apple-mobile-web-app-capable', content: 'yes' },
     { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
     { name: 'mobile-web-app-capable', content: 'yes' }
   ],
   link: [
-    { rel: 'icon', href: '/favicon.ico' }
+    { rel: 'icon', href: '/favicon.ico' },
+    { rel: 'apple-touch-icon', href: '/icon.svg' }
   ],
   htmlAttrs: {
     lang: 'en'

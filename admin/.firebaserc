@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "doctor-o-b3bcf"
+  },
+  "targets": {
+    "doctor-o-b3bcf": {
+      "hosting": {
+        "admin": [
+          "doctor-o-admin"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

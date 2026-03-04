@@ -1,4 +1,10 @@
-const STUN_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }]
+const ICE_SERVERS = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun2.l.google.com:19302' },
+  { urls: 'turn:freeturn.net:3478', username: 'free', credential: 'free' },
+  { urls: 'turns:freeturn.net:5349', username: 'free', credential: 'free' }
+]
 
 export function useWebRtcCall (
   consultationId: string,
@@ -39,7 +45,7 @@ export function useWebRtcCall (
   }
 
   function createPeerConnection () {
-    const pc = new RTCPeerConnection({ iceServers: STUN_SERVERS })
+    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
@@ -48,8 +54,17 @@ export function useWebRtcCall (
     }
 
     pc.ontrack = (event) => {
-      if (event.streams[0]) {
+      if (event.streams && event.streams[0]) {
         remoteStream.value = event.streams[0]
+      } else {
+        // Fallback: some browsers don't populate event.streams; build stream from track
+        let stream = remoteStream.value
+        if (!stream) {
+          stream = new MediaStream()
+          remoteStream.value = stream
+        }
+        stream.addTrack(event.track)
+        remoteStream.value = new MediaStream(stream.getTracks())
       }
     }
 
@@ -61,6 +76,17 @@ export function useWebRtcCall (
     return pc
   }
 
+  const pendingIceCandidates: RTCIceCandidateInit[] = []
+
+  async function addPendingIceCandidates () {
+    const pc = peerConnection.value
+    if (!pc || !pc.remoteDescription) return
+    while (pendingIceCandidates.length) {
+      const c = pendingIceCandidates.shift()!
+      await pc.addIceCandidate(new RTCIceCandidate(c))
+    }
+  }
+
   async function processSignals (signals: Array<{ id: number; type: string; payload: any; created_at: string }>) {
     const pc = peerConnection.value
     if (!pc) return
@@ -68,15 +94,25 @@ export function useWebRtcCall (
     for (const sig of signals) {
       if (sig.created_at) lastSignalAt.value = sig.created_at
 
-      if (sig.type === 'offer') {
-        await pc.setRemoteDescription(new RTCSessionDescription(sig.payload))
-        const answer = await pc.createAnswer()
-        await pc.setLocalDescription(answer)
-        await sendSignal('answer', { type: answer.type, sdp: answer.sdp })
-      } else if (sig.type === 'answer') {
-        await pc.setRemoteDescription(new RTCSessionDescription(sig.payload))
-      } else if (sig.type === 'ice-candidate') {
-        await pc.addIceCandidate(new RTCIceCandidate(sig.payload))
+      try {
+        if (sig.type === 'offer') {
+          await pc.setRemoteDescription(new RTCSessionDescription(sig.payload))
+          const answer = await pc.createAnswer()
+          await pc.setLocalDescription(answer)
+          await sendSignal('answer', { type: answer.type, sdp: answer.sdp })
+          await addPendingIceCandidates()
+        } else if (sig.type === 'answer') {
+          await pc.setRemoteDescription(new RTCSessionDescription(sig.payload))
+          await addPendingIceCandidates()
+        } else if (sig.type === 'ice-candidate' && sig.payload) {
+          if (pc.remoteDescription) {
+            await pc.addIceCandidate(new RTCIceCandidate(sig.payload)).catch(() => {})
+          } else {
+            pendingIceCandidates.push(sig.payload)
+          }
+        }
+      } catch (e) {
+        // ignore per-signal errors (e.g. duplicate offer/answer)
       }
     }
   }
@@ -110,7 +146,8 @@ export function useWebRtcCall (
       await sendSignal('offer', { type: offer.type, sdp: offer.sdp })
     }
 
-    signalPollInterval = setInterval(pollSignals, 500)
+    signalPollInterval = setInterval(pollSignals, 300)
+    pollSignals()
   }
 
   async function endCall () {
@@ -118,6 +155,7 @@ export function useWebRtcCall (
       clearInterval(signalPollInterval)
       signalPollInterval = null
     }
+    pendingIceCandidates.length = 0
     peerConnection.value?.close()
     peerConnection.value = null
     localStream.value?.getTracks().forEach(t => t.stop())

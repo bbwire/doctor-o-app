@@ -69,16 +69,18 @@
           </NuxtLink>
         </nav>
 
-        <UDropdown
-          v-if="user"
-          :items="mobileNavItems"
-          :popper="{ placement: 'bottom-start' }"
-          class="md:hidden"
-        >
-          <UButton icon="i-lucide-menu" variant="ghost" size="sm" color="neutral" aria-label="Menu" />
-        </UDropdown>
 
         <div class="flex items-center gap-2 shrink-0">
+          <NuxtLink
+            v-if="user && user.role === 'patient'"
+            to="/wallet"
+            class="inline-flex items-center gap-1.5 rounded-full border border-primary-500/70 bg-primary-50/80 px-2.5 py-1 text-[11px] font-medium text-primary-700 shadow-sm dark:border-primary-700/70 dark:bg-primary-900/40 dark:text-primary-100"
+          >
+            <UIcon name="i-lucide-wallet" class="w-3.5 h-3.5" />
+            <span class="tabular-nums">
+              {{ headerWalletLabel }}
+            </span>
+          </NuxtLink>
           <UButton
             :icon="isDark ? 'i-lucide-sun-medium' : 'i-lucide-moon-star'"
             variant="ghost"
@@ -123,11 +125,32 @@
       </div>
     </header>
 
-    <main class="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6 pb-safe">
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6 pb-safe" :class="user ? 'pb-20 md:pb-6' : ''">
       <slot />
     </main>
 
-    <footer class="border-t border-gray-200 dark:border-gray-800 py-4 mt-6 sm:mt-10 safe-area-bottom">
+    <!-- Mobile bottom nav -->
+    <nav
+      v-if="user"
+      class="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200/80 bg-white/95 backdrop-blur dark:border-gray-800 dark:bg-gray-900/95 safe-area-bottom shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.2)]"
+    >
+      <div class="flex items-center justify-around h-14 md:h-16 px-1">
+        <NuxtLink
+          v-for="item in mobileNavItems"
+          :key="item.to"
+          :to="item.to"
+          class="flex flex-col items-center justify-center gap-1 min-w-0 flex-1 py-2 px-1 rounded-xl transition-colors duration-150 -mx-1"
+          :class="isMobileNavActive(item)
+            ? 'text-primary-600 dark:text-primary-400 bg-primary-50/80 dark:bg-primary-900/20'
+            : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 active:bg-gray-100 dark:active:bg-gray-800/50'"
+        >
+          <UIcon :name="item.icon" class="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
+          <span class="text-[10px] font-medium truncate max-w-[4rem]">{{ item.label }}</span>
+        </NuxtLink>
+      </div>
+    </nav>
+
+    <footer class="border-t border-gray-200 dark:border-gray-800 py-4 mt-6 sm:mt-10 safe-area-bottom" :class="user ? 'mb-20 md:mb-0' : ''">
       <div class="max-w-6xl mx-auto px-4 sm:px-6 text-sm text-gray-500 dark:text-gray-400">
         Dr. O Medical Services
       </div>
@@ -144,6 +167,40 @@ const tokenCookie = useCookie('auth_token')
 
 const theme = useState('theme', () => 'light')
 const isDark = computed(() => theme.value === 'dark')
+
+const headerWalletBalance = ref(null)
+const headerWalletLoading = ref(false)
+
+const headerWalletLabel = computed(() => {
+  if (!user.value || user.value.role !== 'patient') {
+    return ''
+  }
+  if (headerWalletLoading.value && headerWalletBalance.value === null) {
+    return 'Wallet …'
+  }
+  const value = Number(headerWalletBalance.value ?? 0)
+  if (Number.isNaN(value)) return 'Wallet 0.00'
+  return `Wallet ${value.toFixed(2)}`
+})
+
+async function fetchHeaderWallet () {
+  if (!user.value || user.value.role !== 'patient') return
+  headerWalletLoading.value = true
+  try {
+    const res = await $fetch('/wallet', {
+      baseURL: config.public.apiBase,
+      headers: {
+        Authorization: `Bearer ${token.value || tokenCookie.value || ''}`,
+        Accept: 'application/json'
+      }
+    })
+    headerWalletBalance.value = typeof res?.data?.balance === 'number' ? res.data.balance : 0
+  } catch {
+    // keep previous balance or null
+  } finally {
+    headerWalletLoading.value = false
+  }
+}
 
 function toggleTheme () {
   theme.value = isDark.value ? 'light' : 'dark'
@@ -195,7 +252,10 @@ async function fetchRecentNotifications () {
 }
 
 watch(user, (u) => {
-  if (u) fetchRecentNotifications()
+  if (u) {
+    fetchRecentNotifications()
+    fetchHeaderWallet()
+  }
 }, { immediate: true })
 
 const profileMenuItems = [
@@ -211,24 +271,38 @@ const profileMenuItems = [
 ]
 
 const patientNavItems = [
-  { label: 'Dashboard', icon: 'i-lucide-layout-dashboard', to: '/dashboard' },
+  { label: 'Home', icon: 'i-lucide-layout-dashboard', to: '/dashboard' },
   { label: 'Book', icon: 'i-lucide-calendar-plus', to: '/consultations/book' },
-  { label: 'Consultations', icon: 'i-lucide-calendar-days', to: '/consultations' },
-  { label: 'Prescriptions', icon: 'i-lucide-file-text', to: '/prescriptions' },
-  { label: 'Notifications', icon: 'i-lucide-bell', to: '/notifications' }
+  { label: 'Visits', icon: 'i-lucide-calendar-days', to: '/consultations' },
+  { label: 'Rx', icon: 'i-lucide-file-text', to: '/prescriptions' },
+  { label: 'Alerts', icon: 'i-lucide-bell', to: '/notifications' }
 ]
 
 const doctorNavItems = [
-  { label: 'Dashboard', icon: 'i-lucide-layout-dashboard', to: '/doctor/dashboard' },
-  { label: 'Consultations', icon: 'i-lucide-calendar-days', to: '/doctor/consultations' },
-  { label: 'Prescriptions', icon: 'i-lucide-file-text', to: '/doctor/prescriptions' },
-  { label: 'Notifications', icon: 'i-lucide-bell', to: '/notifications' }
+  { label: 'Home', icon: 'i-lucide-layout-dashboard', to: '/doctor/dashboard' },
+  { label: 'Visits', icon: 'i-lucide-calendar-days', to: '/doctor/consultations' },
+  { label: 'Rx', icon: 'i-lucide-file-text', to: '/doctor/prescriptions' },
+  { label: 'Alerts', icon: 'i-lucide-bell', to: '/notifications' }
 ]
 
 const mobileNavItems = computed(() => {
-  const items = user.value?.role === 'doctor' ? doctorNavItems : patientNavItems
-  return [items]
+  return user.value?.role === 'doctor' ? doctorNavItems : patientNavItems
 })
+
+function isMobileNavActive (item) {
+  const path = item.to
+  if (path === '/consultations' || path === '/doctor/consultations') {
+    const current = route.path
+    if (path === '/consultations') {
+      return current === '/consultations' || (current.startsWith('/consultations/') && !current.startsWith('/consultations/book'))
+    }
+    return current === '/doctor/consultations' || current.startsWith('/doctor/consultations/')
+  }
+  if (path === '/dashboard' || path === '/doctor/dashboard') {
+    return route.path === path
+  }
+  return route.path === path || route.path.startsWith(path + '/')
+}
 
 const handleLogout = async () => {
   await logout()

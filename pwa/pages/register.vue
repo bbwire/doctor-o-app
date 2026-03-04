@@ -20,6 +20,68 @@
         <UForm :state="state" @submit="onSubmit" class="space-y-4">
           <ApiOfflineInlineHint />
 
+          <UFormGroup label="I am registering as" name="role" required>
+            <div class="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                class="relative rounded-xl border px-3 py-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/70"
+                :class="state.role === 'patient'
+                  ? 'border-primary-500 bg-primary-500/10 shadow-sm'
+                  : 'border-gray-200 dark:border-gray-800 bg-gray-900/40 hover:border-primary-500/60'"
+                @click="state.role = 'patient'"
+              >
+                <div class="flex items-center gap-3">
+                  <div class="flex h-9 w-9 items-center justify-center rounded-full bg-primary-500/15 text-primary-400">
+                    <UIcon name="i-lucide-user-round" class="w-5 h-5" />
+                  </div>
+                  <div class="min-w-0">
+                    <p class="text-sm font-semibold text-gray-900 dark:text-gray-50">
+                      Patient
+                    </p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                      For people booking consultations.
+                    </p>
+                  </div>
+                </div>
+                <span
+                  v-if="state.role === 'patient'"
+                  class="pointer-events-none absolute -top-2 -right-2 inline-flex items-center justify-center rounded-full bg-primary-500 text-[10px] font-semibold text-white px-2 py-0.5 shadow-sm"
+                >
+                  Selected
+                </span>
+              </button>
+
+              <button
+                type="button"
+                class="relative rounded-xl border px-3 py-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/70"
+                :class="state.role === 'doctor'
+                  ? 'border-primary-500 bg-primary-500/10 shadow-sm'
+                  : 'border-gray-200 dark:border-gray-800 bg-gray-900/40 hover:border-primary-500/60'"
+                @click="state.role = 'doctor'"
+              >
+                <div class="flex items-center gap-3">
+                  <div class="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-400">
+                    <UIcon name="i-lucide-stethoscope" class="w-5 h-5" />
+                  </div>
+                  <div class="min-w-0">
+                    <p class="text-sm font-semibold text-gray-900 dark:text-gray-50">
+                      Doctor
+                    </p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                      For licensed healthcare professionals.
+                    </p>
+                  </div>
+                </div>
+                <span
+                  v-if="state.role === 'doctor'"
+                  class="pointer-events-none absolute -top-2 -right-2 inline-flex items-center justify-center rounded-full bg-primary-500 text-[10px] font-semibold text-white px-2 py-0.5 shadow-sm"
+                >
+                  Selected
+                </span>
+              </button>
+            </div>
+          </UFormGroup>
+
           <UFormGroup label="Full Name" name="name" required>
             <UInput
               v-model="state.name"
@@ -33,6 +95,14 @@
               v-model="state.email"
               type="email"
               placeholder="you@example.com"
+              size="lg"
+            />
+          </UFormGroup>
+
+          <UFormGroup label="Date of birth" name="date_of_birth" required>
+            <UInput
+              v-model="state.date_of_birth"
+              type="date"
               size="lg"
             />
           </UFormGroup>
@@ -105,10 +175,17 @@ const languageOptions = [
 ]
 const showPasswords = ref(false)
 
+const roleOptions = [
+  { label: 'Patient', value: 'patient' },
+  { label: 'Doctor', value: 'doctor' }
+]
+
 const state = reactive({
+  role: 'patient',
   name: '',
   email: '',
   preferred_language: 'English',
+  date_of_birth: '',
   password: '',
   password_confirmation: ''
 })
@@ -126,11 +203,43 @@ const onSubmit = async () => {
     return
   }
 
+  if (!state.date_of_birth) {
+    toast.add({
+      title: 'Date of birth required',
+      description: 'Please provide your date of birth to continue.',
+      color: 'red'
+    })
+    return
+  }
+
+  const today = new Date()
+  const dob = new Date(state.date_of_birth)
+  if (Number.isNaN(dob.getTime())) {
+    toast.add({
+      title: 'Invalid date of birth',
+      description: 'Please provide a valid date of birth.',
+      color: 'red'
+    })
+    return
+  }
+  const age = today.getFullYear() - dob.getFullYear() - (today < new Date(today.getFullYear(), dob.getMonth(), dob.getDate()) ? 1 : 0)
+  if (age < 18) {
+    toast.add({
+      title: 'Age restriction',
+      description: 'You must be at least 18 years old to register.',
+      color: 'red'
+    })
+    return
+  }
+
   loading.value = true
   try {
     await register({
+      role: state.role,
       name: state.name,
       email: state.email,
+      preferred_language: state.preferred_language,
+      date_of_birth: state.date_of_birth,
       password: state.password,
       password_confirmation: state.password_confirmation
     })

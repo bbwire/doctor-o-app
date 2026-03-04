@@ -13,6 +13,10 @@ use App\Http\Controllers\Api\Patient\ConsultationController as PatientConsultati
 use App\Http\Controllers\Api\Patient\DashboardController as PatientDashboardController;
 use App\Http\Controllers\Api\Patient\DoctorController as PatientDoctorController;
 use App\Http\Controllers\Api\Patient\PrescriptionController as PatientPrescriptionController;
+use App\Http\Controllers\Api\Patient\DependantController as PatientDependantController;
+use App\Http\Controllers\Api\Patient\ConsultationMediaController as PatientConsultationMediaController;
+use App\Http\Controllers\Api\Patient\WalletController as PatientWalletController;
+use App\Http\Controllers\Api\Doctor\AcademicDocumentController as DoctorAcademicDocumentController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -52,6 +56,12 @@ Route::prefix('v1')->group(function () {
             Route::patch('/consultations/{consultationId}/cancel', [PatientConsultationController::class, 'cancel']);
             Route::patch('/consultations/{consultationId}/reschedule', [PatientConsultationController::class, 'reschedule']);
             Route::get('/prescriptions', [PatientPrescriptionController::class, 'index']);
+            Route::get('/dependants', [PatientDependantController::class, 'index']);
+            Route::post('/dependants', [PatientDependantController::class, 'store']);
+            Route::delete('/dependants/{dependant}', [PatientDependantController::class, 'destroy']);
+            Route::post('/consultations/reason-images', [PatientConsultationMediaController::class, 'storeReasonImage']);
+            Route::get('/wallet', [PatientWalletController::class, 'show']);
+            Route::post('/wallet/top-up', [PatientWalletController::class, 'topUp']);
         });
 
         // Doctor routes
@@ -66,6 +76,9 @@ Route::prefix('v1')->group(function () {
             Route::post('/consultations/{consultation}/webrtc-signals', [ConsultationWebrtcSignalController::class, 'store']);
             Route::get('/prescriptions', [\App\Http\Controllers\Api\Doctor\PrescriptionController::class, 'index']);
             Route::post('/prescriptions', [\App\Http\Controllers\Api\Doctor\PrescriptionController::class, 'store']);
+            Route::get('/academic-documents', [DoctorAcademicDocumentController::class, 'index']);
+            Route::post('/academic-documents', [DoctorAcademicDocumentController::class, 'store']);
+            Route::delete('/academic-documents/{academicDocument}', [DoctorAcademicDocumentController::class, 'destroy']);
         });
 
         // Admin routes

@@ -48,8 +48,18 @@ pnpm dev
 Build the application for production:
 
 ```bash
-pnpm build
+yarn build
 ```
+
+Generate static site (for Firebase deploy):
+
+```bash
+yarn generate
+```
+
+> **Windows users:** `yarn generate` may fail with a Nitro prerender error (`file:///_entry.js`). Use one of these workarounds:
+> - **WSL:** Run `yarn generate:wsl` (requires WSL installed)
+> - **CI:** Deploy via GitHub Actions or another Linux-based CI
 
 Locally preview production build:
 

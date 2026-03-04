@@ -59,8 +59,10 @@ export const useAuth = () => {
     email: string
     password: string
     password_confirmation: string
+    role: 'patient' | 'doctor'
+    date_of_birth: string
     phone?: string
-    date_of_birth?: string
+    preferred_language?: string
   }) => {
     try {
       const response = await api<{ user: { data: User } | User; token: string }>('/register', {

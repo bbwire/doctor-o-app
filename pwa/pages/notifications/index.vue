@@ -50,7 +50,7 @@
               {{ n.body }}
             </p>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-500">
-              {{ formatDate(n.created_at) }}
+              {{ formatDateTime(n.created_at) }}
             </p>
           </NuxtLink>
           <UButton
@@ -81,6 +81,7 @@ definePageMeta({
 const config = useRuntimeConfig()
 const { user, token } = useAuth()
 const tokenCookie = useCookie('auth_token')
+const { formatDateTime } = useDateFormat()
 
 const notifications = ref<any[]>([])
 const total = ref(0)
@@ -97,15 +98,6 @@ function getHeaders () {
   return {
     Authorization: `Bearer ${authToken || ''}`,
     Accept: 'application/json'
-  }
-}
-
-function formatDate (val: string) {
-  if (!val) return '—'
-  try {
-    return new Date(val).toLocaleString()
-  } catch {
-    return val
   }
 }
 

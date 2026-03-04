@@ -29,6 +29,7 @@ class User extends Authenticatable
         'date_of_birth',
         'profile_photo_path',
         'preferred_language',
+        'wallet_balance',
     ];
 
     /**
@@ -52,6 +53,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'date_of_birth' => 'date',
+            'wallet_balance' => 'decimal:2',
         ];
     }
 
@@ -105,5 +107,15 @@ class User extends Authenticatable
     public function doctorPrescriptions(): HasMany
     {
         return $this->hasMany(Prescription::class, 'doctor_id');
+    }
+
+    public function dependants(): HasMany
+    {
+        return $this->hasMany(Dependant::class, 'patient_id');
+    }
+
+    public function walletTransactions(): HasMany
+    {
+        return $this->hasMany(WalletTransaction::class);
     }
 }

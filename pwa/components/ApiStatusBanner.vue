@@ -32,13 +32,14 @@ const {
   lastApiHealthCheckAt,
   checkApiHealth
 } = useApiHealth()
+const { formatDateTime } = useDateFormat()
 
 const lastCheckedText = computed(() => {
   if (!lastApiHealthCheckAt.value) {
     return ''
   }
 
-  return new Date(lastApiHealthCheckAt.value).toLocaleTimeString()
+  return formatDateTime(lastApiHealthCheckAt.value)
 })
 
 const onRetry = async () => {

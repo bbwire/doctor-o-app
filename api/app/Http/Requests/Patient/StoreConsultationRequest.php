@@ -35,7 +35,7 @@ class StoreConsultationRequest extends FormRequest
                 'after:now',
             ],
             'consultation_type' => ['required', Rule::in(['text', 'audio', 'video'])],
-            'reason' => ['required', 'string', 'max:1000'],
+            'reason' => ['required', 'string', 'max:5000'],
             'notes' => ['nullable', 'string'],
         ];
     }

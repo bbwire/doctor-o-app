@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "build": "nuxt build",
+    "generate": "nuxt generate",
+    "generate:wsl": "wsl -e bash -c \"cd '$(wslpath -u .)' && yarn generate\"",
     "dev": "nuxt dev",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
@@ -19,6 +21,7 @@
   },
   "devDependencies": {
     "@nuxt/eslint": "^1.13.0",
+    "@vite-pwa/nuxt": "^1.1.1",
     "eslint": "^9.39.2",
     "typescript": "^5.9.3",
     "vue-tsc": "^3.2.4"

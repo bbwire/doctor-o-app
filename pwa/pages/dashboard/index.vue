@@ -58,7 +58,7 @@
             <p v-if="loading" class="text-sm text-gray-500 dark:text-gray-400 mt-1">Loading...</p>
             <div v-else-if="summary.next_consultation" class="mt-1">
               <p class="text-sm text-gray-700 dark:text-gray-300">
-                {{ formatDate(summary.next_consultation.scheduled_at) }}
+                {{ formatDateTime(summary.next_consultation.scheduled_at) }}
               </p>
               <p class="text-sm text-gray-600 dark:text-gray-400 capitalize">
                 {{ summary.next_consultation.consultation_type }} with
@@ -90,6 +90,7 @@
         </div>
       </UCard>
 
+
       <UCard :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }">
         <h3 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Quick Actions</h3>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -114,6 +115,7 @@ definePageMeta({
 })
 
 const { user } = useAuth()
+const { formatDateTime } = useDateFormat()
 const { isApiReachable, hasApiStatusChecked } = useApiHealth()
 const config = useRuntimeConfig()
 const tokenCookie = useCookie('auth_token')
@@ -175,8 +177,6 @@ const fetchDashboardSummary = async () => {
     loading.value = false
   }
 }
-
-const formatDate = (value) => new Date(value).toLocaleString()
 
 onMounted(async () => {
   await fetchDashboardSummary()

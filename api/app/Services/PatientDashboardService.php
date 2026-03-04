@@ -50,6 +50,7 @@ class PatientDashboardService
                     'name' => $nextConsultation->doctor?->name,
                 ],
             ] : null,
+            'wallet_balance' => (float) ($patient->wallet_balance ?? 0),
         ];
     }
 }

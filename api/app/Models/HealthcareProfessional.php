@@ -43,4 +43,9 @@ class HealthcareProfessional extends Model
     {
         return $this->belongsTo(Institution::class);
     }
+
+    public function academicDocuments()
+    {
+        return $this->hasMany(AcademicDocument::class);
+    }
 }

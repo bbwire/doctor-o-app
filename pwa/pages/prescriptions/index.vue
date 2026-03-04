@@ -36,7 +36,7 @@
             <div class="flex items-start justify-between gap-4">
               <div>
                 <p class="text-sm text-gray-500 dark:text-gray-400">
-                  Issued {{ formatDate(prescription.issued_at) }}
+                  Issued {{ formatDateTime(prescription.issued_at) }}
                 </p>
                 <p class="font-semibold text-gray-900 dark:text-white mt-1">
                   Dr. {{ prescription.doctor?.name || 'Unknown Doctor' }}
@@ -97,6 +97,7 @@ interface PrescriptionItem {
 }
 
 const config = useRuntimeConfig()
+const { formatDateTime } = useDateFormat()
 const tokenCookie = useCookie<string | null>('auth_token')
 const { isApiReachable, hasApiStatusChecked } = useApiHealth()
 const toast = useToast()
@@ -146,10 +147,6 @@ const fetchPrescriptions = async () => {
   } finally {
     loading.value = false
   }
-}
-
-const formatDate = (value: string) => {
-  return new Date(value).toLocaleString()
 }
 
 onMounted(async () => {

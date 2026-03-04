@@ -103,9 +103,10 @@
         <div class="mt-4 grid gap-3 md:grid-cols-2">
           <div class="rounded-lg bg-gray-50 dark:bg-gray-800/60 p-3">
             <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Reason</p>
-            <p class="text-sm text-gray-800 dark:text-gray-200 mt-1">
-              {{ consultation.reason || 'No reason provided' }}
-            </p>
+            <div
+              class="text-sm text-gray-800 dark:text-gray-200 mt-1 prose prose-sm prose-slate dark:prose-invert max-w-none"
+              v-html="consultation.reason || '<p>No reason provided</p>'"
+            />
           </div>
           <div class="rounded-lg bg-gray-50 dark:bg-gray-800/60 p-3">
             <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Notes</p>
@@ -181,6 +182,7 @@ const config = useRuntimeConfig()
 const tokenCookie = useCookie<string | null>('auth_token')
 const { isApiReachable, hasApiStatusChecked } = useApiHealth()
 const toast = useToast()
+const { formatDate, formatDateTime } = useDateFormat()
 const isApiOffline = computed(() => hasApiStatusChecked.value && !isApiReachable.value)
 
 const loading = ref(true)
@@ -216,7 +218,7 @@ const joinConsultationIcon = computed(() => {
 const timelineSteps = computed<TimelineStep[]>(() => {
   const status = consultation.value?.status
   const scheduledAt = consultation.value?.scheduled_at
-    ? formatDate(consultation.value.scheduled_at)
+    ? formatDateTime(consultation.value.scheduled_at)
     : 'Scheduled time not available'
 
   return [
@@ -417,7 +419,6 @@ const extractErrorMessage = (error: unknown, fallback: string): string => {
   return typeof message === 'string' ? message : fallback
 }
 
-const formatDate = (value: string) => new Date(value).toLocaleString()
 const toLocalDateTimeInput = (value: string) => {
   const date = new Date(value)
   date.setMinutes(date.getMinutes() - date.getTimezoneOffset())

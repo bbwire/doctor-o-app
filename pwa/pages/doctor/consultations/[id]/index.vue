@@ -61,9 +61,10 @@
           </div>
           <div class="sm:col-span-2">
             <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Reason</dt>
-            <dd class="text-sm text-gray-900 dark:text-gray-100">
-              {{ consultation.reason || '–' }}
-            </dd>
+            <dd
+              class="text-sm text-gray-900 dark:text-gray-100 prose prose-sm prose-slate dark:prose-invert max-w-none"
+              v-html="consultation.reason || '<p>–</p>'"
+            />
           </div>
           <div class="sm:col-span-2">
             <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Notes</dt>

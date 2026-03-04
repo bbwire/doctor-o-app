@@ -21,13 +21,15 @@ class RegisterRequest extends FormRequest
      */
     public function rules(): array
     {
+        $adultDate = now()->subYears(18)->toDateString();
+
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'role' => ['sometimes', 'in:patient,doctor'],
+            'role' => ['required', 'in:patient,doctor'],
             'phone' => ['nullable', 'string', 'max:20'],
-            'date_of_birth' => ['nullable', 'date'],
+            'date_of_birth' => ['required', 'date', 'before_or_equal:'.$adultDate],
         ];
     }
 }

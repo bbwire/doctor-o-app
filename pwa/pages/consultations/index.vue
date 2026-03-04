@@ -46,7 +46,7 @@
             <div class="flex items-start justify-between gap-4">
               <div>
                 <p class="text-sm text-gray-500 dark:text-gray-400">
-                  {{ formatDate(consultation.scheduled_at) }}
+                  {{ formatDateTime(consultation.scheduled_at) }}
                 </p>
                 <p class="font-semibold text-gray-900 dark:text-white mt-1">
                   Dr. {{ consultation.doctor?.name || 'Unknown Doctor' }}
@@ -60,9 +60,13 @@
               </UBadge>
             </div>
 
-            <p class="mt-3 text-sm text-gray-600 dark:text-gray-400">
-              <span class="font-medium">Reason:</span> {{ consultation.reason || 'No reason provided' }}
-            </p>
+            <div class="mt-3 text-sm text-gray-600 dark:text-gray-400">
+              <p class="font-medium mb-0.5">Reason:</p>
+              <div
+                class="text-sm text-gray-600 dark:text-gray-300 line-clamp-2 prose prose-sm prose-slate dark:prose-invert max-w-none"
+                v-html="consultation.reason || '<p>No reason provided</p>'"
+              />
+            </div>
 
             <div class="mt-4 flex gap-2">
               <UButton
@@ -109,6 +113,7 @@ const config = useRuntimeConfig()
 const tokenCookie = useCookie<string | null>('auth_token')
 const { isApiReachable, hasApiStatusChecked } = useApiHealth()
 const toast = useToast()
+const { formatDateTime } = useDateFormat()
 
 const loading = ref(true)
 const errorMessage = ref('')
@@ -162,10 +167,6 @@ const fetchConsultations = async () => {
   } finally {
     loading.value = false
   }
-}
-
-const formatDate = (value: string) => {
-  return new Date(value).toLocaleString()
 }
 
 const statusColor = (status: ConsultationItem['status']) => {

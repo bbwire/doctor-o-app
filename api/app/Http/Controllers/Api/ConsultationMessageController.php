@@ -7,6 +7,7 @@ use App\Models\Consultation;
 use App\Models\ConsultationMessage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class ConsultationMessageController extends Controller
@@ -20,12 +21,7 @@ class ConsultationMessageController extends Controller
 
         $messages = $consultation->messages()
             ->get()
-            ->map(fn (ConsultationMessage $m) => [
-                'id' => $m->id,
-                'text' => $m->text,
-                'sender' => $m->sender,
-                'at' => $m->created_at->toISOString(),
-            ]);
+            ->map(fn (ConsultationMessage $m) => $this->formatMessage($m));
 
         return response()->json(['data' => $messages]);
     }
@@ -42,22 +38,39 @@ class ConsultationMessageController extends Controller
 
         $validated = $request->validate([
             'text' => ['required', 'string', 'max:65535'],
+            'image' => ['nullable', 'image', 'max:5120'], // 5MB
         ]);
+
+        $attachmentUrl = null;
+        if ($request->hasFile('image')) {
+            $path = $request->file('image')->store(
+                'consultation-messages/' . $consultation->id,
+                'public'
+            );
+            $attachmentUrl = Storage::disk('public')->url($path);
+        }
 
         $message = $consultation->messages()->create([
             'user_id' => $user->id,
             'sender' => $sender,
             'text' => $validated['text'],
+            'attachment_url' => $attachmentUrl,
         ]);
 
         return response()->json([
-            'data' => [
-                'id' => $message->id,
-                'text' => $message->text,
-                'sender' => $message->sender,
-                'at' => $message->created_at->toISOString(),
-            ],
+            'data' => $this->formatMessage($message),
         ], 201);
+    }
+
+    private function formatMessage(ConsultationMessage $m): array
+    {
+        return [
+            'id' => $m->id,
+            'text' => $m->text,
+            'sender' => $m->sender,
+            'at' => $m->created_at->toISOString(),
+            'attachment_url' => $m->attachment_url,
+        ];
     }
 
     private function authorizeParticipant(Request $request, Consultation $consultation): void

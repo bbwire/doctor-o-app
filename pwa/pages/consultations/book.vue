@@ -57,8 +57,71 @@
               <USelectMenu v-model="state.consultation_type" :options="consultationTypes" />
             </UFormGroup>
 
-            <UFormGroup label="Reason for Consultation">
-              <UTextarea v-model="state.reason" :rows="4" required />
+            <UFormGroup label="Reason for Consultation" required>
+              <div class="space-y-2">
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                  Describe your symptoms, history and questions. You can format text and attach images.
+                </p>
+                <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40">
+                  <div class="flex items-center gap-1 px-2 py-1.5 border-b border-gray-200 dark:border-gray-800">
+                    <button
+                      type="button"
+                      class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300"
+                      @click.prevent="execCommand('bold')"
+                    >
+                      <span class="text-xs font-semibold">B</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 italic"
+                      @click.prevent="execCommand('italic')"
+                    >
+                      I
+                    </button>
+                    <button
+                      type="button"
+                      class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300"
+                      @click.prevent="execCommand('insertUnorderedList')"
+                    >
+                      <UIcon name="i-lucide-list" class="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300"
+                      :disabled="uploadingReasonImage"
+                      @click.prevent="triggerReasonImage"
+                    >
+                      <UIcon
+                        :name="uploadingReasonImage ? 'i-lucide-loader-2' : 'i-lucide-image-plus'"
+                        class="w-4 h-4"
+                        :class="{ 'animate-spin': uploadingReasonImage }"
+                      />
+                    </button>
+                    <button
+                      type="button"
+                      class="ml-auto p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 text-[11px]"
+                      @click.prevent="clearReason"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <div
+                    ref="reasonEditor"
+                    class="min-h-[96px] max-h-60 overflow-y-auto px-3 py-2 text-sm bg-white dark:bg-gray-900 rounded-b-xl focus:outline-none prose prose-sm prose-invert prose-headings:text-gray-100 prose-p:text-gray-100 prose-strong:text-gray-100"
+                    contenteditable="true"
+                    :placeholder="'Describe your reason for this consultation...'"
+                    @input="onReasonInput"
+                    @blur="syncReasonFromDom"
+                  />
+                  <input
+                    ref="reasonImageInput"
+                    type="file"
+                    class="hidden"
+                    accept="image/*"
+                    @change="onReasonImageSelected"
+                  >
+                </div>
+              </div>
             </UFormGroup>
 
             <UButton
@@ -108,6 +171,10 @@ const state = reactive({
 })
 
 const doctorOptions = ref<DoctorOption[]>([])
+
+const reasonEditor = ref<HTMLElement | null>(null)
+const reasonImageInput = ref<HTMLInputElement | null>(null)
+const uploadingReasonImage = ref(false)
 
 const canSubmit = computed(() => {
   if (!state.doctor_id || !state.scheduled_at || !state.reason.trim()) {
@@ -166,6 +233,95 @@ const fetchDoctors = async () => {
     errorMessage.value = typeof message === 'string' ? message : 'Unable to load doctors.'
   } finally {
     loadingDoctors.value = false
+  }
+}
+
+const execCommand = (command: string) => {
+  if (typeof document === 'undefined') return
+  reasonEditor.value?.focus()
+  try {
+    document.execCommand(command, false)
+  } catch {
+    // ignore
+  }
+}
+
+const onReasonInput = () => {
+  if (!reasonEditor.value) return
+  state.reason = reasonEditor.value.innerHTML
+}
+
+const syncReasonFromDom = () => {
+  if (!reasonEditor.value) return
+  state.reason = reasonEditor.value.innerHTML
+}
+
+const clearReason = () => {
+  state.reason = ''
+  if (reasonEditor.value) {
+    reasonEditor.value.innerHTML = ''
+  }
+}
+
+const triggerReasonImage = () => {
+  if (uploadingReasonImage.value) return
+  reasonImageInput.value?.click()
+}
+
+const onReasonImageSelected = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  input.value = ''
+
+  const maxBytes = 5 * 1024 * 1024
+  if (file.size > maxBytes) {
+    toast.add({
+      title: 'Image too large',
+      description: 'Images must be 5MB or less.',
+      color: 'red'
+    })
+    return
+  }
+
+  if (isApiOffline.value) {
+    toast.add({
+      title: 'API unavailable',
+      description: 'Please retry when API connection is restored.',
+      color: 'amber'
+    })
+    return
+  }
+
+  uploadingReasonImage.value = true
+  try {
+    const formData = new FormData()
+    formData.append('image', file)
+
+    const res = await $fetch<{ url: string }>('/consultations/reason-images', {
+      method: 'POST',
+      baseURL: config.public.apiBase,
+      headers: {
+        Authorization: `Bearer ${tokenCookie.value || ''}`
+      },
+      body: formData
+    })
+
+    const url = res.url
+    if (typeof document !== 'undefined' && url) {
+      reasonEditor.value?.focus()
+      document.execCommand('insertImage', false, url)
+      syncReasonFromDom()
+    }
+  } catch (error) {
+    const err = error as { data?: { message?: string } }
+    toast.add({
+      title: 'Failed to upload image',
+      description: err?.data?.message || 'Please try again.',
+      color: 'red'
+    })
+  } finally {
+    uploadingReasonImage.value = false
   }
 }
 
