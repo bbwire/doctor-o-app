@@ -15,16 +15,27 @@ class HealthcareProfessional extends Model
         'institution_id',
         'speciality',
         'license_number',
+        'registration_date',
+        'regulatory_council',
+        'consultation_charge',
         'bio',
+        'availability_start_time',
+        'availability_end_time',
         'qualifications',
         'is_active',
+        'is_approved',
     ];
 
     protected function casts(): array
     {
         return [
+            'registration_date' => 'date',
+            'availability_start_time' => 'datetime:H:i',
+            'availability_end_time' => 'datetime:H:i',
             'qualifications' => 'array',
+            'consultation_charge' => 'decimal:2',
             'is_active' => 'boolean',
+            'is_approved' => 'boolean',
         ];
     }
 

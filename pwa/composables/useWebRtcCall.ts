@@ -1,15 +1,14 @@
-const ICE_SERVERS = [
+// Keep to 3 or fewer to avoid "Using five or more STUN/TURN servers slows down discovery"
+const ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'stun:stun2.l.google.com:19302' },
-  { urls: 'turn:freeturn.net:3478', username: 'free', credential: 'free' },
-  { urls: 'turns:freeturn.net:5349', username: 'free', credential: 'free' }
+  { urls: 'turn:freeturn.net:3478', username: 'free', credential: 'free' }
 ]
 
 export function useWebRtcCall (
   consultationId: string,
   role: 'doctor' | 'patient',
-  fetchSignals: (since?: string) => Promise<Array<{ id: number; type: string; payload: any; created_at: string }>>,
+  fetchSignals: (opts?: { since?: string; afterId?: number }) => Promise<Array<{ id: number; type: string; payload: any; created_at: string }>>,
   sendSignal: (type: string, payload: any) => Promise<void>
 ) {
   const localStream = ref<MediaStream | null>(null)
@@ -20,7 +19,8 @@ export function useWebRtcCall (
   const isMuted = ref(false)
   const isVideoOff = ref(false)
   const callError = ref<string | null>(null)
-  const lastSignalAt = ref<string | null>(null)
+  const lastProcessedId = ref<number>(0)
+  const processedSignalIds = new Set<number>()
   let signalPollInterval: ReturnType<typeof setInterval> | null = null
 
   async function getLocalStream (video: boolean = true) {
@@ -54,8 +54,10 @@ export function useWebRtcCall (
     }
 
     pc.ontrack = (event) => {
-      if (event.streams && event.streams[0]) {
-        remoteStream.value = event.streams[0]
+      const incomingStream = event.streams?.[0]
+      if (incomingStream) {
+        // Use a new MediaStream so Vue reactivity updates when more tracks arrive
+        remoteStream.value = new MediaStream(incomingStream.getTracks())
       } else {
         // Fallback: some browsers don't populate event.streams; build stream from track
         let stream = remoteStream.value
@@ -69,7 +71,11 @@ export function useWebRtcCall (
     }
 
     pc.onconnectionstatechange = () => {
-      isConnected.value = pc.connectionState === 'connected'
+      const state = pc.connectionState
+      isConnected.value = state === 'connected'
+      if (state === 'failed') {
+        callError.value = 'Connection failed. Check your network or try again.'
+      }
     }
 
     peerConnection.value = pc
@@ -92,7 +98,8 @@ export function useWebRtcCall (
     if (!pc) return
 
     for (const sig of signals) {
-      if (sig.created_at) lastSignalAt.value = sig.created_at
+      if (processedSignalIds.has(sig.id)) continue
+      if (sig.id > lastProcessedId.value) lastProcessedId.value = sig.id
 
       try {
         if (sig.type === 'offer') {
@@ -111,6 +118,7 @@ export function useWebRtcCall (
             pendingIceCandidates.push(sig.payload)
           }
         }
+        processedSignalIds.add(sig.id)
       } catch (e) {
         // ignore per-signal errors (e.g. duplicate offer/answer)
       }
@@ -119,7 +127,9 @@ export function useWebRtcCall (
 
   async function pollSignals () {
     try {
-      const signals = await fetchSignals(lastSignalAt.value ?? undefined)
+      const signals = await fetchSignals(
+        lastProcessedId.value > 0 ? { afterId: lastProcessedId.value } : {}
+      )
       if (signals.length) {
         await processSignals(signals)
       }
@@ -146,7 +156,7 @@ export function useWebRtcCall (
       await sendSignal('offer', { type: offer.type, sdp: offer.sdp })
     }
 
-    signalPollInterval = setInterval(pollSignals, 300)
+    signalPollInterval = setInterval(pollSignals, 250)
     pollSignals()
   }
 
@@ -155,6 +165,8 @@ export function useWebRtcCall (
       clearInterval(signalPollInterval)
       signalPollInterval = null
     }
+    lastProcessedId.value = 0
+    processedSignalIds.clear()
     pendingIceCandidates.length = 0
     peerConnection.value?.close()
     peerConnection.value = null

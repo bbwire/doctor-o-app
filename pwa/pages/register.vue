@@ -16,11 +16,11 @@
           </NuxtLink>
         </p>
       </div>
-      <UCard :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }">
+      <UCard :ui="cardUi">
         <UForm :state="state" @submit="onSubmit" class="space-y-4">
           <ApiOfflineInlineHint />
 
-          <UFormGroup label="I am registering as" name="role" required>
+          <UFormGroup label="Account type" name="role" :required="true">
             <div class="grid grid-cols-2 gap-3">
               <button
                 type="button"
@@ -99,6 +99,15 @@
             />
           </UFormGroup>
 
+          <UFormGroup label="Phone number" name="phone">
+            <UInput
+              v-model="state.phone"
+              type="tel"
+              placeholder="+256..."
+              size="lg"
+            />
+          </UFormGroup>
+
           <UFormGroup label="Date of birth" name="date_of_birth" required>
             <UInput
               v-model="state.date_of_birth"
@@ -114,6 +123,62 @@
               size="lg"
             />
           </UFormGroup>
+
+          <template v-if="state.role === 'doctor'">
+            <div class="border-t border-gray-200 dark:border-gray-800 pt-4 mt-4">
+              <p class="text-sm font-medium text-gray-900 dark:text-white mb-3">Professional details</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                You can add or update academic documents in your Profile after signing in.
+              </p>
+            </div>
+            <UFormGroup label="Speciality" name="speciality">
+              <USelectMenu
+                v-model="state.speciality"
+                :options="specialityOptions"
+                option-attribute="label"
+                value-attribute="value"
+                searchable
+                placeholder="Select your speciality"
+                size="lg"
+              />
+            </UFormGroup>
+            <UFormGroup label="Current place of clinical work" name="institution_id">
+              <USelectMenu
+                v-model="state.institution_id"
+                :options="institutionOptions"
+                option-attribute="label"
+                value-attribute="value"
+                searchable
+                placeholder="Select institution (optional)"
+                size="lg"
+              />
+            </UFormGroup>
+            <UFormGroup label="Registration / license number" name="license_number">
+              <UInput
+                v-model="state.license_number"
+                placeholder="e.g. MDPC-12345"
+                size="lg"
+              />
+            </UFormGroup>
+            <UFormGroup label="Registration date" name="registration_date">
+              <UInput
+                v-model="state.registration_date"
+                type="date"
+                size="lg"
+              />
+            </UFormGroup>
+            <UFormGroup label="Regulatory council" name="regulatory_council">
+              <USelectMenu
+                v-model="state.regulatory_council"
+                :options="regulatoryCouncilOptions"
+                option-attribute="label"
+                value-attribute="value"
+                searchable
+                placeholder="Select council (optional)"
+                size="lg"
+              />
+            </UFormGroup>
+          </template>
 
           <UFormGroup label="Password" name="password" required>
             <UInput
@@ -135,12 +200,22 @@
 
           <UCheckbox v-model="showPasswords" label="Show passwords" />
 
+          <UFormGroup name="consent" required>
+            <UCheckbox v-model="state.consent" :ui="{ label: 'text-sm text-gray-600 dark:text-gray-300' }">
+              <template #label>
+                I agree to the
+                <NuxtLink to="/privacy" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline">Privacy Policy</NuxtLink>
+                and consent to the use of my data for this service.
+              </template>
+            </UCheckbox>
+          </UFormGroup>
+
           <UButton
             type="submit"
             block
             size="lg"
             :loading="loading"
-            :disabled="isApiOffline"
+            :disabled="isApiOffline || !state.consent"
           >
             Create account
           </UButton>
@@ -150,7 +225,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 definePageMeta({
   layout: false
 })
@@ -159,6 +234,12 @@ const { register } = useAuth()
 const router = useRouter()
 const toast = useToast()
 const { isApiReachable, hasApiStatusChecked } = useApiHealth()
+
+const cardUi = {
+  background: 'bg-white dark:bg-gray-900',
+  ring: 'ring-1 ring-gray-200 dark:ring-gray-800'
+}
+
 const languageOptions = [
   'English',
   'Luganda',
@@ -184,10 +265,50 @@ const state = reactive({
   role: 'patient',
   name: '',
   email: '',
+  phone: '',
   preferred_language: 'English',
   date_of_birth: '',
   password: '',
-  password_confirmation: ''
+  password_confirmation: '',
+  consent: false,
+  speciality: '',
+  institution_id: null,
+  license_number: '',
+  registration_date: '',
+  regulatory_council: ''
+})
+
+const config = useRuntimeConfig()
+const institutionOptions = ref<{ label: string; value: number }[]>([])
+
+const specialityOptions = [
+  { value: 'General Doctor', label: 'General Doctor' },
+  { value: 'Physician', label: 'Physician' },
+  { value: 'Surgeon', label: 'Surgeon' },
+  { value: 'Paediatrician', label: 'Paediatrician' },
+  { value: 'Nurse', label: 'Nurse' },
+  { value: 'Pharmacist', label: 'Pharmacist' },
+  { value: 'Gynecologist', label: 'Gynecologist' },
+  { value: 'Dentist', label: 'Dentist' }
+]
+
+const regulatoryCouncilOptions = [
+  { value: 'Uganda Medical and Dental Practitioners Council', label: 'Uganda Medical and Dental Practitioners Council' },
+  { value: 'Uganda Nurses and Midwives Council', label: 'Uganda Nurses and Midwives Council' },
+  { value: 'Allied Health Professionals Council', label: 'Allied Health Professionals Council' },
+  { value: 'Uganda Pharmacy Board', label: 'Uganda Pharmacy Board' },
+  { value: 'Other', label: 'Other' }
+]
+
+onMounted(async () => {
+  try {
+    const res = await $fetch<{ data: Array<{ id: number; name: string }> }>('/institutions', {
+      baseURL: config.public.apiBase
+    })
+    institutionOptions.value = (res.data || []).map(i => ({ label: i.name, value: i.id }))
+  } catch {
+    institutionOptions.value = []
+  }
 })
 
 const loading = ref(false)
@@ -234,15 +355,26 @@ const onSubmit = async () => {
 
   loading.value = true
   try {
-    await register({
+    const payload = {
       role: state.role,
       name: state.name,
       email: state.email,
-      preferred_language: state.preferred_language,
+      phone: state.phone || undefined,
+      preferred_language: state.preferred_language || undefined,
       date_of_birth: state.date_of_birth,
       password: state.password,
       password_confirmation: state.password_confirmation
-    })
+    }
+    if (state.role === 'doctor') {
+      Object.assign(payload, {
+        speciality: state.speciality || undefined,
+        institution_id: state.institution_id || undefined,
+        license_number: state.license_number || undefined,
+        registration_date: state.registration_date || undefined,
+        regulatory_council: state.regulatory_council || undefined
+      })
+    }
+    await register(payload)
     await router.push('/dashboard')
   } catch (error) {
     toast.add({

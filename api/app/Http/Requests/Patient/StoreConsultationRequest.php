@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Patient;
 
+use Carbon\Carbon;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -23,6 +24,8 @@ class StoreConsultationRequest extends FormRequest
      */
     public function rules(): array
     {
+        $minTime = Carbon::now()->subMinutes(15);
+
         return [
             'doctor_id' => [
                 'required',
@@ -32,7 +35,7 @@ class StoreConsultationRequest extends FormRequest
             'scheduled_at' => [
                 'required',
                 'date',
-                'after:now',
+                'after:' . $minTime->toDateTimeString(),
             ],
             'consultation_type' => ['required', Rule::in(['text', 'audio', 'video'])],
             'reason' => ['required', 'string', 'max:5000'],

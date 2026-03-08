@@ -13,6 +13,15 @@ class UpdateUserRequest extends FormRequest
      */
     public function authorize(): bool
     {
+        $user = $this->user();
+        if (! $user?->isSuperAdmin()) {
+            if (in_array($this->input('role'), ['admin', 'super_admin'], true)) {
+                return false;
+            }
+            if ($this->has('permissions')) {
+                return false;
+            }
+        }
         return true;
     }
 
@@ -29,7 +38,10 @@ class UpdateUserRequest extends FormRequest
         return [
             'name' => ['sometimes', 'string', 'max:255'],
             'email' => ['sometimes', 'email', Rule::unique('users', 'email')->ignore($userId)],
-            'role' => ['sometimes', 'in:patient,doctor,admin'],
+            'role' => ['sometimes', 'in:patient,doctor,admin,super_admin'],
+            'permissions' => ['nullable', 'array'],
+            'permissions.*' => ['string', 'in:'.implode(',', \App\Support\AdminPermission::all())],
+            'password' => ['nullable', 'string', 'min:8'],
             'phone' => ['nullable', 'string', 'max:20'],
             'date_of_birth' => ['nullable', 'date'],
         ];

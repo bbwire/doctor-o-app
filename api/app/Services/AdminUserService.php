@@ -16,14 +16,18 @@ class AdminUserService
      */
     public function create(array $validated): User
     {
-        $user = User::create([
+        $attrs = [
             'name' => $validated['name'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'role' => $validated['role'],
             'phone' => $validated['phone'] ?? null,
             'date_of_birth' => $validated['date_of_birth'] ?? null,
-        ]);
+        ];
+        if (in_array($validated['role'] ?? '', ['admin', 'super_admin'], true)) {
+            $attrs['permissions'] = $validated['role'] === 'super_admin' ? null : ($validated['permissions'] ?? []);
+        }
+        $user = User::create($attrs);
 
         return $user->load('healthcareProfessional.institution');
     }
@@ -55,7 +59,16 @@ class AdminUserService
 
     public function update(User $user, array $validated): User
     {
-        $user->update($validated);
+        $attrs = array_diff_key($validated, array_flip(['password']));
+        if (isset($validated['password']) && $validated['password']) {
+            $attrs['password'] = Hash::make($validated['password']);
+        }
+        if (array_key_exists('permissions', $validated)) {
+            $attrs['permissions'] = in_array($user->role, ['admin', 'super_admin'], true)
+                ? ($user->role === 'super_admin' ? null : ($validated['permissions'] ?? []))
+                : $user->permissions;
+        }
+        $user->update($attrs);
 
         return $user->load('healthcareProfessional.institution');
     }

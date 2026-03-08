@@ -23,10 +23,21 @@
           <UFormGroup label="Password" name="password" required>
             <UInput
               v-model="state.password"
-              type="password"
+              :type="showPassword ? 'text' : 'password'"
               placeholder="••••••••"
               size="lg"
-            />
+            >
+              <template #trailing>
+                <UButton
+                  :icon="showPassword ? 'i-lucide-eye-off' : 'i-lucide-eye'"
+                  variant="ghost"
+                  size="xs"
+                  color="neutral"
+                  :aria-label="showPassword ? 'Hide password' : 'Show password'"
+                  @click.prevent="showPassword = !showPassword"
+                />
+              </template>
+            </UInput>
           </UFormGroup>
 
           <UButton
@@ -52,6 +63,7 @@ const { login, fetchUser, logout, user } = useAuth()
 const router = useRouter()
 const toast = useToast()
 
+const showPassword = ref(false)
 const state = reactive({
   email: '',
   password: ''
@@ -65,11 +77,12 @@ const onSubmit = async () => {
     await login(state.email, state.password)
     await fetchUser()
 
-    if (user.value?.role !== 'admin') {
+    const adminRoles = ['admin', 'super_admin']
+    if (!user.value || !adminRoles.includes(user.value.role)) {
       await logout()
       toast.add({
         title: 'Access denied',
-        description: 'Admin role required to access the dashboard.',
+        description: 'Admin access required to use this dashboard.',
         color: 'red'
       })
       return

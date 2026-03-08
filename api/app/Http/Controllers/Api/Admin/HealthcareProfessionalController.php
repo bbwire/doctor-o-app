@@ -25,14 +25,16 @@ class HealthcareProfessionalController extends Controller
 
     public function store(StoreHealthcareProfessionalRequest $request): JsonResponse
     {
-        return (new HealthcareProfessionalResource($this->healthcareProfessionalService->create($request->validated())))
+        return (new HealthcareProfessionalResource($this->healthcareProfessionalService->createWithNewUser($request->validated())))
             ->response()
             ->setStatusCode(201);
     }
 
     public function show(HealthcareProfessional $healthcareProfessional): HealthcareProfessionalResource
     {
-        return new HealthcareProfessionalResource($healthcareProfessional->load(['user', 'institution']));
+        return new HealthcareProfessionalResource(
+            $healthcareProfessional->load(['user', 'institution', 'academicDocuments'])
+        );
     }
 
     public function update(
@@ -49,5 +51,23 @@ class HealthcareProfessionalController extends Controller
         $this->healthcareProfessionalService->delete($healthcareProfessional);
 
         return response()->json(['message' => 'Healthcare professional deleted successfully']);
+    }
+
+    /**
+     * Update only approval/activation status (for admin quick actions).
+     */
+    public function updateStatus(
+        \Illuminate\Http\Request $request,
+        HealthcareProfessional $healthcareProfessional
+    ): HealthcareProfessionalResource {
+        $validated = $request->validate([
+            'is_approved' => ['sometimes', 'boolean'],
+            'is_active' => ['sometimes', 'boolean'],
+        ]);
+        $healthcareProfessional->update($validated);
+
+        return new HealthcareProfessionalResource(
+            $healthcareProfessional->refresh()->load(['user', 'institution', 'academicDocuments'])
+        );
     }
 }

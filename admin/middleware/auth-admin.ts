@@ -5,7 +5,8 @@ export default defineNuxtRouteMiddleware(async () => {
     await restoreSession()
   }
 
-  if (!user.value || user.value.role !== 'admin') {
+  const adminRoles = ['admin', 'super_admin']
+  if (!user.value || !adminRoles.includes(user.value.role)) {
     clearAuth()
     return navigateTo('/login')
   }

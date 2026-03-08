@@ -31,8 +31,40 @@
         <UFormGroup label="Type" name="type" required>
           <USelectMenu v-model="form.type" :options="typeOptions" value-attribute="value" />
         </UFormGroup>
+        <UFormGroup
+          v-if="form.type === 'hospital' || form.type === 'clinic'"
+          label="Services"
+          name="services"
+          :hint="form.type === 'hospital' ? 'Select all services this hospital offers.' : 'Select all services this clinic offers.'"
+        >
+          <USelectMenu
+            v-model="form.services"
+            :options="serviceOptions"
+            value-attribute="value"
+            option-attribute="label"
+            multiple
+            placeholder="Select services"
+          />
+          <div
+            v-if="form.services && form.services.length"
+            class="mt-2 flex flex-wrap gap-1"
+          >
+            <UBadge
+              v-for="value in form.services"
+              :key="value"
+              size="xs"
+              color="primary"
+              variant="soft"
+            >
+              {{ serviceLabel(value) }}
+            </UBadge>
+          </div>
+        </UFormGroup>
         <UFormGroup label="Address" name="address">
           <UInput v-model="form.address" />
+        </UFormGroup>
+        <UFormGroup label="Location" name="location" hint="e.g. city, district, or area">
+          <UInput v-model="form.location" placeholder="e.g. Kampala, Central" />
         </UFormGroup>
         <UFormGroup label="Phone" name="phone">
           <UInput v-model="form.phone" type="tel" />
@@ -42,6 +74,9 @@
         </UFormGroup>
         <UFormGroup label="Active" name="is_active">
           <UCheckbox v-model="form.is_active" />
+        </UFormGroup>
+        <UFormGroup label="Practicing certificate" name="certificate" hint="Optional. PDF or image (JPEG, PNG, WebP). Max 10 MB.">
+          <CertificateDropzone v-model="certificateFile" :disabled="saving" />
         </UFormGroup>
         <div class="flex gap-2">
           <UButton type="submit" :loading="saving">
@@ -63,22 +98,45 @@ definePageMeta({
 
 const router = useRouter()
 const toast = useToast()
+const config = useRuntimeConfig()
+const tokenCookie = useCookie('auth_token')
 const { post } = useAdminApi()
+
+const certificateFile = ref(null)
 
 const form = reactive({
   name: '',
-  type: 'clinic',
+  type: 'hospital',
+  services: [],
   address: '',
+  location: '',
   phone: '',
   email: '',
   is_active: true
 })
 
 const typeOptions = [
-  { label: 'Clinic', value: 'clinic' },
   { label: 'Hospital', value: 'hospital' },
-  { label: 'Other', value: 'other' }
+  { label: 'Clinic', value: 'clinic' },
+  { label: 'Lab', value: 'lab' },
+  { label: 'Drugshop', value: 'drugshop' },
+  { label: 'Pharmacy', value: 'pharmacy' },
+  { label: 'Nursing Home', value: 'nursing_home' }
 ]
+
+const serviceOptions = [
+  { label: 'Consultation', value: 'consultation' },
+  { label: 'Pharmacy', value: 'pharmacy' },
+  { label: 'Lab', value: 'lab' },
+  { label: 'Radiology', value: 'radiology' },
+  { label: 'Interventional Unit', value: 'interventional_unit' },
+  { label: 'Nursing care', value: 'nursing_care' }
+]
+
+function serviceLabel (value) {
+  const found = serviceOptions.find(o => o.value === value)
+  return found ? found.label : value
+}
 
 const errorMessage = ref('')
 const saving = ref(false)
@@ -87,14 +145,30 @@ async function onSubmit () {
   errorMessage.value = ''
   saving.value = true
   try {
-    await post('admin/institutions', {
+    const res = await post('admin/institutions', {
       name: form.name,
       type: form.type,
+      services: (form.type === 'hospital' || form.type === 'clinic') ? form.services : [],
       address: form.address || null,
+      location: form.location || null,
       phone: form.phone || null,
       email: form.email || null,
       is_active: form.is_active
     })
+    const createdId = res?.data?.id ?? res?.id
+    if (certificateFile.value && createdId) {
+      const formData = new FormData()
+      formData.append('file', certificateFile.value)
+      await $fetch(`/admin/institutions/${createdId}/practicing-certificate`, {
+        method: 'POST',
+        baseURL: config.public.apiBase,
+        headers: {
+          Authorization: `Bearer ${tokenCookie.value || ''}`,
+          Accept: 'application/json'
+        },
+        body: formData
+      })
+    }
     toast.add({ title: 'Institution created', color: 'green' })
     await router.push('/institutions')
   } catch (e) {

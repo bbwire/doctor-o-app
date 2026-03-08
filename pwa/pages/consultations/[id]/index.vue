@@ -45,14 +45,39 @@
           <p class="text-sm font-medium text-gray-900 dark:text-white mb-3">Manage Appointment</p>
           <div class="flex flex-col sm:flex-row sm:flex-wrap gap-2 mb-4">
             <UButton
-              :to="`/consultations/${consultation.id}/room`"
               :icon="joinConsultationIcon"
               size="sm"
               class="w-full sm:w-auto justify-center"
+              @click="showConsentModal = true"
             >
               Join {{ consultation.consultation_type }} consultation
             </UButton>
           </div>
+
+          <UModal v-model="showConsentModal" :ui="{ width: 'max-w-md' }">
+            <UCard :ui="{ ring: '', divide: 'divide-y divide-gray-200 dark:divide-gray-800' }">
+              <template #header>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Consent to consultation</h3>
+              </template>
+              <p class="text-sm text-gray-600 dark:text-gray-300">
+                By joining this consultation you consent to the collection and use of your data (including voice and video where applicable) for the purpose of this consultation and related documentation, in line with our
+                <NuxtLink to="/privacy" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline">Privacy Policy</NuxtLink>.
+              </p>
+              <template #footer>
+                <div class="flex justify-end gap-2">
+                  <UButton variant="ghost" color="neutral" @click="showConsentModal = false">
+                    Cancel
+                  </UButton>
+                  <UButton
+                    :icon="joinConsultationIcon"
+                    @click="onConsentAndJoin"
+                  >
+                    I agree & Join
+                  </UButton>
+                </div>
+              </template>
+            </UCard>
+          </UModal>
           <div class="grid gap-3 grid-cols-1 md:grid-cols-[1fr_auto_auto] md:items-end">
             <UFormGroup label="New Date & Time">
               <UInput v-model="rescheduleAt" type="datetime-local" :min="minimumRescheduleDateTime" />
@@ -178,6 +203,7 @@ type TimelineStep = {
 }
 
 const route = useRoute()
+const router = useRouter()
 const config = useRuntimeConfig()
 const tokenCookie = useCookie<string | null>('auth_token')
 const { isApiReachable, hasApiStatusChecked } = useApiHealth()
@@ -193,6 +219,7 @@ const reconnectRetryInProgress = ref(false)
 const consultation = ref<ConsultationItem | null>(null)
 const rescheduleAt = ref('')
 const suggestedSlots = ref<string[]>([])
+const showConsentModal = ref(false)
 
 const consultationId = computed(() => route.params.id)
 const apiHeaders = computed(() => ({
@@ -429,6 +456,12 @@ const statusColor = (status: ConsultationItem['status']) => {
   if (status === 'scheduled') return 'blue'
   if (status === 'completed') return 'green'
   return 'gray'
+}
+
+function onConsentAndJoin () {
+  if (!consultation.value) return
+  showConsentModal.value = false
+  router.push(`/consultations/${consultation.value.id}/room`)
 }
 
 watch(consultationId, async () => {

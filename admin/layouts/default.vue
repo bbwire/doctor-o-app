@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen flex bg-gray-50 dark:bg-gray-950">
+  <div class="h-screen flex overflow-hidden bg-gray-50 dark:bg-gray-950">
     <!-- Mobile overlay when sidebar open -->
     <div
       v-if="sidebarOpen"
@@ -8,9 +8,9 @@
       @click="sidebarOpen = false"
     />
 
-    <!-- Sidebar -->
+    <!-- Sidebar: fixed so it doesn't scroll with content -->
     <aside
-      class="fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900/95 lg:static lg:z-auto lg:shadow-none"
+      class="fixed inset-y-0 left-0 z-30 flex w-64 shrink-0 flex-col border-r border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900/95 lg:static lg:z-auto lg:shadow-none"
       :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
     >
       <div class="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 px-4 dark:border-gray-800">
@@ -39,7 +39,7 @@
               Dashboard
             </NuxtLink>
           </li>
-          <li>
+          <li v-if="can('manage_institutions')">
             <NuxtLink
               to="/institutions"
               class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
@@ -50,7 +50,7 @@
               Institutions
             </NuxtLink>
           </li>
-          <li>
+          <li v-if="can('manage_healthcare_professionals')">
             <NuxtLink
               to="/healthcare-professionals"
               class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
@@ -61,7 +61,7 @@
               Professionals
             </NuxtLink>
           </li>
-          <li>
+          <li v-if="can('manage_consultations')">
             <NuxtLink
               to="/consultations"
               class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
@@ -72,7 +72,7 @@
               Consultations
             </NuxtLink>
           </li>
-          <li>
+          <li v-if="can('manage_prescriptions')">
             <NuxtLink
               to="/prescriptions"
               class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
@@ -83,7 +83,7 @@
               Prescriptions
             </NuxtLink>
           </li>
-          <li>
+          <li v-if="can('view_notifications')">
             <NuxtLink
               to="/notifications"
               class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
@@ -94,7 +94,7 @@
               Notifications
             </NuxtLink>
           </li>
-          <li>
+          <li v-if="can('manage_users')">
             <NuxtLink
               to="/users"
               class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
@@ -105,7 +105,18 @@
               Users
             </NuxtLink>
           </li>
-          <li>
+          <li v-if="can('manage_finance')">
+            <NuxtLink
+              to="/finance"
+              class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
+              :class="isActive('/finance') ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/25 dark:text-primary-300 border-l-2 border-primary-500 -ml-px pl-[11px]' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'"
+              @click="sidebarOpen = false"
+            >
+              <UIcon name="i-lucide-wallet" class="h-4 w-4 shrink-0" />
+              Finance
+            </NuxtLink>
+          </li>
+          <li v-if="can('manage_settings')">
             <NuxtLink
               to="/settings"
               class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
@@ -116,13 +127,24 @@
               Settings
             </NuxtLink>
           </li>
+          <li v-if="can('manage_settings')">
+            <NuxtLink
+              to="/audit-trail"
+              class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
+              :class="isActive('/audit-trail') ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/25 dark:text-primary-300 border-l-2 border-primary-500 -ml-px pl-[11px]' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'"
+              @click="sidebarOpen = false"
+            >
+              <UIcon name="i-lucide-history" class="h-4 w-4 shrink-0" />
+              Audit trail
+            </NuxtLink>
+          </li>
         </ul>
       </nav>
     </aside>
 
-    <!-- Main content -->
-    <div class="flex min-w-0 flex-1 flex-col">
-      <header class="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 dark:border-gray-800 dark:bg-gray-900 lg:px-6">
+    <!-- Main content: only this area scrolls -->
+    <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <header class="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 dark:border-gray-800 dark:bg-gray-900 lg:px-6">
         <div class="flex items-center gap-3">
           <UButton
             icon="i-lucide-menu"
@@ -159,7 +181,7 @@
         </div>
       </header>
 
-      <main class="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+      <main class="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
         <div class="mx-auto max-w-7xl">
           <slot />
         </div>
@@ -177,6 +199,15 @@ const theme = useState('theme')
 const isDark = computed(() => theme.value === 'dark')
 const sidebarOpen = ref(false)
 
+/** Super admin has all permissions; admin has permission-based access. */
+function can (permission: string) {
+  const u = user.value
+  if (!u) return false
+  if (u.is_super_admin || u.role === 'super_admin') return true
+  if (u.role !== 'admin') return false
+  return Array.isArray(u.permissions) && u.permissions.includes(permission)
+}
+
 function isActive (path) {
   const p = route.path
   if (path === '/') return p === '/'
@@ -192,6 +223,7 @@ const currentPageTitle = computed(() => {
   if (path.startsWith('/consultations')) return 'Consultations'
   if (path.startsWith('/prescriptions')) return 'Prescriptions'
   if (path.startsWith('/notifications')) return 'Notifications'
+  if (path.startsWith('/audit-trail')) return 'Audit trail'
   if (path.startsWith('/settings')) return 'Settings'
   return 'Admin'
 })

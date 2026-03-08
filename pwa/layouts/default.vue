@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen min-h-[100dvh] bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100">
-    <header class="relative z-50 border-b border-gray-200/80 bg-white/80 backdrop-blur dark:border-gray-800 dark:bg-gray-900/80 safe-area-top">
-      <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3 sm:gap-4">
+    <header class="sticky top-0 z-50 flex h-14 items-center justify-center border-b border-gray-200/80 bg-white/80 backdrop-blur dark:border-gray-800 dark:bg-gray-900/80 safe-area-top safe-area-top-balance">
+      <div class="w-full max-w-6xl mx-auto px-4 sm:px-6 flex h-14 items-center justify-between gap-3 sm:gap-4">
         <NuxtLink to="/" class="flex items-center space-x-2 shrink-0">
           <span class="text-xl font-bold text-primary-600">Dr. O</span>
         </NuxtLink>
@@ -81,6 +81,16 @@
               {{ headerWalletLabel }}
             </span>
           </NuxtLink>
+          <NuxtLink
+            v-if="user && user.role === 'doctor'"
+            to="/doctor/wallet"
+            class="inline-flex items-center gap-1.5 rounded-full border border-primary-500/70 bg-primary-50/80 px-2.5 py-1 text-[11px] font-medium text-primary-700 shadow-sm dark:border-primary-700/70 dark:bg-primary-900/40 dark:text-primary-100"
+          >
+            <UIcon name="i-lucide-wallet" class="w-3.5 h-3.5" />
+            <span class="tabular-nums">
+              {{ headerDoctorWalletLabel }}
+            </span>
+          </NuxtLink>
           <UButton
             :icon="isDark ? 'i-lucide-sun-medium' : 'i-lucide-moon-star'"
             variant="ghost"
@@ -125,6 +135,22 @@
       </div>
     </header>
 
+    <NuxtLink
+      v-if="user && user.role === 'doctor'"
+      to="/profile"
+      class="block border-b border-amber-200/60 dark:border-amber-800/70 bg-amber-50/80 dark:bg-amber-900/20 hover:bg-amber-100/80 dark:hover:bg-amber-900/30 transition-colors cursor-pointer"
+    >
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3">
+        <UAlert
+          color="amber"
+          icon="i-lucide-alert-circle"
+          variant="soft"
+          title="Complete your doctor profile"
+          description="Add your speciality, licence number and documents so we can review and approve your account. Click to go to Profile."
+        />
+      </div>
+    </NuxtLink>
+
     <main class="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6 pb-safe" :class="user ? 'pb-20 md:pb-6' : ''">
       <slot />
     </main>
@@ -151,8 +177,14 @@
     </nav>
 
     <footer class="border-t border-gray-200 dark:border-gray-800 py-4 mt-6 sm:mt-10 safe-area-bottom" :class="user ? 'mb-20 md:mb-0' : ''">
-      <div class="max-w-6xl mx-auto px-4 sm:px-6 text-sm text-gray-500 dark:text-gray-400">
-        Dr. O Medical Services
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 text-sm text-gray-500 dark:text-gray-400 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
+        <span>Dr. O Medical Services</span>
+        <span class="hidden sm:inline">·</span>
+        <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+          <NuxtLink to="/about" class="hover:text-primary-600 dark:hover:text-primary-400 transition-colors">About Us</NuxtLink>
+          <NuxtLink to="/privacy" class="hover:text-primary-600 dark:hover:text-primary-400 transition-colors">Privacy Policy</NuxtLink>
+          <NuxtLink to="/contact" class="hover:text-primary-600 dark:hover:text-primary-400 transition-colors">Contact Us</NuxtLink>
+        </div>
       </div>
     </footer>
   </div>
@@ -170,6 +202,8 @@ const isDark = computed(() => theme.value === 'dark')
 
 const headerWalletBalance = ref(null)
 const headerWalletLoading = ref(false)
+const headerDoctorWalletBalance = ref(null)
+const headerDoctorWalletLoading = ref(false)
 
 const headerWalletLabel = computed(() => {
   if (!user.value || user.value.role !== 'patient') {
@@ -179,8 +213,20 @@ const headerWalletLabel = computed(() => {
     return 'Wallet …'
   }
   const value = Number(headerWalletBalance.value ?? 0)
-  if (Number.isNaN(value)) return 'Wallet 0.00'
-  return `Wallet ${value.toFixed(2)}`
+  if (Number.isNaN(value)) return 'Wallet UGX 0'
+  return `Wallet ${new Intl.NumberFormat('en-UG', { style: 'currency', currency: 'UGX', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value)}`
+})
+
+const headerDoctorWalletLabel = computed(() => {
+  if (!user.value || user.value.role !== 'doctor') {
+    return ''
+  }
+  if (headerDoctorWalletLoading.value && headerDoctorWalletBalance.value === null) {
+    return 'Revenue …'
+  }
+  const value = Number(headerDoctorWalletBalance.value ?? 0)
+  if (Number.isNaN(value)) return 'Revenue UGX 0'
+  return `Revenue ${new Intl.NumberFormat('en-UG', { style: 'currency', currency: 'UGX', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value)}`
 })
 
 async function fetchHeaderWallet () {
@@ -199,6 +245,25 @@ async function fetchHeaderWallet () {
     // keep previous balance or null
   } finally {
     headerWalletLoading.value = false
+  }
+}
+
+async function fetchHeaderDoctorWallet () {
+  if (!user.value || user.value.role !== 'doctor') return
+  headerDoctorWalletLoading.value = true
+  try {
+    const res = await $fetch('/doctor/wallet', {
+      baseURL: config.public.apiBase,
+      headers: {
+        Authorization: `Bearer ${token.value || tokenCookie.value || ''}`,
+        Accept: 'application/json'
+      }
+    })
+    headerDoctorWalletBalance.value = typeof res?.data?.balance === 'number' ? res.data.balance : 0
+  } catch {
+    // keep previous balance or null
+  } finally {
+    headerDoctorWalletLoading.value = false
   }
 }
 
@@ -255,6 +320,7 @@ watch(user, (u) => {
   if (u) {
     fetchRecentNotifications()
     fetchHeaderWallet()
+    fetchHeaderDoctorWallet()
   }
 }, { immediate: true })
 
@@ -281,6 +347,7 @@ const patientNavItems = [
 const doctorNavItems = [
   { label: 'Home', icon: 'i-lucide-layout-dashboard', to: '/doctor/dashboard' },
   { label: 'Visits', icon: 'i-lucide-calendar-days', to: '/doctor/consultations' },
+  { label: 'Revenue', icon: 'i-lucide-wallet', to: '/doctor/wallet' },
   { label: 'Rx', icon: 'i-lucide-file-text', to: '/doctor/prescriptions' },
   { label: 'Alerts', icon: 'i-lucide-bell', to: '/notifications' }
 ]

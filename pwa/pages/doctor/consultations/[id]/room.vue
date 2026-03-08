@@ -43,346 +43,184 @@
       />
     </div>
 
-    <!-- Video room -->
+    <!-- Video / Audio room (Jitsi Meet) -->
     <div
-      v-else-if="consultation?.consultation_type === 'video'"
+      v-else-if="isVideoOrAudio"
       class="flex-1 flex flex-col min-h-0 bg-black"
     >
-      <div v-if="!isCallActive" class="flex-1 flex items-center justify-center p-6 sm:p-8">
+      <!-- Pre-join -->
+      <div
+        v-if="!jitsiContainerVisible"
+        class="flex-1 flex items-center justify-center p-6 sm:p-8"
+      >
         <div class="w-full max-w-2xl rounded-2xl bg-gray-900/95 flex flex-col items-center py-12 px-8 sm:py-16 sm:px-12 border border-gray-800 shadow-xl">
           <div class="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gray-800/80 flex items-center justify-center mb-8">
-            <UIcon name="i-lucide-video" class="w-10 h-10 sm:w-12 sm:h-12 text-gray-400" />
+            <UIcon
+              :name="consultation?.consultation_type === 'video' ? 'i-lucide-video' : 'i-lucide-phone'"
+              class="w-10 h-10 sm:w-12 sm:h-12 text-gray-400"
+            />
           </div>
           <div class="text-center mb-8">
-            <p class="text-lg sm:text-xl font-semibold text-gray-100">Video consultation</p>
+            <p class="text-lg sm:text-xl font-semibold text-gray-100">
+              {{ consultation?.consultation_type === 'video' ? 'Video' : 'Audio' }} consultation
+            </p>
             <p class="text-sm text-gray-500 mt-1">Room {{ id }}</p>
           </div>
           <UAlert
-            v-if="callError"
+            v-if="jitsiErrorText"
             color="red"
             variant="soft"
-            :title="String(callError || '')"
+            :title="jitsiErrorText"
             class="mb-4 w-full max-w-sm"
           />
           <UButton
-            icon="i-lucide-video"
+            :icon="consultation?.consultation_type === 'video' ? 'i-lucide-video' : 'i-lucide-phone'"
             size="lg"
             class="w-full sm:w-auto min-w-[200px]"
-            :loading="webrtcStarting"
-            @click="startVideoCall"
+            :loading="jitsi.isJoining.value"
+            :disabled="jitsi.isJoining.value"
+            @click="joinJitsi"
           >
-            Start video call
+            Start {{ consultation?.consultation_type === 'video' ? 'video' : 'audio' }} call
           </UButton>
+          <p class="mt-4 text-xs text-gray-500 text-center max-w-sm">
+            If you see &quot;wait for moderator&quot;, the public video server may require a one-time sign-in. For production, use <a href="https://jaas.8x8.vc/" target="_blank" rel="noopener" class="underline">Jitsi as a Service</a> or self-hosted Jitsi.
+          </p>
         </div>
       </div>
+
+      <!-- In-call: Jitsi container + controls -->
       <div v-else class="flex-1 flex flex-col min-h-0">
-        <!-- Mobile: remote full-screen + local PiP -->
-        <div class="lg:hidden relative flex-1 min-h-0 bg-black">
-          <div class="absolute inset-0">
-            <VideoDisplay
-              :stream="remoteStreamProp"
-              video-class="w-full h-full object-cover"
-            />
-            <div class="absolute top-4 left-4 text-white font-medium drop-shadow-lg">
-              {{ consultation?.patient?.name || 'Patient' }}
+        <div class="flex-1 min-h-0 relative">
+          <div
+            v-if="jitsi.isJoining.value"
+            class="absolute inset-0 flex items-center justify-center bg-gray-900 z-10"
+          >
+            <div class="text-center">
+              <UIcon name="i-lucide-loader-2" class="w-12 h-12 animate-spin text-primary-500 mx-auto mb-3" />
+              <p class="text-gray-400">Starting call...</p>
             </div>
-          </div>
-          <div class="absolute top-4 right-4 w-24 h-32 sm:w-28 sm:h-36 rounded-xl overflow-hidden border-2 border-white/20 shadow-xl bg-gray-900">
-            <VideoDisplay
-              :stream="localStreamProp"
-              muted
-              video-class="w-full h-full object-cover scale-x-[-1]"
-            />
-            <div class="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-[10px] text-gray-300">
-              You
-            </div>
-          </div>
-        </div>
-
-        <!-- Desktop: side-by-side grid + scrollable notes -->
-        <div class="hidden lg:flex flex-1 min-h-0 overflow-y-auto overscroll-contain flex-col">
-          <div class="p-4 space-y-4">
-            <div class="grid grid-cols-2 gap-4">
-              <div class="relative rounded-xl overflow-hidden bg-gray-900 aspect-video min-h-[160px]">
-                <VideoDisplay
-                  :stream="remoteStreamProp"
-                  video-class="w-full h-full object-cover"
-                />
-                <div class="absolute bottom-2 left-2 px-2 py-1 rounded bg-black/60 text-xs text-gray-300">
-                  {{ consultation?.patient?.name || 'Remote' }}
-                </div>
-              </div>
-              <div class="relative rounded-xl overflow-hidden bg-gray-900 aspect-video min-h-[160px]">
-                <VideoDisplay
-                  :stream="localStreamProp"
-                  muted
-                  video-class="w-full h-full object-cover scale-x-[-1]"
-                />
-                <div class="absolute bottom-2 left-2 px-2 py-1 rounded bg-black/60 text-xs text-gray-300">
-                  You
-                </div>
-              </div>
-            </div>
-
-            <!-- Consultation notes (doctor) – desktop -->
-            <div
-              v-if="consultation?.reason || consultation?.notes"
-              class="rounded-xl border border-gray-800 bg-gray-900/60 p-4"
-            >
-              <h3 class="text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
-                <UIcon name="i-lucide-file-text" class="w-4 h-4" />
-                Consultation info
-              </h3>
-              <dl class="space-y-3 text-sm">
-                <div v-if="consultation?.reason">
-                  <dt class="text-gray-500">Reason</dt>
-                  <dd
-                    class="text-gray-200 mt-0.5 prose prose-sm prose-invert max-w-none"
-                    v-html="consultation.reason"
-                  />
-                </div>
-                <div v-if="consultation?.notes">
-                  <dt class="text-gray-500">Notes</dt>
-                  <dd class="text-gray-200 mt-0.5 whitespace-pre-line">{{ consultation.notes }}</dd>
-                </div>
-              </dl>
-            </div>
-          </div>
-        </div>
-
-        <!-- Call controls -->
-        <div class="shrink-0 p-4 border-t border-gray-800 bg-gray-900/95 pb-safe">
-          <div class="flex flex-wrap justify-center gap-2">
-            <UButton
-              :icon="isMuted ? 'i-lucide-mic-off' : 'i-lucide-mic'"
-              :color="isMuted ? 'red' : 'neutral'"
-              variant="soft"
-              size="md"
-              @click="webrtc.toggleMute()"
-            >
-              {{ isMuted ? 'Unmute' : 'Mute' }}
-            </UButton>
-            <UButton
-              :icon="isVideoOff ? 'i-lucide-video-off' : 'i-lucide-video'"
-              :color="isVideoOff ? 'red' : 'neutral'"
-              variant="soft"
-              size="md"
-              @click="webrtc.toggleVideo()"
-            >
-              {{ isVideoOff ? 'Camera on' : 'Camera off' }}
-            </UButton>
-            <UButton
-              color="red"
-              variant="soft"
-              size="md"
-              icon="i-lucide-phone-off"
-              @click="webrtc.endCall()"
-            >
-              End call
-            </UButton>
-            <UButton
-              color="neutral"
-              variant="soft"
-              size="md"
-              icon="i-lucide-message-square"
-              class="ml-auto"
-              @click="showCallChat = !showCallChat"
-            >
-              {{ showCallChat ? 'Hide chat' : 'Open chat' }}
-            </UButton>
-          </div>
-        </div>
-
-        <!-- Consultation notes (doctor) – mobile, scrollable below controls -->
-        <div
-          v-if="consultation?.reason || consultation?.notes"
-          class="lg:hidden shrink-0 max-h-40 overflow-y-auto border-t border-gray-800"
-        >
-          <div class="p-4 rounded-xl bg-gray-900/60">
-            <h3 class="text-sm font-semibold text-gray-300 mb-2 flex items-center gap-2">
-              <UIcon name="i-lucide-file-text" class="w-4 h-4" />
-              Consultation info
-            </h3>
-            <dl class="space-y-2 text-sm">
-              <div v-if="consultation?.reason">
-                <dt class="text-gray-500">Reason</dt>
-                <dd class="text-gray-200 mt-0.5">{{ consultation.reason }}</dd>
-              </div>
-              <div v-if="consultation?.notes">
-                <dt class="text-gray-500">Notes</dt>
-                <dd class="text-gray-200 mt-0.5 whitespace-pre-line">{{ consultation.notes }}</dd>
-              </div>
-            </dl>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Audio room -->
-    <div
-      v-else-if="consultation?.consultation_type === 'audio'"
-      class="flex-1 flex flex-col min-h-0"
-    >
-      <div class="flex-1 flex flex-col min-h-0">
-        <div v-if="!isCallActive" class="flex-1 flex items-center justify-center p-6 sm:p-8">
-          <div class="w-full max-w-sm rounded-2xl bg-gray-900/95 flex flex-col items-center py-12 px-8 sm:py-16 sm:px-10 border border-gray-800 shadow-xl">
-            <div class="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gray-800/80 flex items-center justify-center ring-4 ring-primary-500/20 mb-8">
-              <UIcon name="i-lucide-phone" class="w-10 h-10 sm:w-12 sm:h-12 text-primary-400" />
-            </div>
-            <div class="text-center mb-8">
-              <p class="text-lg sm:text-xl font-semibold text-gray-100">Audio consultation</p>
-              <p class="text-sm text-gray-500 mt-1">Room {{ id }}</p>
-            </div>
-            <UAlert
-              v-if="callError"
-              color="red"
-              variant="soft"
-              :title="String(callError || '')"
-              class="mb-4 w-full"
-            />
-            <UButton
-              icon="i-lucide-phone"
-              size="lg"
-              class="w-full sm:w-auto min-w-[200px]"
-              :loading="webrtcStarting"
-              @click="startAudioCall"
-            >
-              Start audio call
-            </UButton>
-          </div>
-        </div>
-        <div v-else class="flex-1 flex flex-col items-center justify-center p-6 gap-6">
-          <audio ref="remoteAudioEl" autoplay class="hidden" />
-          <div class="w-24 h-24 rounded-full bg-primary-500/20 flex items-center justify-center">
-            <UIcon name="i-lucide-phone" class="w-12 h-12 text-primary-400" />
-          </div>
-          <div class="text-center">
-            <p class="text-lg font-medium text-gray-200">{{ consultation?.patient?.name || 'Patient' }}</p>
-            <p class="text-sm text-gray-500 mt-1">{{ isConnected ? 'Connected' : 'Connecting...' }}</p>
-          </div>
-          <div class="flex gap-2">
-            <UButton
-              :icon="isMuted ? 'i-lucide-mic-off' : 'i-lucide-mic'"
-              :color="isMuted ? 'red' : 'neutral'"
-              variant="soft"
-              size="lg"
-              @click="webrtc.toggleMute()"
-            >
-              {{ isMuted ? 'Unmute' : 'Mute' }}
-            </UButton>
-            <UButton
-              color="red"
-              variant="soft"
-              size="lg"
-              icon="i-lucide-phone-off"
-              @click="webrtc.endCall()"
-            >
-              End call
-            </UButton>
-            <UButton
-              color="neutral"
-              variant="soft"
-              size="lg"
-              icon="i-lucide-message-square"
-              @click="showCallChat = !showCallChat"
-            >
-              {{ showCallChat ? 'Hide chat' : 'Open chat' }}
-            </UButton>
           </div>
           <div
-            v-if="showCallChat"
-            class="w-full mt-4 border-t border-gray-800 bg-gray-900/80 rounded-xl overflow-hidden"
+            ref="jitsiContainerRef"
+            class="w-full h-full min-h-[240px]"
+          />
+        </div>
+        <div class="shrink-0 p-3 border-t border-gray-800 bg-gray-900/95 flex flex-wrap justify-center gap-2 pb-safe">
+          <UButton
+            color="red"
+            variant="soft"
+            size="md"
+            icon="i-lucide-phone-off"
+            @click="leaveJitsi"
+          >
+            End call
+          </UButton>
+          <UButton
+            color="neutral"
+            variant="soft"
+            size="md"
+            icon="i-lucide-message-square"
+            @click="showCallChat = !showCallChat"
+          >
+            {{ showCallChat ? 'Hide chat' : 'Open chat' }}
+          </UButton>
+        </div>
+
+        <!-- Inline chat panel -->
+        <div
+          v-if="showCallChat"
+          class="shrink-0 border-t border-gray-800 bg-gray-900/80"
+        >
+          <div
+            ref="messagesContainer"
+            class="max-h-72 overflow-y-auto overflow-x-hidden overscroll-contain p-4 space-y-3"
           >
             <div
-              ref="messagesContainer"
-              class="max-h-72 overflow-y-auto overflow-x-hidden overscroll-contain p-4 space-y-3"
+              v-for="(msg, i) in messages"
+              :key="msg.id ?? i"
+              class="flex"
+              :class="msg.sender === 'doctor' ? 'justify-end' : 'justify-start'"
             >
               <div
-                v-for="(msg, i) in messages"
-                :key="msg.id ?? i"
-                class="flex"
-                :class="msg.sender === 'doctor' ? 'justify-end' : 'justify-start'"
+                class="max-w-[80%] rounded-2xl px-3 py-2"
+                :class="msg.sender === 'doctor'
+                  ? 'bg-primary-600 text-white rounded-br-md'
+                  : 'bg-gray-800 text-gray-300 rounded-bl-md'"
               >
-                <div
-                  class="max-w-[80%] rounded-2xl px-3 py-2"
-                  :class="msg.sender === 'doctor'
-                    ? 'bg-primary-600 text-white rounded-br-md'
-                    : 'bg-gray-800 text-gray-300 rounded-bl-md'"
-                >
-                  <img
-                    v-if="msg.attachment_url"
-                    :src="msg.attachment_url"
-                    alt="Shared image"
-                    class="rounded-lg max-w-full max-h-48 object-contain mb-1.5"
-                  />
-                  <p v-if="msg.text && msg.text.trim()" class="whitespace-pre-wrap text-xs sm:text-sm break-words">
-                    <ChatMessageText :text="msg.text" />
-                  </p>
-                  <p class="text-[10px] mt-0.5 opacity-70 text-right">{{ formatTime(msg.at) }}</p>
-                </div>
-              </div>
-              <div v-if="!messages.length" class="flex items-center justify-center py-6">
-                <p class="text-gray-500 text-xs text-center">
-                  No messages yet. Start the conversation below.
+                <img
+                  v-if="msg.attachment_url"
+                  :src="msg.attachment_url"
+                  alt="Shared image"
+                  class="rounded-lg max-w-full max-h-48 object-contain mb-1.5"
+                />
+                <p v-if="msg.text && msg.text.trim()" class="whitespace-pre-wrap text-xs sm:text-sm break-words">
+                  <ChatMessageText :text="msg.text" />
                 </p>
+                <p class="text-[10px] mt-0.5 opacity-70 text-right">{{ formatTime(msg.at) }}</p>
               </div>
-              <div ref="scrollAnchor" class="h-0" aria-hidden="true" />
             </div>
-            <form
-              ref="chatFormRef"
-              class="border-t border-gray-800 bg-gray-900/95 px-3 py-2 flex items-center gap-2"
-              @submit.prevent="sendMessage"
-            >
-              <div class="flex items-center gap-1 shrink-0">
-                <EmojiPicker @pick="(e) => { newMessage += e }" />
-                <UButton
-                  type="button"
-                  variant="ghost"
-                  color="neutral"
-                  size="xs"
-                  icon="i-lucide-image-plus"
-                  aria-label="Upload image"
-                  :loading="uploadingImage"
-                  @click="triggerImageInput"
-                />
-              </div>
-              <input
-                ref="imageInputRef"
-                type="file"
-                accept="image/*"
-                class="hidden"
-                @change="onImageSelect"
-              >
-              <div class="flex-1 min-w-0">
-                <textarea
-                  ref="chatInputRef"
-                  v-model="newMessage"
-                  placeholder="Type a message..."
-                  rows="1"
-                  class="w-full min-h-[36px] max-h-24 py-2 px-3 rounded-2xl bg-gray-800 border border-gray-700 text-xs sm:text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-500/50 placeholder:text-gray-500"
-                  @keydown.enter.exact.prevent="sendMessage"
-                  @focus="scrollInputIntoView"
-                />
-              </div>
-              <button
-                type="submit"
-                :disabled="(!newMessage.trim() && !selectedImage) || sending"
-                class="shrink-0 flex items-center justify-center rounded-lg bg-primary-600 text-white hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors p-2"
-                aria-label="Send"
-              >
-                <UIcon
-                  v-if="sending"
-                  name="i-lucide-loader-2"
-                  class="w-4 h-4 animate-spin"
-                />
-                <UIcon
-                  v-else
-                  name="i-lucide-send"
-                  class="w-4 h-4"
-                />
-              </button>
-            </form>
+            <div v-if="!messages.length" class="flex items-center justify-center py-6">
+              <p class="text-gray-500 text-xs text-center">
+                No messages yet. Start the conversation below.
+              </p>
+            </div>
+            <div ref="scrollAnchor" class="h-0" aria-hidden="true" />
           </div>
+          <form
+            ref="chatFormRef"
+            class="border-t border-gray-800 bg-gray-900/95 px-3 py-2 flex items-center gap-2"
+            @submit.prevent="sendMessage"
+          >
+            <div class="flex items-center gap-1 shrink-0">
+              <EmojiPicker @pick="(e) => { newMessage += e }" />
+              <UButton
+                type="button"
+                variant="ghost"
+                color="neutral"
+                size="xs"
+                icon="i-lucide-image-plus"
+                aria-label="Upload image"
+                :loading="uploadingImage"
+                @click="triggerImageInput"
+              />
+            </div>
+            <input
+              ref="imageInputRef"
+              type="file"
+              accept="image/*"
+              class="hidden"
+              @change="onImageSelect"
+            >
+            <div class="flex-1 min-w-0">
+              <textarea
+                ref="chatInputRef"
+                v-model="newMessage"
+                placeholder="Type a message..."
+                rows="1"
+                class="w-full min-h-[36px] max-h-24 py-2 px-3 rounded-2xl bg-gray-800 border border-gray-700 text-xs sm:text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-500/50 placeholder:text-gray-500"
+                @keydown.enter.exact.prevent="sendMessage"
+                @focus="scrollInputIntoView"
+              />
+            </div>
+            <button
+              type="submit"
+              :disabled="(!newMessage.trim() && !selectedImage) || sending"
+              class="shrink-0 flex items-center justify-center rounded-lg bg-primary-600 text-white hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors p-2"
+              aria-label="Send"
+            >
+              <UIcon
+                v-if="sending"
+                name="i-lucide-loader-2"
+                class="w-4 h-4 animate-spin"
+              />
+              <UIcon
+                v-else
+                name="i-lucide-send"
+                class="w-4 h-4"
+              />
+            </button>
+          </form>
         </div>
       </div>
     </div>
@@ -536,11 +374,16 @@ definePageMeta({
 const route = useRoute()
 const router = useRouter()
 const config = useRuntimeConfig()
-const { token } = useAuth()
+const { token, user } = useAuth()
 const toast = useToast()
 const tokenCookie = useCookie('auth_token')
 
 const id = route.params.id as string
+
+const isVideoOrAudio = computed(() => {
+  const t = consultation.value?.consultation_type
+  return t === 'video' || t === 'audio'
+})
 
 const loading = ref(true)
 const errorMessage = ref('')
@@ -564,74 +407,60 @@ const selectedImage = ref<File | null>(null)
 const imagePreview = ref<string | null>(null)
 const uploadingImage = ref(false)
 let pollInterval: ReturnType<typeof setInterval> | null = null
-const webrtcStarting = ref(false)
-
-async function fetchWebrtcSignals (since?: string) {
-  const res = await $fetch(`/doctor/consultations/${id}/webrtc-signals`, {
-    baseURL: config.public.apiBase,
-    headers: getHeaders(),
-    query: since ? { since } : {}
-  })
-  return (res as any)?.data ?? []
-}
-
-async function sendWebrtcSignal (type: string, payload: any) {
-  await $fetch(`/doctor/consultations/${id}/webrtc-signals`, {
-    baseURL: config.public.apiBase,
-    method: 'POST',
-    headers: getHeaders(),
-    body: { type, payload }
-  })
-}
-
-const webrtc = useWebRtcCall(
-  id,
-  'doctor',
-  fetchWebrtcSignals,
-  sendWebrtcSignal
-)
-
-const isCallActive = computed(() => webrtc.isCallActive?.value ?? false)
-const isConnected = computed(() => webrtc.isConnected?.value ?? false)
-const callError = computed(() => webrtc.callError?.value ?? null)
-const isMuted = computed(() => webrtc.isMuted?.value ?? false)
-const isVideoOff = computed(() => webrtc.isVideoOff?.value ?? false)
-const localStreamProp = computed(() => webrtc.localStream?.value ?? null)
-const remoteStreamProp = computed(() => webrtc.remoteStream?.value ?? null)
-const remoteAudioEl = ref<HTMLAudioElement | null>(null)
 const showCallChat = ref(false)
 
-async function startAudioCall () {
-  webrtcStarting.value = true
+const jitsi = useJitsiMeeting()
+const jitsiContainerRef = ref<HTMLElement | null>(null)
+const jitsiContainerVisible = ref(false)
+
+function getJitsiRoomName () {
+  return `doctoro-consult-${id}`
+}
+
+function getDoctorDisplayName () {
+  const name = consultation.value?.doctor?.name || user.value?.name
+  return name ? `Dr. ${name}` : 'Doctor'
+}
+
+const jitsiErrorText = computed(() => {
+  const err = jitsi.error.value
+  if (err == null) return ''
+  if (typeof err === 'string') return err
+  if (err && typeof err === 'object' && 'message' in err) return String((err as Error).message)
+  return 'Could not start meeting'
+})
+
+async function joinJitsi () {
+  jitsiContainerVisible.value = true
+  await nextTick()
+  const parent = jitsiContainerRef.value
+  if (!parent) {
+    jitsiContainerVisible.value = false
+    toast.add({ title: 'Could not start call', description: 'Please try again.', color: 'red' })
+    return
+  }
   try {
-    await webrtc.startCall(false)
+    await jitsi.startMeeting({
+      roomName: getJitsiRoomName(),
+      displayName: getDoctorDisplayName(),
+      parentNode: parent,
+      video: consultation.value?.consultation_type === 'video',
+    })
   } catch (e: any) {
-    toast.add({ title: 'Could not start call', description: e?.message || 'Please allow microphone access.', color: 'red' })
-  } finally {
-    webrtcStarting.value = false
+    const msg = e?.message ?? (typeof e === 'string' ? e : 'Please allow microphone (and camera for video).')
+    toast.add({
+      title: 'Could not start call',
+      description: String(msg),
+      color: 'red',
+    })
+    jitsiContainerVisible.value = false
   }
 }
 
-async function startVideoCall () {
-  webrtcStarting.value = true
-  try {
-    await webrtc.startCall(true)
-  } catch (e: any) {
-    const msg = e?.message || ''
-    const isVideoError = /video|source|camera|notReadable|not readable|could not start/i.test(msg)
-    if (isVideoError) {
-      try {
-        await webrtc.startCall(false)
-        toast.add({ title: 'Joined with audio only', description: 'Camera unavailable (may be in use). You can still hear and speak.', color: 'amber' })
-      } catch (e2: any) {
-        toast.add({ title: 'Could not start call', description: e2?.message || 'Please allow microphone access.', color: 'red' })
-      }
-    } else {
-      toast.add({ title: 'Could not start call', description: msg || 'Please allow camera access.', color: 'red' })
-    }
-  } finally {
-    webrtcStarting.value = false
-  }
+function leaveJitsi () {
+  jitsi.endMeeting()
+  jitsiContainerVisible.value = false
+  router.push(`/doctor/consultations/${id}`)
 }
 
 function getHeaders () {
@@ -803,10 +632,6 @@ async function fetchConsultation () {
     loading.value = false
   }
 }
-
-watch([remoteStreamProp, remoteAudioEl], ([stream, el]) => {
-  if (el && stream) (el as HTMLAudioElement).srcObject = stream
-}, { flush: 'post' })
 
 onMounted(async () => {
   await fetchConsultation()

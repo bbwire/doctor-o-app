@@ -159,26 +159,28 @@ function goToDetail (row: any) {
   }
 }
 
+function apiHeaders () {
+  const authToken = token.value || tokenCookie.value
+  return {
+    Authorization: `Bearer ${authToken || ''}`,
+    Accept: 'application/json'
+  }
+}
+
 async function fetchDashboard () {
   loading.value = true
   errorMessage.value = ''
 
   try {
-    const authToken = token.value || tokenCookie.value
-    const headers = {
-      Authorization: `Bearer ${authToken || ''}`,
-      Accept: 'application/json'
-    }
-
     const [summaryRes, consultationsRes] = await Promise.all([
       $fetch<{ data: any }>('/doctor/dashboard/summary', {
         baseURL: config.public.apiBase,
-        headers
+        headers: apiHeaders()
       }),
       $fetch<{ data: any[] }>('/doctor/consultations', {
         baseURL: config.public.apiBase,
         query: { status: 'scheduled', per_page: 10 },
-        headers
+        headers: apiHeaders()
       })
     ])
 

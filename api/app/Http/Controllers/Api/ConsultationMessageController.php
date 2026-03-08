@@ -70,6 +70,7 @@ class ConsultationMessageController extends Controller
             'sender' => $m->sender,
             'at' => $m->created_at->toISOString(),
             'attachment_url' => $m->attachment_url,
+            'source' => $m->source ?? 'user',
         ];
     }
 

@@ -11,6 +11,11 @@ class StoreUserRequest extends FormRequest
      */
     public function authorize(): bool
     {
+        $user = $this->user();
+        $role = $this->input('role');
+        if (in_array($role, ['admin', 'super_admin'], true) && ! $user?->isSuperAdmin()) {
+            return false;
+        }
         return true;
     }
 
@@ -25,7 +30,9 @@ class StoreUserRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8'],
-            'role' => ['required', 'in:patient,doctor,admin'],
+            'role' => ['required', 'in:patient,doctor,admin,super_admin'],
+            'permissions' => ['nullable', 'array'],
+            'permissions.*' => ['string', 'in:'.implode(',', \App\Support\AdminPermission::all())],
             'phone' => ['nullable', 'string', 'max:20'],
             'date_of_birth' => ['nullable', 'date'],
         ];

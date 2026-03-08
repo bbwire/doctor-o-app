@@ -68,7 +68,34 @@
               <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">ID</dt>
               <dd class="mt-0.5 text-gray-900 dark:text-white">{{ user.id }}</dd>
             </div>
+            <div v-if="user.role === 'admin' && Array.isArray(user.permissions) && user.permissions.length" class="sm:col-span-2">
+              <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Permissions</dt>
+              <dd class="mt-0.5 flex flex-wrap gap-1">
+                <UBadge v-for="p in user.permissions" :key="p" size="xs" color="primary" variant="soft">{{ p }}</UBadge>
+              </dd>
+            </div>
+            <div v-if="user.role === 'super_admin'">
+              <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Access</dt>
+              <dd class="mt-0.5 text-gray-900 dark:text-white">Full access (Super Admin)</dd>
+            </div>
+            <div v-if="user.role === 'patient'" class="sm:col-span-2">
+              <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Wallet balance</dt>
+              <dd class="mt-0.5 text-gray-900 dark:text-white">{{ formatUgx(user.wallet_balance ?? 0) }}</dd>
+            </div>
           </dl>
+          <div v-if="user.role === 'patient' && !editing" class="mt-4 border-t border-gray-200 pt-4 dark:border-gray-800">
+            <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Top-up credit</h3>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Add wallet credit for this patient (testing / before payment integration).</p>
+            <form class="flex flex-wrap items-end gap-2" @submit.prevent="submitTopUp">
+              <UFormGroup label="Amount (UGX)" class="min-w-[120px]">
+                <UInput v-model.number="topUpAmount" type="number" min="1" step="1" placeholder="e.g. 10000" />
+              </UFormGroup>
+              <UButton type="submit" :loading="topUpLoading">
+                Add credit
+              </UButton>
+            </form>
+            <p v-if="topUpError" class="mt-2 text-sm text-red-600 dark:text-red-400">{{ topUpError }}</p>
+          </div>
           <div v-if="user.healthcare_professional" class="mt-4 border-t border-gray-200 pt-4 dark:border-gray-800">
             <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">Healthcare professional</h3>
             <p class="text-sm text-gray-600 dark:text-gray-400">
@@ -85,7 +112,17 @@
             <UInput v-model="form.email" type="email" />
           </UFormGroup>
           <UFormGroup label="Role" name="role">
-            <USelectMenu v-model="form.role" :options="roleOptions" value-attribute="value" />
+            <USelectMenu v-model="form.role" :options="roleOptions" value-attribute="value" option-attribute="label" />
+          </UFormGroup>
+          <UFormGroup v-if="form.role === 'admin'" label="Permissions" name="permissions">
+            <USelectMenu
+              v-model="form.permissions"
+              :options="permissionOptions"
+              value-attribute="key"
+              option-attribute="label"
+              multiple
+              placeholder="Select permissions"
+            />
           </UFormGroup>
           <UFormGroup label="Phone" name="phone">
             <UInput v-model="form.phone" type="tel" />
@@ -112,14 +149,14 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 definePageMeta({
   middleware: 'auth-admin'
 })
 
 const route = useRoute()
 const toast = useToast()
-const { get, patch } = useAdminApi()
+const { get, patch, post } = useAdminApi()
 
 const userId = computed(() => route.params.id)
 const user = ref(null)
@@ -127,23 +164,34 @@ const loading = ref(true)
 const errorMessage = ref('')
 const editing = ref(false)
 const saving = ref(false)
+const topUpAmount = ref(null)
+const topUpLoading = ref(false)
+const topUpError = ref('')
+
+function formatUgx (value) {
+  return new Intl.NumberFormat('en-UG', { style: 'currency', currency: 'UGX', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Number(value) ?? 0)
+}
 
 const form = reactive({
   name: '',
   email: '',
   role: 'patient',
+  permissions: [],
   phone: '',
   date_of_birth: ''
 })
 
+const permissionOptions = ref([])
+
 const roleOptions = [
   { label: 'Patient', value: 'patient' },
   { label: 'Doctor', value: 'doctor' },
-  { label: 'Admin', value: 'admin' }
+  { label: 'Admin', value: 'admin' },
+  { label: 'Super Admin', value: 'super_admin' }
 ]
 
 const roleColor = (role) => {
-  const colors = { patient: 'blue', doctor: 'green', admin: 'purple' }
+  const colors = { patient: 'blue', doctor: 'green', admin: 'purple', super_admin: 'amber' }
   return colors[role] || 'gray'
 }
 
@@ -152,6 +200,7 @@ function syncFormFromUser () {
   form.name = user.value.name || ''
   form.email = user.value.email || ''
   form.role = user.value.role || 'patient'
+  form.permissions = Array.isArray(user.value.permissions) ? [...user.value.permissions] : []
   form.phone = user.value.phone || ''
   form.date_of_birth = user.value.date_of_birth || ''
 }
@@ -199,7 +248,34 @@ async function onSubmit () {
   }
 }
 
-onMounted(() => {
-  fetchUser()
+async function submitTopUp () {
+  const amount = Number(topUpAmount.value)
+  if (!amount || amount < 1) {
+    topUpError.value = 'Enter a valid amount (UGX).'
+    return
+  }
+  topUpLoading.value = true
+  topUpError.value = ''
+  try {
+    await post(`admin/users/${userId.value}/top-up`, { amount })
+    user.value = { ...user.value, wallet_balance: (user.value?.wallet_balance ?? 0) + amount }
+    topUpAmount.value = null
+    toast.add({ title: 'Credit added', description: `${formatUgx(amount)} added to wallet.`, color: 'green' })
+  } catch (e) {
+    topUpError.value = e?.data?.message || e?.data?.errors?.amount?.[0] || 'Failed to add credit.'
+  } finally {
+    topUpLoading.value = false
+  }
+}
+
+onMounted(async () => {
+  try {
+    const res = await get('admin/permissions')
+    const data = res?.data ?? []
+    permissionOptions.value = Array.isArray(data) ? data : []
+  } catch {
+    permissionOptions.value = []
+  }
+  await fetchUser()
 })
 </script>

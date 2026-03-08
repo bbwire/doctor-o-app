@@ -58,7 +58,9 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       // apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://127.0.0.1:8000/api/v1'
-      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'https://doctoroapi.umbrit.com/public/api/v1'
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'https://dotoroapi.tangutechug.com/public/api/v1',
+      /** Jitsi domain for video/audio calls. Default meet.jit.si. Use self-hosted or JaaS domain to avoid "wait for moderator" on public server. */
+      jitsiDomain: process.env.NUXT_PUBLIC_JITSI_DOMAIN || 'meet.jit.si'
     }
   }
 })

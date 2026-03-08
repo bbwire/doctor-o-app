@@ -13,7 +13,10 @@ class Institution extends Model
     protected $fillable = [
         'name',
         'type',
+        'services',
+        'practicing_certificate_path',
         'address',
+        'location',
         'phone',
         'email',
         'is_active',
@@ -22,6 +25,7 @@ class Institution extends Model
     protected function casts(): array
     {
         return [
+            'services' => 'array',
             'is_active' => 'boolean',
         ];
     }

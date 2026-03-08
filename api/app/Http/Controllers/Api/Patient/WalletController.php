@@ -4,13 +4,19 @@ namespace App\Http\Controllers\Api\Patient;
 
 use App\Http\Controllers\Controller;
 use App\Models\WalletTransaction;
+use App\Models\WalletTopUp;
+use App\Services\MobileMoneyService;
 use App\Services\WalletService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class WalletController extends Controller
 {
-    public function __construct(private readonly WalletService $walletService) {}
+    public function __construct(
+        private readonly WalletService $walletService,
+        private readonly MobileMoneyService $mobileMoneyService,
+    ) {
+    }
 
     public function show(Request $request): JsonResponse
     {
@@ -61,6 +67,54 @@ class WalletController extends Controller
                 ],
             ],
         ], 201);
+    }
+
+    public function initiateTopUp(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'amount' => ['required', 'numeric', 'min:1'],
+            'phone_number' => ['required', 'string'],
+            'provider' => ['required', 'string'],
+        ]);
+
+        $topUp = $this->mobileMoneyService->initiateWalletTopUp(
+            $user,
+            (float) $validated['amount'],
+            $validated['phone_number'],
+            $validated['provider'],
+        );
+
+        return response()->json([
+            'data' => [
+                'id' => $topUp->id,
+                'status' => $topUp->status,
+                'provider' => $topUp->provider,
+            ],
+        ], 201);
+    }
+
+    public function showTopUp(Request $request, WalletTopUp $topUp): JsonResponse
+    {
+        $user = $request->user();
+        if ($topUp->user_id !== $user->id) {
+            abort(404);
+        }
+
+        $user->refresh();
+
+        return response()->json([
+            'data' => [
+                'id' => $topUp->id,
+                'status' => $topUp->status,
+                'amount' => (float) $topUp->amount,
+                'currency' => $topUp->currency,
+                'provider' => $topUp->provider,
+                'phone_number' => $topUp->phone_number,
+                'balance' => (float) ($user->wallet_balance ?? 0),
+            ],
+        ]);
     }
 }
 

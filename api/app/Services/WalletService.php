@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Consultation;
+use App\Models\ConsultationSettlement;
 use App\Models\User;
 use App\Models\WalletTransaction;
 use Illuminate\Support\Facades\DB;
@@ -10,6 +11,7 @@ use Illuminate\Validation\ValidationException;
 
 class WalletService
 {
+    public function __construct(private readonly SettingsService $settingsService) {}
     public function topUp(User $user, float $amount): WalletTransaction
     {
         if ($amount <= 0) {
@@ -48,19 +50,37 @@ class WalletService
             ]);
         }
 
-        return DB::transaction(function () use ($user, $consultation, $amount): WalletTransaction {
+        $percentage = $this->settingsService->getPlatformRevenuePercentage();
+        $platformFee = round($amount * ($percentage / 100), 2);
+        $doctorEarning = $amount - $platformFee;
+
+        return DB::transaction(function () use ($user, $consultation, $amount, $percentage, $platformFee, $doctorEarning): WalletTransaction {
             $user->lockForUpdate();
             $user->refresh();
-
             $currentBalance = (float) ($user->wallet_balance ?? 0);
             if ($currentBalance < $amount) {
                 throw ValidationException::withMessages([
-                    'wallet' => ['You do not have enough credit for this consultation.'],
+                    'wallet' => ['You do not have enough credit. Please top up your wallet.'],
                 ]);
             }
-
             $user->wallet_balance = $currentBalance - $amount;
             $user->save();
+
+            $doctor = User::query()->where('id', $consultation->doctor_id)->lockForUpdate()->first();
+            if ($doctor) {
+                $doctor->doctor_wallet_balance = (float) ($doctor->doctor_wallet_balance ?? 0) + $doctorEarning;
+                $doctor->save();
+            }
+
+            ConsultationSettlement::create([
+                'consultation_id' => $consultation->id,
+                'patient_id' => $user->id,
+                'doctor_id' => $consultation->doctor_id,
+                'amount_paid' => $amount,
+                'platform_fee_percentage' => $percentage,
+                'platform_fee' => $platformFee,
+                'doctor_earning' => $doctorEarning,
+            ]);
 
             return WalletTransaction::create([
                 'user_id' => $user->id,

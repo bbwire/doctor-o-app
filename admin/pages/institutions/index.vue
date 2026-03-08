@@ -55,6 +55,26 @@
             {{ row.is_active ? 'Active' : 'Inactive' }}
           </UBadge>
         </template>
+        <template #practicing_certificate_url-data="{ row }">
+          <div v-if="row.practicing_certificate_url" class="flex items-center gap-2">
+            <a
+              :href="row.practicing_certificate_url"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center gap-1 text-primary hover:underline text-sm"
+            >
+              <UIcon name="i-lucide-file-check" class="size-4" />
+              View
+            </a>
+            <img
+              :src="row.practicing_certificate_url"
+              alt="Certificate"
+              class="h-10 w-10 object-cover rounded border border-gray-200 dark:border-gray-700"
+              @error="($event) => ($event.target.style.display = 'none')"
+            >
+          </div>
+          <span v-else class="text-gray-400 dark:text-gray-500 text-sm">—</span>
+        </template>
         <template #actions-data="{ row }">
           <UButton icon="i-lucide-eye" size="sm" variant="ghost" @click="navigateTo(`/institutions/${row.id}`)" />
         </template>
@@ -86,9 +106,11 @@ const errorMessage = ref('')
 
 const typeOptions = [
   { label: 'All types', value: null },
-  { label: 'Clinic', value: 'clinic' },
   { label: 'Hospital', value: 'hospital' },
-  { label: 'Other', value: 'other' }
+  { label: 'Lab', value: 'lab' },
+  { label: 'Drugshop', value: 'drugshop' },
+  { label: 'Pharmacy', value: 'pharmacy' },
+  { label: 'Nursing Home', value: 'nursing_home' }
 ]
 
 const activeOptions = [
@@ -104,6 +126,7 @@ const columns = [
   { key: 'address', label: 'Address' },
   { key: 'phone', label: 'Phone' },
   { key: 'is_active', label: 'Status' },
+  { key: 'practicing_certificate_url', label: 'Certificate' },
   { key: 'actions', label: 'Actions' }
 ]
 

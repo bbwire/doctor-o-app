@@ -9,12 +9,17 @@ use App\Http\Requests\Admin\UpdateUserRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Services\AdminUserService;
+use App\Services\WalletService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class UserController extends Controller
 {
-    public function __construct(private readonly AdminUserService $adminUserService) {}
+    public function __construct(
+        private readonly AdminUserService $adminUserService,
+        private readonly WalletService $walletService
+    ) {}
 
     /**
      * Display a listing of users
@@ -62,5 +67,27 @@ class UserController extends Controller
         $this->adminUserService->delete($user);
 
         return response()->json(['message' => 'User deleted successfully'], 200);
+    }
+
+    /**
+     * Top-up wallet credit for a patient (for testing / before payment integration).
+     */
+    public function topUp(Request $request, User $user): JsonResponse
+    {
+        $request->validate([
+            'amount' => ['required', 'numeric', 'min:1', 'max:999999999'],
+        ]);
+        $amount = (float) $request->input('amount');
+
+        $transaction = $this->walletService->topUp($user, $amount);
+
+        return response()->json([
+            'message' => 'Credit added successfully.',
+            'data' => [
+                'transaction_id' => $transaction->id,
+                'amount' => (float) $transaction->amount,
+                'balance_after' => (float) $transaction->balance_after,
+            ],
+        ], 200);
     }
 }

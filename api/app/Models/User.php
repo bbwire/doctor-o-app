@@ -25,11 +25,13 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'permissions',
         'phone',
         'date_of_birth',
         'profile_photo_path',
         'preferred_language',
         'wallet_balance',
+        'doctor_wallet_balance',
     ];
 
     /**
@@ -54,6 +56,8 @@ class User extends Authenticatable
             'password' => 'hashed',
             'date_of_birth' => 'date',
             'wallet_balance' => 'decimal:2',
+            'doctor_wallet_balance' => 'decimal:2',
+            'permissions' => 'array',
         ];
     }
 
@@ -74,11 +78,37 @@ class User extends Authenticatable
     }
 
     /**
-     * Check if user is an admin
+     * Check if user is an admin (super_admin or admin).
      */
     public function isAdmin(): bool
     {
-        return $this->role === 'admin';
+        return in_array($this->role, ['super_admin', 'admin'], true);
+    }
+
+    /**
+     * Check if user is a super admin (full access).
+     */
+    public function isSuperAdmin(): bool
+    {
+        return $this->role === 'super_admin';
+    }
+
+    /**
+     * Check if admin user has a specific permission. Super admins have all.
+     */
+    public function hasPermission(string $permission): bool
+    {
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+
+        if ($this->role !== 'admin') {
+            return false;
+        }
+
+        $permissions = $this->permissions ?? [];
+
+        return is_array($permissions) && in_array($permission, $permissions, true);
     }
 
     /**

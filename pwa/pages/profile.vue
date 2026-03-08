@@ -23,6 +23,18 @@
           v-if="user?.role === 'doctor'"
           type="button"
           class="pb-2 border-b-2 transition-colors"
+          :class="activeProfileTab === 'professional'
+            ? 'border-primary-500 text-primary-600 dark:text-primary-300'
+            : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'"
+          @click="activeProfileTab = 'professional'"
+        >
+          Professional info
+        </button>
+
+        <button
+          v-if="user?.role === 'doctor'"
+          type="button"
+          class="pb-2 border-b-2 transition-colors"
           :class="activeProfileTab === 'academic'
             ? 'border-primary-500 text-primary-600 dark:text-primary-300'
             : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'"
@@ -142,6 +154,117 @@
       </UCard>
     </section>
 
+    <section v-if="user?.role === 'doctor' && activeProfileTab === 'professional'">
+      <UCard :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }">
+        <div class="mb-4">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Professional information</h2>
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            Update your speciality, license number, bio, qualifications and typical daily availability.
+          </p>
+        </div>
+
+        <UForm :state="professionalState" class="space-y-4" @submit="onSaveProfessional">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <UFormGroup label="Speciality" required>
+              <USelectMenu
+                v-model="professionalState.speciality"
+                :options="specialityOptions"
+                option-attribute="label"
+                value-attribute="value"
+                searchable
+                placeholder="Select your speciality"
+              />
+            </UFormGroup>
+
+            <UFormGroup label="License number" required>
+              <UInput v-model="professionalState.license_number" placeholder="Registration / license number" />
+            </UFormGroup>
+
+            <UFormGroup label="Registration date">
+              <UInput v-model="professionalState.registration_date" type="date" />
+            </UFormGroup>
+
+            <UFormGroup label="Regulatory council">
+              <USelectMenu
+                v-model="professionalState.regulatory_council"
+                :options="regulatoryCouncilOptions"
+                option-attribute="label"
+                value-attribute="value"
+                searchable
+                placeholder="Select council"
+              />
+            </UFormGroup>
+
+            <UFormGroup label="Hospital / institution">
+              <USelectMenu
+                v-model="professionalState.institution_id"
+                :options="institutionOptions"
+                option-attribute="label"
+                value-attribute="value"
+                searchable
+                placeholder="Select hospital"
+              />
+            </UFormGroup>
+
+            <UFormGroup label="Daily availability (start time)">
+              <UInput v-model="professionalState.availability_start_time" type="time" />
+            </UFormGroup>
+
+            <UFormGroup label="Daily availability (end time)">
+              <UInput v-model="professionalState.availability_end_time" type="time" />
+            </UFormGroup>
+          </div>
+
+          <UFormGroup label="Short bio">
+            <UTextarea
+              v-model="professionalState.bio"
+              :rows="3"
+              placeholder="Describe your experience, areas of interest, and how you like to work with patients."
+            />
+          </UFormGroup>
+
+            <UFormGroup label="Qualifications">
+            <UTextarea
+              v-model="professionalState.qualifications_text"
+              :rows="3"
+              placeholder="List your key qualifications on separate lines (e.g. MBChB, MMed Surgery, Registered Nurse)."
+            />
+          </UFormGroup>
+
+          <UFormGroup label="Consultation charge (optional)" hint="Your fee per consultation. Leave blank to use the default for your speciality (set by admin).">
+            <UInput v-model.number="professionalState.consultation_charge" type="number" min="0" step="1" placeholder="e.g. 50000 (UGX)" />
+          </UFormGroup>
+
+          <UAlert
+            v-if="professionalError"
+            icon="i-lucide-alert-triangle"
+            color="red"
+            variant="soft"
+            :title="professionalError"
+          />
+
+          <div class="flex justify-end gap-2">
+            <UButton
+              type="button"
+              color="gray"
+              variant="ghost"
+              :disabled="savingProfessional || !hasProfessionalChanges"
+              @click="resetProfessional"
+            >
+              Cancel changes
+            </UButton>
+            <UButton
+              type="submit"
+              :loading="savingProfessional"
+              :disabled="!hasProfessionalChanges || isApiOffline"
+            >
+              Save professional info
+            </UButton>
+          </div>
+        </UForm>
+      </UCard>
+    </section>
+
     <section v-if="user?.role === 'doctor' && activeProfileTab === 'academic'">
       <UCard :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }">
         <div class="mb-4">
@@ -184,14 +307,13 @@
                   {{ docType.help }}
                 </p>
                 <div v-if="docType.current" class="mt-1">
-                  <a
-                    :href="docType.current.url"
-                    target="_blank"
-                    rel="noopener"
-                    class="inline-flex items-center text-xs text-primary-600 dark:text-primary-300 hover:underline"
+                  <button
+                    type="button"
+                    class="inline-flex items-center text-xs text-primary-600 dark:text-primary-300 hover:underline text-left"
+                    @click="openAcademicPreview(docType.current)"
                   >
                     {{ docType.current.name }}
-                  </a>
+                  </button>
                   <span class="ml-2 text-[11px] text-gray-500 dark:text-gray-400">
                     ({{ formatAcademicMeta(docType.current) }})
                   </span>
@@ -225,6 +347,96 @@
             </div>
           </div>
         </div>
+
+        <UModal
+          v-model="showAcademicPreview"
+          :ui="{ width: 'max-w-6xl' }"
+        >
+          <UCard :ui="{ ring: '', divide: 'divide-y divide-gray-200 dark:divide-gray-800' }">
+            <template #header>
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                    {{ academicPreviewDoc?.name || 'Document preview' }}
+                  </p>
+                  <p v-if="academicPreviewDoc" class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    {{ formatAcademicMeta(academicPreviewDoc) }}
+                  </p>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                  <UButton
+                    v-if="academicPreviewDoc"
+                    :to="academicPreviewDoc.url"
+                    target="_blank"
+                    variant="outline"
+                    size="xs"
+                    icon="i-lucide-external-link"
+                  >
+                    Open
+                  </UButton>
+                  <UButton
+                    v-if="academicPreviewDoc"
+                    :to="academicPreviewDoc.url"
+                    target="_blank"
+                    variant="ghost"
+                    size="xs"
+                    icon="i-lucide-download"
+                  >
+                    Download
+                  </UButton>
+                  <UButton
+                    variant="ghost"
+                    size="xs"
+                    icon="i-lucide-x"
+                    @click="showAcademicPreview = false"
+                  >
+                    Close
+                  </UButton>
+                </div>
+              </div>
+            </template>
+
+            <div v-if="!academicPreviewDoc" class="p-6 text-sm text-gray-500 dark:text-gray-400">
+              No document selected.
+            </div>
+
+            <div v-else class="p-0">
+              <div v-if="academicPreviewKind === 'image'" class="p-4 bg-gray-50 dark:bg-gray-950">
+                <img
+                  :src="academicPreviewDoc.url"
+                  :alt="academicPreviewDoc.name"
+                  class="w-full max-h-[80vh] object-contain rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900"
+                >
+              </div>
+
+              <div v-else-if="academicPreviewKind === 'pdf'" class="h-[80vh] bg-gray-50 dark:bg-gray-950">
+                <iframe
+                  :src="academicPreviewDoc.url"
+                  class="w-full h-full"
+                  title="PDF preview"
+                />
+              </div>
+
+              <div v-else-if="academicPreviewKind === 'office'" class="h-[80vh] bg-gray-50 dark:bg-gray-950">
+                <iframe
+                  :src="academicOfficeViewerUrl"
+                  class="w-full h-full"
+                  title="Document preview"
+                />
+              </div>
+
+              <div v-else class="p-6">
+                <UAlert
+                  icon="i-lucide-file-question"
+                  color="amber"
+                  variant="soft"
+                  title="Preview not available"
+                  description="This file type can’t be previewed in-app. Use Open or Download to view it."
+                />
+              </div>
+            </div>
+          </UCard>
+        </UModal>
       </UCard>
     </section>
 
@@ -388,7 +600,7 @@ const state = reactive({
   preferred_language: ''
 })
 
-const activeProfileTab = ref<'account' | 'academic' | 'dependants'>('account')
+const activeProfileTab = ref<'account' | 'professional' | 'academic' | 'dependants'>('account')
 
 type AcademicDocument = {
   id: number
@@ -426,6 +638,34 @@ const uploadingAcademic = ref(false)
 const academicError = ref('')
 const removingAcademicId = ref<number | null>(null)
 const activeAcademicType = ref<string | null>(null)
+const showAcademicPreview = ref(false)
+const academicPreviewDoc = ref<AcademicDocument | null>(null)
+
+const academicPreviewKind = computed<'image' | 'pdf' | 'office' | 'unknown'>(() => {
+  const doc = academicPreviewDoc.value
+  if (!doc) return 'unknown'
+
+  const mime = (doc.mime_type || '').toLowerCase()
+  if (mime.startsWith('image/')) return 'image'
+  if (mime.includes('pdf')) return 'pdf'
+  if (mime.includes('msword') || mime.includes('officedocument')) return 'office'
+
+  const name = (doc.name || '').toLowerCase()
+  const url = (doc.url || '').toLowerCase()
+  const ext = (name.split('.').pop() || url.split('.').pop() || '').split('?')[0]
+  if (['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext)) return 'image'
+  if (ext === 'pdf') return 'pdf'
+  if (['doc', 'docx'].includes(ext)) return 'office'
+
+  return 'unknown'
+})
+
+const academicOfficeViewerUrl = computed(() => {
+  const url = academicPreviewDoc.value?.url
+  if (!url) return ''
+  // Requires a publicly reachable URL.
+  return `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(url)}`
+})
 
 const academicRequiredTypes = computed(() => {
   const byType = new Map<string, AcademicDocument>()
@@ -496,6 +736,83 @@ type UserProfileResponse = {
     profile_photo_url?: string | null
   }
 }
+
+type ProfessionalProfileResponse = {
+  data?: {
+    speciality?: string
+    license_number?: string
+    registration_date?: string | null
+    regulatory_council?: string | null
+    bio?: string | null
+    availability_start_time?: string | null
+    availability_end_time?: string | null
+    qualifications?: string[] | null
+    institution_id?: number | null
+  }
+}
+
+const professionalState = reactive({
+  speciality: '',
+  license_number: '',
+  registration_date: '',
+  regulatory_council: '',
+  bio: '',
+  availability_start_time: '',
+  availability_end_time: '',
+  qualifications_text: '',
+  institution_id: null as number | null,
+  consultation_charge: '' as number | ''
+})
+
+const initialProfessional = ref({
+  speciality: '',
+  license_number: '',
+  registration_date: '',
+  regulatory_council: '',
+  bio: '',
+  availability_start_time: '',
+  availability_end_time: '',
+  qualifications_text: '',
+  institution_id: null as number | null,
+  consultation_charge: '' as number | ''
+})
+
+const savingProfessional = ref(false)
+const professionalError = ref('')
+
+const specialityOptions = [
+  { value: 'General Doctor', label: 'General Doctor' },
+  { value: 'Physician', label: 'Physician' },
+  { value: 'Surgeon', label: 'Surgeon' },
+  { value: 'Paediatrician', label: 'Paediatrician' },
+  { value: 'Nurse', label: 'Nurse' },
+  { value: 'Pharmacist', label: 'Pharmacist' },
+  { value: 'Gynecologist', label: 'Gynecologist' },
+  { value: 'Dentist', label: 'Dentist' }
+]
+
+const regulatoryCouncilOptions = [
+  { value: 'Uganda Medical and Dental Practitioners Council', label: 'Uganda Medical and Dental Practitioners Council' },
+  { value: 'Uganda Nurses and Midwives Council', label: 'Uganda Nurses and Midwives Council' },
+  { value: 'Allied Health Professionals Council', label: 'Allied Health Professionals Council' },
+  { value: 'Uganda Pharmacy Board', label: 'Uganda Pharmacy Board' },
+  { value: 'Other', label: 'Other' }
+]
+
+const institutionOptions = ref<Array<{ label: string; value: number }>>([])
+
+const hasProfessionalChanges = computed(() => {
+  return professionalState.speciality !== initialProfessional.value.speciality
+    || professionalState.license_number !== initialProfessional.value.license_number
+    || (professionalState.registration_date || '') !== (initialProfessional.value.registration_date || '')
+    || (professionalState.regulatory_council || '') !== (initialProfessional.value.regulatory_council || '')
+    || (professionalState.bio || '') !== (initialProfessional.value.bio || '')
+    || (professionalState.availability_start_time || '') !== (initialProfessional.value.availability_start_time || '')
+    || (professionalState.availability_end_time || '') !== (initialProfessional.value.availability_end_time || '')
+    || (professionalState.qualifications_text || '') !== (initialProfessional.value.qualifications_text || '')
+    || professionalState.institution_id !== initialProfessional.value.institution_id
+    || professionalState.consultation_charge !== initialProfessional.value.consultation_charge
+})
 
 const clearFileInputValue = () => {
   if (fileInput.value) {
@@ -671,6 +988,85 @@ const hydrateAcademicDocuments = async () => {
   }
 }
 
+const hydrateInstitutions = async () => {
+  if (!user.value) return
+  try {
+    const response = await $fetch<{ data?: Array<{ id: number; name: string }> }>('/institutions', {
+      baseURL: config.public.apiBase,
+      query: { type: 'hospital' },
+      headers: {
+        Authorization: `Bearer ${tokenCookie.value || ''}`,
+        Accept: 'application/json'
+      }
+    })
+    const items = response?.data || []
+    institutionOptions.value = items.map(i => ({
+      value: i.id,
+      label: i.name
+    }))
+  } catch {
+    institutionOptions.value = []
+  }
+}
+
+const hydrateProfessionalProfile = async () => {
+  if (user.value?.role !== 'doctor') return
+
+  const hp = user.value?.healthcare_professional
+  if (!hp) {
+    professionalState.speciality = ''
+    professionalState.license_number = ''
+    professionalState.registration_date = ''
+    professionalState.regulatory_council = ''
+    professionalState.bio = ''
+    professionalState.availability_start_time = ''
+    professionalState.availability_end_time = ''
+    professionalState.qualifications_text = ''
+    professionalState.institution_id = null
+    professionalState.consultation_charge = ''
+
+    initialProfessional.value = {
+      speciality: '',
+      license_number: '',
+      registration_date: '',
+      regulatory_council: '',
+      bio: '',
+      availability_start_time: '',
+      availability_end_time: '',
+      qualifications_text: '',
+      institution_id: null,
+      consultation_charge: ''
+    }
+    professionalError.value = ''
+    return
+  }
+
+  professionalState.speciality = hp.speciality || ''
+  professionalState.license_number = hp.license_number || ''
+  professionalState.registration_date = hp.registration_date || ''
+  professionalState.regulatory_council = hp.regulatory_council || ''
+  professionalState.bio = hp.bio || ''
+  professionalState.availability_start_time = hp.availability_start_time || ''
+  professionalState.availability_end_time = hp.availability_end_time || ''
+  professionalState.qualifications_text = (hp.qualifications || []).join('\n')
+  professionalState.institution_id = hp.institution_id ?? null
+  professionalState.consultation_charge = hp.consultation_charge != null ? hp.consultation_charge : ''
+
+  initialProfessional.value = {
+    speciality: professionalState.speciality,
+    license_number: professionalState.license_number,
+    registration_date: professionalState.registration_date,
+    regulatory_council: professionalState.regulatory_council,
+    bio: professionalState.bio,
+    availability_start_time: professionalState.availability_start_time,
+    availability_end_time: professionalState.availability_end_time,
+    qualifications_text: professionalState.qualifications_text,
+    institution_id: professionalState.institution_id,
+    consultation_charge: professionalState.consultation_charge
+  }
+  professionalError.value = ''
+}
+
 const onCancelChanges = () => {
   errorMessage.value = ''
   revokePreviewUrl()
@@ -686,10 +1082,29 @@ const onCancelChanges = () => {
   avatarPreview.value = initialProfile.value.profile_photo_url
 }
 
+const resetProfessional = () => {
+  professionalError.value = ''
+  professionalState.speciality = initialProfessional.value.speciality
+  professionalState.license_number = initialProfessional.value.license_number
+  professionalState.registration_date = initialProfessional.value.registration_date
+  professionalState.regulatory_council = initialProfessional.value.regulatory_council
+  professionalState.bio = initialProfessional.value.bio
+  professionalState.availability_start_time = initialProfessional.value.availability_start_time
+  professionalState.availability_end_time = initialProfessional.value.availability_end_time
+  professionalState.qualifications_text = initialProfessional.value.qualifications_text
+  professionalState.institution_id = initialProfessional.value.institution_id
+  professionalState.consultation_charge = initialProfessional.value.consultation_charge
+}
+
 const openAcademicPicker = (type: string | null = null) => {
   academicError.value = ''
   activeAcademicType.value = type
   academicInput.value?.click()
+}
+
+const openAcademicPreview = (doc: AcademicDocument) => {
+  academicPreviewDoc.value = doc
+  showAcademicPreview.value = true
 }
 
 const onAcademicSelected = async (event: Event) => {
@@ -889,6 +1304,81 @@ const removeDependant = async (id: number) => {
   }
 }
 
+const onSaveProfessional = async () => {
+  if (!hasProfessionalChanges.value || user.value?.role !== 'doctor') return
+
+  if (isApiOffline.value) {
+    professionalError.value = 'API is currently unreachable. Please retry when connection is restored.'
+    return
+  }
+
+  if (!professionalState.speciality || !professionalState.license_number) {
+    professionalError.value = 'Speciality and license number are required.'
+    return
+  }
+
+  savingProfessional.value = true
+  professionalError.value = ''
+
+  try {
+    const qualificationsArray = professionalState.qualifications_text
+      .split('\n')
+      .map(line => line.trim())
+      .filter(Boolean)
+
+    await $fetch<ProfessionalProfileResponse>('/doctor/profile', {
+      method: 'PATCH',
+      baseURL: config.public.apiBase,
+      headers: {
+        Authorization: `Bearer ${tokenCookie.value || ''}`,
+        Accept: 'application/json'
+      },
+      body: {
+        speciality: professionalState.speciality,
+        license_number: professionalState.license_number,
+        registration_date: professionalState.registration_date || null,
+        regulatory_council: professionalState.regulatory_council || null,
+        bio: professionalState.bio || null,
+        availability_start_time: professionalState.availability_start_time || null,
+        availability_end_time: professionalState.availability_end_time || null,
+        qualifications: qualificationsArray,
+        institution_id: professionalState.institution_id,
+        consultation_charge: professionalState.consultation_charge === '' ? null : Number(professionalState.consultation_charge)
+      }
+    })
+
+    initialProfessional.value = {
+      speciality: professionalState.speciality,
+      license_number: professionalState.license_number,
+      registration_date: professionalState.registration_date,
+      regulatory_council: professionalState.regulatory_council,
+      bio: professionalState.bio,
+      availability_start_time: professionalState.availability_start_time,
+      availability_end_time: professionalState.availability_end_time,
+      qualifications_text: professionalState.qualifications_text,
+      institution_id: professionalState.institution_id,
+      consultation_charge: professionalState.consultation_charge
+    }
+
+    await fetchUser()
+
+    toast.add({
+      title: 'Professional info updated',
+      description: 'Your professional profile was saved successfully.',
+      color: 'green'
+    })
+  } catch (error) {
+    const err = error as { data?: { message?: string; errors?: Record<string, string[]> } }
+    const firstValidationMessage = err?.data?.errors
+      ? Object.values(err.data.errors)[0]?.[0]
+      : null
+
+    professionalError.value = firstValidationMessage || err?.data?.message || 'Unable to save professional info.'
+  } finally {
+    savingProfessional.value = false
+  }
+}
+
 const onSubmit = async () => {
   if (!hasUnsavedChanges.value) {
     return
@@ -968,6 +1458,8 @@ onBeforeUnmount(() => {
 onMounted(async () => {
   await hydrateDependants()
   await hydrateAcademicDocuments()
+  await hydrateProfessionalProfile()
+  await hydrateInstitutions()
 })
 </script>
 

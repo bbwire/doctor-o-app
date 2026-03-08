@@ -22,7 +22,7 @@ class ListUsersRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'role' => ['nullable', 'in:patient,doctor,admin'],
+            'role' => ['nullable', 'in:patient,doctor,admin,super_admin'],
             'search' => ['nullable', 'string', 'max:255'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'page' => ['nullable', 'integer', 'min:1'],

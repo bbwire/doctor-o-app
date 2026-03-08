@@ -49,4 +49,9 @@ class Consultation extends Model
     {
         return $this->hasMany(ConsultationMessage::class)->orderBy('created_at');
     }
+
+    public function settlement(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(ConsultationSettlement::class);
+    }
 }

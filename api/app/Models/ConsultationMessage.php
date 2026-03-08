@@ -16,6 +16,7 @@ class ConsultationMessage extends Model
         'sender',
         'text',
         'attachment_url',
+        'source',
     ];
 
     public function consultation(): BelongsTo

@@ -32,10 +32,34 @@
           <UInput v-model="form.email" type="email" />
         </UFormGroup>
         <UFormGroup label="Password" name="password" required>
-          <UInput v-model="form.password" type="password" />
+          <UInput
+            v-model="form.password"
+            :type="showPassword ? 'text' : 'password'"
+          >
+            <template #trailing>
+              <UButton
+                :icon="showPassword ? 'i-lucide-eye-off' : 'i-lucide-eye'"
+                variant="ghost"
+                size="xs"
+                color="neutral"
+                :aria-label="showPassword ? 'Hide password' : 'Show password'"
+                @click.prevent="showPassword = !showPassword"
+              />
+            </template>
+          </UInput>
         </UFormGroup>
         <UFormGroup label="Role" name="role" required>
-          <USelectMenu v-model="form.role" :options="roleOptions" value-attribute="value" />
+          <USelectMenu v-model="form.role" :options="roleOptions" value-attribute="value" option-attribute="label" />
+        </UFormGroup>
+        <UFormGroup v-if="form.role === 'admin'" label="Permissions" name="permissions" hint="Select the areas this admin can manage. Super admins have full access.">
+          <USelectMenu
+            v-model="form.permissions"
+            :options="permissionOptions"
+            value-attribute="key"
+            option-attribute="label"
+            multiple
+            placeholder="Select permissions"
+          />
         </UFormGroup>
         <UFormGroup label="Phone" name="phone">
           <UInput v-model="form.phone" type="tel" />
@@ -56,45 +80,64 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 definePageMeta({
   middleware: 'auth-admin'
 })
 
 const router = useRouter()
 const toast = useToast()
-const { post } = useAdminApi()
+const showPassword = ref(false)
 
 const form = reactive({
   name: '',
   email: '',
   password: '',
   role: 'patient',
+  permissions: [],
   phone: '',
   date_of_birth: ''
 })
 
+const { get, post } = useAdminApi()
+const permissionOptions = ref([])
+
 const roleOptions = [
   { label: 'Patient', value: 'patient' },
   { label: 'Doctor', value: 'doctor' },
-  { label: 'Admin', value: 'admin' }
+  { label: 'Admin', value: 'admin' },
+  { label: 'Super Admin', value: 'super_admin' }
 ]
 
 const errorMessage = ref('')
 const saving = ref(false)
 
+onMounted(async () => {
+  try {
+    const res = await get('admin/permissions')
+    const data = res?.data ?? []
+    permissionOptions.value = Array.isArray(data) ? data : []
+  } catch {
+    permissionOptions.value = []
+  }
+})
+
 async function onSubmit () {
   errorMessage.value = ''
   saving.value = true
   try {
-    const data = await post('admin/users', {
+    const payload = {
       name: form.name,
       email: form.email,
       password: form.password,
       role: form.role,
       phone: form.phone || null,
       date_of_birth: form.date_of_birth || null
-    })
+    }
+    if (form.role === 'admin') {
+      payload.permissions = form.permissions || []
+    }
+    const data = await post('admin/users', payload)
     const user = data?.data ?? data
     toast.add({ title: 'User created', color: 'green' })
     await router.push(user?.id ? `/users/${user.id}` : '/users')

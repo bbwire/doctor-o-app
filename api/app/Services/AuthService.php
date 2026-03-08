@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\HealthcareProfessional;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
@@ -26,9 +27,23 @@ class AuthService
             'role' => $validated['role'] ?? 'patient',
             'phone' => $validated['phone'] ?? null,
             'date_of_birth' => $validated['date_of_birth'] ?? null,
+            'preferred_language' => $validated['preferred_language'] ?? null,
         ]);
 
+        if (($validated['role'] ?? '') === 'doctor') {
+            HealthcareProfessional::create([
+                'user_id' => $user->id,
+                'institution_id' => $validated['institution_id'] ?? null,
+                'speciality' => $validated['speciality'] ?? null,
+                'license_number' => $validated['license_number'] ?? null,
+                'registration_date' => $validated['registration_date'] ?? null,
+                'regulatory_council' => $validated['regulatory_council'] ?? null,
+                'is_active' => true,
+            ]);
+        }
+
         $token = $user->createToken('auth_token')->plainTextToken;
+        $user->load('healthcareProfessional.institution');
 
         return compact('user', 'token');
     }

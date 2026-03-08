@@ -71,9 +71,9 @@
             <div class="mt-4 flex gap-2">
               <UButton
                 v-if="consultation.status === 'scheduled'"
-                :to="`/consultations/${consultation.id}/room`"
                 size="sm"
                 icon="i-lucide-log-in"
+                @click="openConsentModal(consultation)"
               >
                 Join
               </UButton>
@@ -90,6 +90,31 @@
         </div>
       </UCard>
     </section>
+
+    <UModal v-model="showConsentModal" :ui="{ width: 'max-w-md' }">
+      <UCard :ui="{ ring: '', divide: 'divide-y divide-gray-200 dark:divide-gray-800' }">
+        <template #header>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Consent to consultation</h3>
+        </template>
+        <p class="text-sm text-gray-600 dark:text-gray-300">
+          By joining this consultation you consent to the collection and use of your data (including voice and video where applicable) for the purpose of this consultation and related documentation, in line with our
+          <NuxtLink to="/privacy" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline">Privacy Policy</NuxtLink>.
+        </p>
+        <template #footer>
+          <div class="flex justify-end gap-2">
+            <UButton variant="ghost" color="neutral" @click="showConsentModal = false">
+              Cancel
+            </UButton>
+            <UButton
+              icon="i-lucide-log-in"
+              @click="onConsentAndJoin"
+            >
+              I agree & Join
+            </UButton>
+          </div>
+        </template>
+      </UCard>
+    </UModal>
   </div>
 </template>
 
@@ -110,10 +135,14 @@ interface ConsultationItem {
 }
 
 const config = useRuntimeConfig()
+const router = useRouter()
 const tokenCookie = useCookie<string | null>('auth_token')
 const { isApiReachable, hasApiStatusChecked } = useApiHealth()
 const toast = useToast()
 const { formatDateTime } = useDateFormat()
+
+const showConsentModal = ref(false)
+const consentConsultation = ref<ConsultationItem | null>(null)
 
 const loading = ref(true)
 const errorMessage = ref('')
@@ -173,6 +202,20 @@ const statusColor = (status: ConsultationItem['status']) => {
   if (status === 'scheduled') return 'blue'
   if (status === 'completed') return 'green'
   return 'gray'
+}
+
+function openConsentModal (consultation: ConsultationItem) {
+  consentConsultation.value = consultation
+  showConsentModal.value = true
+}
+
+function onConsentAndJoin () {
+  const id = consentConsultation.value?.id
+  showConsentModal.value = false
+  consentConsultation.value = null
+  if (id) {
+    router.push(`/consultations/${id}/room`)
+  }
 }
 
 watch(statusFilter, async () => {

@@ -32,10 +32,21 @@
           <UFormGroup label="Password" name="password" required>
             <UInput
               v-model="state.password"
-              type="password"
+              :type="showPassword ? 'text' : 'password'"
               placeholder="••••••••"
               size="lg"
-            />
+            >
+              <template #trailing>
+                <UButton
+                  :icon="showPassword ? 'i-lucide-eye-off' : 'i-lucide-eye'"
+                  variant="ghost"
+                  size="xs"
+                  color="neutral"
+                  :aria-label="showPassword ? 'Hide password' : 'Show password'"
+                  @click.prevent="showPassword = !showPassword"
+                />
+              </template>
+            </UInput>
           </UFormGroup>
 
           <div class="flex items-center justify-between">
@@ -70,6 +81,7 @@ const router = useRouter()
 const toast = useToast()
 const { isApiReachable, hasApiStatusChecked } = useApiHealth()
 
+const showPassword = ref(false)
 const state = reactive({
   email: '',
   password: '',

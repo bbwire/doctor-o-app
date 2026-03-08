@@ -16,6 +16,10 @@
 .safe-area-top {
   padding-top: max(0.75rem, env(safe-area-inset-top));
 }
+/* Match bottom to top so header has equal vertical spacing */
+.safe-area-top-balance {
+  padding-bottom: max(0.75rem, env(safe-area-inset-top));
+}
 .safe-area-bottom {
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }

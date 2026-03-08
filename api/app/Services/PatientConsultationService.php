@@ -10,6 +10,8 @@ use Illuminate\Validation\ValidationException;
 
 class PatientConsultationService
 {
+    public function __construct(private readonly SettingsService $settingsService) {}
+
     /**
      * @param  array<string, mixed>  $filters
      */
@@ -47,17 +49,17 @@ class PatientConsultationService
             ]);
         }
 
-        $type = $validated['consultation_type'];
-        $pricing = config('consultations.pricing', []);
-        $amount = (float) ($pricing[$type] ?? 0);
+        $doctorProfile = User::query()
+            ->where('id', $validated['doctor_id'])
+            ->with('healthcareProfessional')
+            ->first()
+            ?->healthcareProfessional;
+        $amount = $this->settingsService->getConsultationAmountForDoctor($doctorProfile);
 
-        if ($amount > 0) {
-            $currentBalance = (float) ($patient->wallet_balance ?? 0);
-            if ($currentBalance < $amount) {
-                throw ValidationException::withMessages([
-                    'wallet' => ['You do not have enough credit for this consultation.'],
-                ]);
-            }
+        if ($amount > 0 && (float) ($patient->wallet_balance ?? 0) < $amount) {
+            throw ValidationException::withMessages([
+                'wallet' => ['You do not have enough credit. Please top up your wallet.'],
+            ]);
         }
 
         $consultation = Consultation::create([
@@ -184,6 +186,15 @@ class PatientConsultationService
         $slotIntervalMinutes = $this->slotIntervalMinutes();
         $availabilityWindowDays = $this->availabilityWindowDays();
 
+        $doctor = User::query()
+            ->where('id', $doctorId)
+            ->where('role', 'doctor')
+            ->with('healthcareProfessional')
+            ->first();
+
+        $availabilityStart = $doctor?->healthcareProfessional?->availability_start_time;
+        $availabilityEnd = $doctor?->healthcareProfessional?->availability_end_time;
+
         $start = $from ? Carbon::parse($from) : now();
         $minimumStart = now()->addMinutes($slotIntervalMinutes);
         if ($start->lt($minimumStart)) {
@@ -207,7 +218,15 @@ class PatientConsultationService
 
         while (count($suggestions) < $limit && $iterations < $maxIterations) {
             $key = $candidate->toDateTimeString();
-            if (! $taken->has($key)) {
+
+            $isWithinDoctorHours = true;
+            if ($availabilityStart && $availabilityEnd) {
+                $time = $candidate->format('H:i:s');
+                $isWithinDoctorHours = $time >= $availabilityStart->format('H:i:s')
+                    && $time <= $availabilityEnd->format('H:i:s');
+            }
+
+            if ($isWithinDoctorHours && ! $taken->has($key)) {
                 $suggestions[] = $candidate->toISOString();
             }
 
@@ -220,23 +239,17 @@ class PatientConsultationService
 
     private function slotIntervalMinutes(): int
     {
-        $configured = (int) config('consultations.slot_interval_minutes', 60);
-
-        return max(15, min($configured, 120));
+        return $this->settingsService->getConsultationSlotIntervalMinutes();
     }
 
     private function availabilityWindowDays(): int
     {
-        $configured = (int) config('consultations.availability_window_days', 14);
-
-        return max(1, min($configured, 30));
+        return $this->settingsService->getConsultationAvailabilityWindowDays();
     }
 
     private function minimumActionLeadHours(): int
     {
-        $configured = (int) config('consultations.minimum_action_lead_hours', 2);
-
-        return max(1, min($configured, 72));
+        return $this->settingsService->getConsultationMinimumActionLeadHours();
     }
 
     private function alignToSlot(Carbon $date, int $slotIntervalMinutes): Carbon

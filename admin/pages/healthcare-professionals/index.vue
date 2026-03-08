@@ -51,6 +51,11 @@
         <template #institution-data="{ row }">
           {{ row.institution?.name || '—' }}
         </template>
+        <template #is_approved-data="{ row }">
+          <UBadge :color="row.is_approved ? 'green' : 'amber'" variant="soft" size="xs">
+            {{ row.is_approved ? 'Approved' : 'Pending' }}
+          </UBadge>
+        </template>
         <template #is_active-data="{ row }">
           <UBadge :color="row.is_active ? 'green' : 'gray'" variant="soft">
             {{ row.is_active ? 'Active' : 'Inactive' }}
@@ -90,6 +95,7 @@ const columns = [
   { key: 'speciality', label: 'Speciality' },
   { key: 'institution', label: 'Institution' },
   { key: 'license_number', label: 'License' },
+  { key: 'is_approved', label: 'Approval' },
   { key: 'is_active', label: 'Status' },
   { key: 'actions', label: 'Actions' }
 ]

@@ -3,10 +3,14 @@
 use App\Http\Controllers\Api\Admin\ConsultationController as AdminConsultationController;
 use App\Http\Controllers\Api\Admin\HealthcareProfessionalController as AdminHealthcareProfessionalController;
 use App\Http\Controllers\Api\Admin\InstitutionController as AdminInstitutionController;
+use App\Http\Controllers\Api\Admin\InstitutionDocumentController;
 use App\Http\Controllers\Api\Admin\PrescriptionController as AdminPrescriptionController;
+use App\Http\Controllers\Api\Admin\SettingsController as AdminSettingsController;
+use App\Http\Controllers\Api\CacheController;
 use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ConsultationMessageController;
+use App\Http\Controllers\Api\ConsultationRecordingController;
 use App\Http\Controllers\Api\ConsultationWebrtcSignalController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\Patient\ConsultationController as PatientConsultationController;
@@ -16,8 +20,12 @@ use App\Http\Controllers\Api\Patient\PrescriptionController as PatientPrescripti
 use App\Http\Controllers\Api\Patient\DependantController as PatientDependantController;
 use App\Http\Controllers\Api\Patient\ConsultationMediaController as PatientConsultationMediaController;
 use App\Http\Controllers\Api\Patient\WalletController as PatientWalletController;
+use App\Http\Controllers\Api\PaymentWebhookController;
+use App\Http\Controllers\Api\Doctor\ProfileController as DoctorProfileController;
 use App\Http\Controllers\Api\Doctor\AcademicDocumentController as DoctorAcademicDocumentController;
+use App\Http\Controllers\Api\InstitutionController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Artisan;
 
 Route::prefix('v1')->group(function () {
     // Public routes
@@ -26,10 +34,49 @@ Route::prefix('v1')->group(function () {
         'service' => 'doctor-o-api',
         'timestamp' => now()->toISOString(),
     ]));
+    Route::get('/institutions', [InstitutionController::class, 'index']);
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+
+    Route::get('/artisan/migrate', function () {
+        try {
+          Artisan::call('migrate', ['--force' => true]);
+          $output = Artisan::output();
+          return response()->json([
+            'success' => true,
+            'message' => 'Migration completed',
+            'output' => trim($output),
+          ]);
+        } catch (\Throwable $e) {
+          return response()->json([
+            'success' => false,
+            'message' => 'Migration failed',
+            'error' => $e->getMessage(),
+          ], 500);
+        }
+      });
+
+    Route::get('/artisan/seed', function () {
+        try {
+          Artisan::call('db:seed', ['--force' => true]);
+          $output = Artisan::output();
+          return response()->json([
+            'success' => true,
+            'message' => 'Database seeded',
+            'output' => trim($output),
+          ]);
+        } catch (\Throwable $e) {
+          return response()->json([
+            'success' => false,
+            'message' => 'Seeding failed',
+            'error' => $e->getMessage(),
+          ], 500);
+        }
+      });
+
+    Route::get('/cache/clear', [CacheController::class, 'clear']);
 
     // Protected routes
     Route::middleware('auth:sanctum')->group(function () {
@@ -41,6 +88,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/notifications', [NotificationController::class, 'index']);
         Route::patch('/notifications/read-all', [NotificationController::class, 'markAllRead']);
         Route::patch('/notifications/{notification}', [NotificationController::class, 'markRead']);
+
+        // Shared/authenticated routes (any role)
 
         Route::middleware('patient')->group(function () {
             Route::get('/dashboard/summary', [PatientDashboardController::class, 'summary']);
@@ -62,6 +111,9 @@ Route::prefix('v1')->group(function () {
             Route::post('/consultations/reason-images', [PatientConsultationMediaController::class, 'storeReasonImage']);
             Route::get('/wallet', [PatientWalletController::class, 'show']);
             Route::post('/wallet/top-up', [PatientWalletController::class, 'topUp']);
+            Route::post('/wallet/top-up/initiate', [PatientWalletController::class, 'initiateTopUp']);
+            Route::get('/wallet/top-up/{topUp}', [PatientWalletController::class, 'showTopUp']);
+            Route::post('/consultations/{consultation}/recording', [ConsultationRecordingController::class, 'store']);
         });
 
         // Doctor routes
@@ -79,15 +131,50 @@ Route::prefix('v1')->group(function () {
             Route::get('/academic-documents', [DoctorAcademicDocumentController::class, 'index']);
             Route::post('/academic-documents', [DoctorAcademicDocumentController::class, 'store']);
             Route::delete('/academic-documents/{academicDocument}', [DoctorAcademicDocumentController::class, 'destroy']);
+            Route::post('/consultations/{consultation}/recording', [ConsultationRecordingController::class, 'store']);
+            Route::get('/profile', [DoctorProfileController::class, 'show']);
+            Route::patch('/profile', [DoctorProfileController::class, 'update']);
+            Route::get('/wallet', [\App\Http\Controllers\Api\Doctor\WalletController::class, 'summary']);
+            Route::get('/payout-requests', [\App\Http\Controllers\Api\Doctor\WalletController::class, 'payoutRequests']);
+            Route::post('/payout-requests', [\App\Http\Controllers\Api\Doctor\WalletController::class, 'requestPayout']);
         });
 
-        // Admin routes
+        // Admin routes (super_admin has all permissions; admin has permission-based access)
         Route::prefix('admin')->middleware('admin')->group(function () {
-            Route::apiResource('users', AdminUserController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
-            Route::apiResource('institutions', AdminInstitutionController::class);
-            Route::apiResource('healthcare-professionals', AdminHealthcareProfessionalController::class);
-            Route::apiResource('consultations', AdminConsultationController::class);
-            Route::apiResource('prescriptions', AdminPrescriptionController::class);
+            Route::get('permissions', [\App\Http\Controllers\Api\Admin\PermissionsController::class, 'index']);
+            Route::middleware('admin_permission:manage_users')->group(function () {
+                Route::post('users/{user}/top-up', [AdminUserController::class, 'topUp']);
+                Route::apiResource('users', AdminUserController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
+            });
+            Route::middleware('admin_permission:manage_institutions')->group(function () {
+                Route::apiResource('institutions', AdminInstitutionController::class);
+                Route::post('institutions/{institution}/practicing-certificate', [InstitutionDocumentController::class, 'uploadPracticingCertificate']);
+                Route::delete('institutions/{institution}/practicing-certificate', [InstitutionDocumentController::class, 'deletePracticingCertificate']);
+            });
+            Route::middleware('admin_permission:manage_healthcare_professionals')->group(function () {
+                Route::patch('healthcare-professionals/{healthcare_professional}/status', [AdminHealthcareProfessionalController::class, 'updateStatus']);
+                Route::apiResource('healthcare-professionals', AdminHealthcareProfessionalController::class);
+            });
+            Route::middleware('admin_permission:manage_consultations')->group(function () {
+                Route::apiResource('consultations', AdminConsultationController::class);
+            });
+            Route::middleware('admin_permission:manage_prescriptions')->group(function () {
+                Route::apiResource('prescriptions', AdminPrescriptionController::class);
+            });
+            Route::middleware('admin_permission:manage_settings')->group(function () {
+                Route::get('settings/audit', [AdminSettingsController::class, 'audit']);
+                Route::get('settings', [AdminSettingsController::class, 'index']);
+                Route::patch('settings', [AdminSettingsController::class, 'update']);
+            });
+            Route::middleware('admin_permission:manage_finance')->group(function () {
+                Route::get('finance', [\App\Http\Controllers\Api\Admin\FinanceController::class, 'index']);
+                Route::get('finance/top-ups', [\App\Http\Controllers\Api\Admin\FinanceController::class, 'topUps']);
+                Route::get('finance/settlements', [\App\Http\Controllers\Api\Admin\FinanceController::class, 'settlements']);
+            });
         });
     });
+
+    // Payment webhooks (public, secured via provider auth/signature and/or IP allowlist)
+    Route::post('/payments/mtn-momo/webhook', [PaymentWebhookController::class, 'handleMtnMomo']);
+    Route::post('/payments/airtel-money/webhook', [PaymentWebhookController::class, 'handleAirtel']);
 });

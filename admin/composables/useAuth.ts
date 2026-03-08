@@ -125,7 +125,9 @@ interface User {
   id: number
   name: string
   email: string
-  role: 'patient' | 'doctor' | 'admin'
+  role: 'patient' | 'doctor' | 'admin' | 'super_admin'
+  permissions?: string[]
+  is_super_admin?: boolean
   phone?: string
   date_of_birth?: string
   healthcare_professional?: any

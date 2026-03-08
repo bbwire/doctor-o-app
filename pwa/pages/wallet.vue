@@ -51,16 +51,32 @@
               Top up credit
             </h2>
             <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
-              Enter an amount to add to your wallet. (Demo only, no real payment is processed.)
+              Enter the amount, your mobile money number and provider. You will receive a prompt on your phone to enter your PIN.
             </p>
             <UForm :state="topUpState" class="space-y-3" @submit="submitTopUp">
-              <UFormGroup label="Amount" required>
+              <UFormGroup label="Amount (UGX)" required>
                 <UInput
                   v-model="topUpState.amount"
                   type="number"
                   min="1"
                   step="1"
                   icon="i-lucide-coins"
+                />
+              </UFormGroup>
+              <UFormGroup label="Mobile money number" required>
+                <UInput
+                  v-model="topUpState.phone"
+                  type="tel"
+                  inputmode="tel"
+                  icon="i-lucide-phone"
+                />
+              </UFormGroup>
+              <UFormGroup label="Provider" required>
+                <USelect
+                  v-model="topUpState.provider"
+                  :options="providerOptions"
+                  option-attribute="label"
+                  value-attribute="value"
                 />
               </UFormGroup>
               <UButton
@@ -70,8 +86,14 @@
                 :disabled="!canTopUp"
                 block
               >
-                Add credit
+                {{ pendingTopUpId ? 'Waiting for payment...' : 'Add credit' }}
               </UButton>
+              <p
+                v-if="pendingTopUpId"
+                class="text-xs text-amber-500 dark:text-amber-400 mt-1"
+              >
+                Please check your phone for a mobile money prompt and enter your PIN to approve the payment.
+              </p>
             </UForm>
           </div>
         </div>
@@ -149,21 +171,32 @@ const transactions = ref<WalletTransaction[]>([])
 const loading = ref(true)
 const toppingUp = ref(false)
 const errorMessage = ref('')
+const pendingTopUpId = ref<number | null>(null)
+const statusPollTimeout = ref<ReturnType<typeof setTimeout> | null>(null)
 
 const topUpState = reactive({
-  amount: ''
+  amount: '',
+  phone: '',
+  provider: 'mtn_momo'
 })
 
 const formattedBalance = computed(() => formatAmount(balance.value))
 const canTopUp = computed(() => {
   const value = Number(topUpState.amount || 0)
-  return !Number.isNaN(value) && value >= 1 && !toppingUp.value
+  const hasPhone = Boolean(topUpState.phone && topUpState.phone.trim().length >= 9)
+  const hasProvider = Boolean(topUpState.provider)
+  return !Number.isNaN(value) && value >= 1 && hasPhone && hasProvider && !toppingUp.value
 })
+
+const providerOptions = [
+  { value: 'mtn_momo', label: 'MTN Mobile Money' },
+  { value: 'airtel_money', label: 'Airtel Money' }
+]
 
 const formatAmount = (value: number | string) => {
   const num = typeof value === 'string' ? Number(value) : value
-  if (Number.isNaN(num)) return '0.00'
-  return num.toFixed(2)
+  if (Number.isNaN(num)) return 'UGX 0'
+  return new Intl.NumberFormat('en-UG', { style: 'currency', currency: 'UGX', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(num)
 }
 
 const transactionTitle = (tx: WalletTransaction) => {
@@ -204,25 +237,26 @@ const submitTopUp = async () => {
   errorMessage.value = ''
 
   try {
-    const res = await $fetch<{ data: { balance: number; transaction: WalletTransaction } }>('/wallet/top-up', {
+    const res = await $fetch<{ data: { id: number; status: string; provider: string } }>('/wallet/top-up/initiate', {
       method: 'POST',
       baseURL: config.public.apiBase,
       headers: apiHeaders.value,
       body: {
-        amount
+        amount,
+        phone_number: topUpState.phone,
+        provider: topUpState.provider
       }
     })
 
-    balance.value = res.data.balance ?? balance.value
-    if (res.data.transaction) {
-      transactions.value = [res.data.transaction, ...transactions.value].slice(0, 20)
-    }
+    pendingTopUpId.value = res.data.id
     topUpState.amount = ''
 
+    pollTopUpStatus()
+
     toast.add({
-      title: 'Credit added',
-      description: `Your wallet has been topped up by ${formatAmount(amount)}.`,
-      color: 'green'
+      title: 'Payment initiated',
+      description: 'Please approve the mobile money prompt on your phone.',
+      color: 'primary'
     })
   } catch (error: any) {
     errorMessage.value = error?.data?.message || 'Failed to top up wallet.'
@@ -236,8 +270,60 @@ const submitTopUp = async () => {
   }
 }
 
+const pollTopUpStatus = async () => {
+  if (!pendingTopUpId.value) return
+
+  try {
+    const res = await $fetch<{ data: { status: string; balance: number } }>(`/wallet/top-up/${pendingTopUpId.value}`, {
+      baseURL: config.public.apiBase,
+      headers: apiHeaders.value
+    })
+
+    const status = res.data.status
+    if (status === 'successful') {
+      balance.value = res.data.balance ?? balance.value
+      await fetchWallet()
+      pendingTopUpId.value = null
+      if (statusPollTimeout.value) {
+        clearTimeout(statusPollTimeout.value)
+        statusPollTimeout.value = null
+      }
+      toast.add({
+        title: 'Credit added',
+        description: 'Your wallet has been topped up successfully.',
+        color: 'green'
+      })
+      return
+    }
+
+    if (status === 'failed') {
+      pendingTopUpId.value = null
+      if (statusPollTimeout.value) {
+        clearTimeout(statusPollTimeout.value)
+        statusPollTimeout.value = null
+      }
+      toast.add({
+        title: 'Payment failed',
+        description: 'The mobile money payment was not completed.',
+        color: 'red'
+      })
+      return
+    }
+  } catch {
+    // Ignore transient errors during polling
+  }
+
+  statusPollTimeout.value = setTimeout(pollTopUpStatus, 5000)
+}
+
 onMounted(async () => {
   await fetchWallet()
+})
+
+onUnmounted(() => {
+  if (statusPollTimeout.value) {
+    clearTimeout(statusPollTimeout.value)
+  }
 })
 </script>
 

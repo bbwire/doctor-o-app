@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Models\HealthcareProfessional;
+use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Hash;
 
 class HealthcareProfessionalService
 {
@@ -51,11 +53,34 @@ class HealthcareProfessionalService
     }
 
     /**
-     * @param  array<string, mixed>  $validated
+     * Create a new user (doctor) and their healthcare professional profile in one flow.
+     *
+     * @param  array<string, mixed>  $validated  Must include name, email, password; optional phone, date_of_birth; plus professional fields.
      */
-    public function create(array $validated): HealthcareProfessional
+    public function createWithNewUser(array $validated): HealthcareProfessional
     {
-        return HealthcareProfessional::create($validated)->load(['user', 'institution']);
+        $user = User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => Hash::make($validated['password']),
+            'role' => 'doctor',
+            'phone' => $validated['phone'] ?? null,
+            'date_of_birth' => $validated['date_of_birth'] ?? null,
+        ]);
+
+        $professionalData = [
+            'user_id' => $user->id,
+            'institution_id' => $validated['institution_id'] ?? null,
+            'speciality' => $validated['speciality'] ?? null,
+            'license_number' => $validated['license_number'] ?? null,
+            'registration_date' => $validated['registration_date'] ?? null,
+            'regulatory_council' => $validated['regulatory_council'] ?? null,
+            'bio' => $validated['bio'] ?? null,
+            'qualifications' => $validated['qualifications'] ?? null,
+            'is_active' => $validated['is_active'] ?? true,
+        ];
+
+        return HealthcareProfessional::create($professionalData)->load(['user', 'institution']);
     }
 
     /**

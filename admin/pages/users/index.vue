@@ -108,6 +108,7 @@ const errorMessage = ref('')
 
 const roleOptions = [
   { label: 'All Roles', value: null },
+  { label: 'Super Admin', value: 'super_admin' },
   { label: 'Patient', value: 'patient' },
   { label: 'Doctor', value: 'doctor' },
   { label: 'Admin', value: 'admin' }
@@ -126,7 +127,8 @@ const getRoleColor = (role) => {
   const colors = {
     patient: 'blue',
     doctor: 'green',
-    admin: 'purple'
+    admin: 'purple',
+    super_admin: 'amber'
   }
   return colors[role] || 'gray'
 }

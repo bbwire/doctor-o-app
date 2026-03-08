@@ -30,7 +30,7 @@ class NotificationService
      */
     public function notifyAdmins(string $type, string $title, ?string $body = null, array $data = []): void
     {
-        User::where('role', 'admin')->pluck('id')->each(function (int $userId) use ($type, $title, $body, $data): void {
+        User::whereIn('role', ['admin', 'super_admin'])->pluck('id')->each(function (int $userId) use ($type, $title, $body, $data): void {
             $this->createForUser($userId, $type, $title, $body, $data);
         });
     }

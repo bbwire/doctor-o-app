@@ -39,10 +39,13 @@ class UpdateHealthcareProfessionalRequest extends FormRequest
             'institution_id' => ['nullable', 'integer', 'exists:institutions,id'],
             'speciality' => ['nullable', 'string', 'max:255'],
             'license_number' => ['nullable', 'string', 'max:255'],
+            'registration_date' => ['nullable', 'date'],
+            'regulatory_council' => ['nullable', 'string', 'max:255'],
             'bio' => ['nullable', 'string'],
             'qualifications' => ['nullable', 'array'],
             'qualifications.*' => ['string', 'max:255'],
             'is_active' => ['sometimes', 'boolean'],
+            'is_approved' => ['sometimes', 'boolean'],
         ];
     }
 }
