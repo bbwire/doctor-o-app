@@ -91,6 +91,12 @@ class PatientConsultationService
             'A new consultation has been booked for ' . $scheduledAt->format('M j, Y \a\t g:i A') . '.',
             ['consultation_id' => $consultation->id]
         );
+        $notificationService->notifyAdmins(
+            'consultation_booked',
+            'New consultation booked',
+            'A patient has booked a consultation for ' . $scheduledAt->format('M j, Y \a\t g:i A') . '.',
+            ['consultation_id' => $consultation->id, 'patient_id' => $patient->id, 'doctor_id' => (int) $validated['doctor_id']]
+        );
 
         return $consultation;
     }
@@ -121,6 +127,12 @@ class PatientConsultationService
             'consultation_cancelled',
             'Appointment cancelled',
             'A patient has cancelled their consultation scheduled for ' . $consultation->scheduled_at->format('M j, Y \a\t g:i A') . '.',
+            ['consultation_id' => $consultation->id]
+        );
+        app(NotificationService::class)->notifyAdmins(
+            'consultation_cancelled',
+            'Consultation cancelled',
+            'A patient has cancelled a consultation scheduled for ' . $consultation->scheduled_at->format('M j, Y \a\t g:i A') . '.',
             ['consultation_id' => $consultation->id]
         );
 

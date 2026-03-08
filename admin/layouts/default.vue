@@ -26,13 +26,13 @@
         />
       </div>
 
-      <nav class="flex-1 overflow-y-auto px-3 py-4">
+      <nav class="admin-sidebar-nav flex-1 overflow-y-auto px-3 py-4">
         <ul class="space-y-1">
           <li>
             <NuxtLink
               to="/"
               class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
-              :class="isActive('/') ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/25 dark:text-primary-300 border-l-2 border-primary-500 -ml-px pl-[11px]' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'"
+              :class="navLinkClass('/')"
               @click="sidebarOpen = false"
             >
               <UIcon name="i-lucide-layout-dashboard" class="h-4 w-4 shrink-0" />
@@ -43,7 +43,7 @@
             <NuxtLink
               to="/institutions"
               class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
-              :class="isActive('/institutions') ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/25 dark:text-primary-300 border-l-2 border-primary-500 -ml-px pl-[11px]' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'"
+              :class="navLinkClass('/institutions')"
               @click="sidebarOpen = false"
             >
               <UIcon name="i-lucide-building-2" class="h-4 w-4 shrink-0" />
@@ -54,7 +54,7 @@
             <NuxtLink
               to="/healthcare-professionals"
               class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
-              :class="isActive('/healthcare-professionals') ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/25 dark:text-primary-300 border-l-2 border-primary-500 -ml-px pl-[11px]' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'"
+              :class="navLinkClass('/healthcare-professionals')"
               @click="sidebarOpen = false"
             >
               <UIcon name="i-lucide-stethoscope" class="h-4 w-4 shrink-0" />
@@ -76,7 +76,7 @@
             <NuxtLink
               to="/prescriptions"
               class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
-              :class="isActive('/prescriptions') ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/25 dark:text-primary-300 border-l-2 border-primary-500 -ml-px pl-[11px]' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'"
+              :class="navLinkClass('/prescriptions')"
               @click="sidebarOpen = false"
             >
               <UIcon name="i-lucide-file-text" class="h-4 w-4 shrink-0" />
@@ -87,7 +87,7 @@
             <NuxtLink
               to="/notifications"
               class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
-              :class="isActive('/notifications') ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/25 dark:text-primary-300 border-l-2 border-primary-500 -ml-px pl-[11px]' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'"
+              :class="navLinkClass('/notifications')"
               @click="sidebarOpen = false"
             >
               <UIcon name="i-lucide-bell" class="h-4 w-4 shrink-0" />
@@ -98,18 +98,29 @@
             <NuxtLink
               to="/users"
               class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
-              :class="isActive('/users') ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/25 dark:text-primary-300 border-l-2 border-primary-500 -ml-px pl-[11px]' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'"
+              :class="navLinkClass('/users')"
               @click="sidebarOpen = false"
             >
               <UIcon name="i-lucide-users" class="h-4 w-4 shrink-0" />
               Users
             </NuxtLink>
           </li>
+          <li v-if="can('manage_users')">
+            <NuxtLink
+              to="/patients"
+              class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
+              :class="navLinkClass('/patients')"
+              @click="sidebarOpen = false"
+            >
+              <UIcon name="i-lucide-circle-user" class="h-4 w-4 shrink-0" />
+              Patients
+            </NuxtLink>
+          </li>
           <li v-if="can('manage_finance')">
             <NuxtLink
               to="/finance"
               class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
-              :class="isActive('/finance') ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/25 dark:text-primary-300 border-l-2 border-primary-500 -ml-px pl-[11px]' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'"
+              :class="navLinkClass('/finance')"
               @click="sidebarOpen = false"
             >
               <UIcon name="i-lucide-wallet" class="h-4 w-4 shrink-0" />
@@ -120,7 +131,7 @@
             <NuxtLink
               to="/settings"
               class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
-              :class="isActive('/settings') ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/25 dark:text-primary-300 border-l-2 border-primary-500 -ml-px pl-[11px]' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'"
+              :class="navLinkClass('/settings')"
               @click="sidebarOpen = false"
             >
               <UIcon name="i-lucide-settings" class="h-4 w-4 shrink-0" />
@@ -131,7 +142,7 @@
             <NuxtLink
               to="/audit-trail"
               class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
-              :class="isActive('/audit-trail') ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/25 dark:text-primary-300 border-l-2 border-primary-500 -ml-px pl-[11px]' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'"
+              :class="navLinkClass('/audit-trail')"
               @click="sidebarOpen = false"
             >
               <UIcon name="i-lucide-history" class="h-4 w-4 shrink-0" />
@@ -214,9 +225,17 @@ function isActive (path) {
   return p === path || p.startsWith(path + '/')
 }
 
+// Single source of truth for nav link styling so every item is identical
+const NAV_LINK_ACTIVE = 'bg-primary-50 text-primary-700 dark:bg-primary-900/25 dark:text-primary-300 border-l-2 border-primary-500 -ml-px pl-[11px]'
+const NAV_LINK_INACTIVE = 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'
+function navLinkClass (path) {
+  return isActive(path) ? NAV_LINK_ACTIVE : NAV_LINK_INACTIVE
+}
+
 const currentPageTitle = computed(() => {
   const path = route.path
   if (path === '/') return 'Dashboard'
+  if (path.startsWith('/patients')) return 'Patients'
   if (path.startsWith('/users')) return 'Users'
   if (path.startsWith('/institutions')) return 'Institutions'
   if (path.startsWith('/healthcare-professionals')) return 'Professionals'
@@ -293,3 +312,10 @@ onUnmounted(() => {
   if (stopIdle) stopIdle()
 })
 </script>
+
+<style scoped>
+/* Ensure active nav link in dark mode always uses our background (overrides any NuxtLink default) */
+.admin-sidebar-nav :deep(a.router-link-active) {
+  @apply dark:!bg-primary-900/25;
+}
+</style>

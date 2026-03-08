@@ -44,6 +44,8 @@ class UpdateUserRequest extends FormRequest
             'password' => ['nullable', 'string', 'min:8'],
             'phone' => ['nullable', 'string', 'max:20'],
             'date_of_birth' => ['nullable', 'date'],
+            'chronic_conditions' => ['nullable', 'array'],
+            'chronic_conditions.*' => ['string', 'max:255'],
         ];
     }
 }

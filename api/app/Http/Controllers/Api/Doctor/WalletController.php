@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Doctor;
 use App\Http\Controllers\Controller;
 use App\Models\ConsultationSettlement;
 use App\Models\PayoutRequest;
+use App\Services\AuditLogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -96,7 +97,14 @@ class WalletController extends Controller
             'status' => 'pending',
             'requested_at' => now(),
         ]);
-
+        app(AuditLogService::class)->log(
+            $user,
+            'payout.requested',
+            'Doctor requested payout: ' . number_format($amount, 0) . ' UGX',
+            PayoutRequest::class,
+            $payout->id,
+            ['amount' => $amount]
+        );
         return response()->json([
             'data' => [
                 'id' => $payout->id,

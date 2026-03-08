@@ -151,6 +151,22 @@
       </div>
     </NuxtLink>
 
+    <NuxtLink
+      v-if="user && user.role === 'patient' && showLowCreditReminder"
+      to="/wallet"
+      class="block border-b border-amber-200/60 dark:border-amber-800/70 bg-amber-50/80 dark:bg-amber-900/20 hover:bg-amber-100/80 dark:hover:bg-amber-900/30 transition-colors cursor-pointer"
+    >
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3">
+        <UAlert
+          color="amber"
+          icon="i-lucide-wallet"
+          variant="soft"
+          title="Wallet credit running low"
+          description="Top up your wallet so you can book consultations without interruption."
+        />
+      </div>
+    </NuxtLink>
+
     <main class="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6 pb-safe" :class="user ? 'pb-20 md:pb-6' : ''">
       <slot />
     </main>
@@ -204,6 +220,16 @@ const headerWalletBalance = ref(null)
 const headerWalletLoading = ref(false)
 const headerDoctorWalletBalance = ref(null)
 const headerDoctorWalletLoading = ref(false)
+
+/** UGX below which we show "running low" reminder to patients */
+const LOW_CREDIT_THRESHOLD_UGX = 10000
+
+const showLowCreditReminder = computed(() => {
+  if (!user.value || user.value.role !== 'patient') return false
+  const balance = headerWalletBalance.value
+  if (balance === null || typeof balance !== 'number') return false
+  return balance < LOW_CREDIT_THRESHOLD_UGX
+})
 
 const headerWalletLabel = computed(() => {
   if (!user.value || user.value.role !== 'patient') {

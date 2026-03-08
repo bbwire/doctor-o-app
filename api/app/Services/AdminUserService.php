@@ -23,6 +23,7 @@ class AdminUserService
             'role' => $validated['role'],
             'phone' => $validated['phone'] ?? null,
             'date_of_birth' => $validated['date_of_birth'] ?? null,
+            'chronic_conditions' => ($validated['role'] ?? '') === 'patient' ? ($validated['chronic_conditions'] ?? []) : null,
         ];
         if (in_array($validated['role'] ?? '', ['admin', 'super_admin'], true)) {
             $attrs['permissions'] = $validated['role'] === 'super_admin' ? null : ($validated['permissions'] ?? []);
@@ -67,6 +68,9 @@ class AdminUserService
             $attrs['permissions'] = in_array($user->role, ['admin', 'super_admin'], true)
                 ? ($user->role === 'super_admin' ? null : ($validated['permissions'] ?? []))
                 : $user->permissions;
+        }
+        if (array_key_exists('chronic_conditions', $validated)) {
+            $attrs['chronic_conditions'] = $user->role === 'patient' ? ($validated['chronic_conditions'] ?? []) : $user->chronic_conditions;
         }
         $user->update($attrs);
 

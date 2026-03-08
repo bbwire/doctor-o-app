@@ -30,6 +30,7 @@ class ConsultationResource extends JsonResource
                 'name' => $this->patient?->name,
                 'email' => $this->patient?->email,
                 'role' => $this->patient?->role,
+                'chronic_conditions' => $this->patient?->chronic_conditions ?? [],
             ]),
             'doctor' => $this->whenLoaded('doctor', fn () => [
                 'id' => $this->doctor?->id,

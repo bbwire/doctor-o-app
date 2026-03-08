@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\UpdateSettingsRequest;
-use App\Models\SettingAuditLog;
+use App\Models\ActivityLog;
 use App\Services\SettingsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -33,13 +33,32 @@ class SettingsController extends Controller
     public function audit(Request $request): JsonResponse
     {
         $perPage = max(1, min((int) $request->input('per_page', 20), 100));
-        $logs = SettingAuditLog::query()
+        $logs = ActivityLog::query()
             ->with('user:id,name,email')
-            ->latest()
+            ->orderByDesc('created_at')
             ->paginate($perPage);
 
+        $data = collect($logs->items())->map(function (ActivityLog $log) {
+            $props = $log->properties ?? [];
+            return [
+                'id' => $log->id,
+                'action' => $log->action,
+                'description' => $log->description,
+                'user' => $log->user,
+                'user_id' => $log->user_id,
+                'subject_type' => $log->subject_type,
+                'subject_id' => $log->subject_id,
+                'properties' => $props,
+                'created_at' => $log->created_at?->toISOString(),
+                // For settings.updated, expose key/old_value/new_value for table columns
+                'key' => $props['key'] ?? null,
+                'old_value' => $props['old_value'] ?? null,
+                'new_value' => $props['new_value'] ?? null,
+            ];
+        })->all();
+
         return response()->json([
-            'data' => $logs->items(),
+            'data' => $data,
             'meta' => [
                 'current_page' => $logs->currentPage(),
                 'last_page' => $logs->lastPage(),

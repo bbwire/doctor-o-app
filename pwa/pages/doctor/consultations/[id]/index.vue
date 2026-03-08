@@ -39,6 +39,12 @@
               {{ consultation.patient?.name || `Patient #${consultation.patient_id}` }}
             </dd>
           </div>
+          <div v-if="consultation.patient?.chronic_conditions?.length" class="sm:col-span-2">
+            <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Patient chronic conditions</dt>
+            <dd class="mt-0.5 flex flex-wrap gap-1">
+              <UBadge v-for="c in (consultation.patient.chronic_conditions || [])" :key="c" size="xs" color="neutral" variant="soft">{{ c }}</UBadge>
+            </dd>
+          </div>
           <div>
             <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Scheduled at</dt>
             <dd class="text-sm text-gray-900 dark:text-gray-100">

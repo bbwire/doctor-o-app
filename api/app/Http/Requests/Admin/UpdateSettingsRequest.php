@@ -28,6 +28,10 @@ class UpdateSettingsRequest extends FormRequest
             'consultations.pricing.text' => ['nullable', 'numeric', 'min:0'],
             'consultations.pricing.audio' => ['nullable', 'numeric', 'min:0'],
             'consultations.pricing.video' => ['nullable', 'numeric', 'min:0'],
+            'consultations.pricing_by_speciality' => ['nullable', 'array'],
+            'consultations.pricing_by_speciality.*' => ['nullable', 'numeric', 'min:0'],
+            'finance' => ['nullable', 'array'],
+            'finance.platform_revenue_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ];
     }
 }

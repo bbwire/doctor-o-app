@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Doctor;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\HealthcareProfessionalResource;
 use App\Models\HealthcareProfessional;
+use App\Services\AuditLogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -88,7 +89,14 @@ class ProfileController extends Controller
         ]);
 
         $profile->save();
-
+        app(AuditLogService::class)->log(
+            $user,
+            'doctor.profile_updated',
+            'Doctor updated their professional profile',
+            HealthcareProfessional::class,
+            $profile->id,
+            ['speciality' => $profile->speciality ?? null]
+        );
         return new HealthcareProfessionalResource($profile->refresh()->load(['user', 'institution']));
     }
 }

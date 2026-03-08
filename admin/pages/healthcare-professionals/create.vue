@@ -41,6 +41,7 @@
                 v-model="form.password"
                 :type="showPassword ? 'text' : 'password'"
                 placeholder="••••••••"
+                :ui="{ icon: { trailing: { pointer: '' } } }"
               >
                 <template #trailing>
                   <UButton
@@ -114,8 +115,8 @@
           </div>
         </div>
 
-        <UFormGroup label="Bio" name="bio">
-          <UTextarea v-model="form.bio" placeholder="Short professional bio" :rows="3" />
+        <UFormGroup label="Motivational statement" name="bio">
+          <UTextarea v-model="form.bio" placeholder="e.g. What drives you in your practice" :rows="3" />
         </UFormGroup>
         <p class="text-xs text-gray-500 dark:text-gray-400">
           The professional can upload academic documents (e.g. practicing license, certificates) in their Profile after signing in to the app.

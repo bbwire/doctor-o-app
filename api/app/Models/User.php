@@ -30,6 +30,7 @@ class User extends Authenticatable
         'date_of_birth',
         'profile_photo_path',
         'preferred_language',
+        'chronic_conditions',
         'wallet_balance',
         'doctor_wallet_balance',
     ];
@@ -58,6 +59,7 @@ class User extends Authenticatable
             'wallet_balance' => 'decimal:2',
             'doctor_wallet_balance' => 'decimal:2',
             'permissions' => 'array',
+            'chronic_conditions' => 'array',
         ];
     }
 

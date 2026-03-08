@@ -8,6 +8,7 @@ use App\Http\Requests\Admin\StoreConsultationRequest;
 use App\Http\Requests\Admin\UpdateConsultationRequest;
 use App\Http\Resources\ConsultationResource;
 use App\Models\Consultation;
+use App\Services\AuditLogService;
 use App\Services\ConsultationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -42,8 +43,16 @@ class ConsultationController extends Controller
 
     public function destroy(Consultation $consultation): JsonResponse
     {
+        $id = $consultation->id;
         $this->consultationService->delete($consultation);
-
+        app(AuditLogService::class)->log(
+            request()->user(),
+            'consultation.deleted_by_admin',
+            'Admin deleted consultation #' . $id,
+            Consultation::class,
+            $id,
+            []
+        );
         return response()->json(['message' => 'Consultation deleted successfully']);
     }
 }

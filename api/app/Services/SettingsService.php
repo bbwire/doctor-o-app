@@ -174,7 +174,7 @@ class SettingsService
             $newValue = json_encode($cleaned);
             Setting::setValue($key, $newValue);
             if ($user) {
-                $this->logAudit($user->id, $key, $oldValue, $newValue);
+                $this->logSettingsAudit($user, $key, $oldValue, $newValue);
             }
         }
 
@@ -203,19 +203,14 @@ class SettingsService
             $oldValue = Setting::getValue($key);
             $this->set($key, $newValue);
             if ($user) {
-                $this->logAudit($user->id, $key, $oldValue, $newValue);
+                $this->logSettingsAudit($user, $key, $oldValue, $newValue);
             }
         }
     }
 
-    private function logAudit(int $userId, string $key, ?string $oldValue, ?string $newValue): void
+    private function logSettingsAudit(\App\Models\User $user, string $key, ?string $oldValue, ?string $newValue): void
     {
-        \App\Models\SettingAuditLog::create([
-            'user_id' => $userId,
-            'key' => $key,
-            'old_value' => $oldValue,
-            'new_value' => $newValue,
-        ]);
+        app(AuditLogService::class)->logSettingsUpdated($user, $key, $oldValue, $newValue);
     }
 
     private function castValue(string $key, string $stored): mixed

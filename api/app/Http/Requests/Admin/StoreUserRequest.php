@@ -35,6 +35,8 @@ class StoreUserRequest extends FormRequest
             'permissions.*' => ['string', 'in:'.implode(',', \App\Support\AdminPermission::all())],
             'phone' => ['nullable', 'string', 'max:20'],
             'date_of_birth' => ['nullable', 'date'],
+            'chronic_conditions' => ['nullable', 'array'],
+            'chronic_conditions.*' => ['string', 'max:255'],
         ];
     }
 }

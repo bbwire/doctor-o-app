@@ -9,6 +9,7 @@ use App\Http\Requests\Admin\UpdateUserRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Services\AdminUserService;
+use App\Services\AuditLogService;
 use App\Services\WalletService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -37,7 +38,14 @@ class UserController extends Controller
     public function store(StoreUserRequest $request): JsonResponse
     {
         $user = $this->adminUserService->create($request->validated());
-
+        app(AuditLogService::class)->log(
+            $request->user(),
+            'user.created',
+            'Created user: ' . ($user->name ?? $user->email),
+            User::class,
+            $user->id,
+            ['email' => $user->email, 'role' => $user->role ?? null]
+        );
         return (new UserResource($user))
             ->response()
             ->setStatusCode(201);
@@ -56,7 +64,16 @@ class UserController extends Controller
      */
     public function update(UpdateUserRequest $request, User $user): UserResource
     {
-        return new UserResource($this->adminUserService->update($user, $request->validated()));
+        $updated = $this->adminUserService->update($user, $request->validated());
+        app(AuditLogService::class)->log(
+            $request->user(),
+            'user.updated',
+            'Updated user: ' . ($updated->name ?? $updated->email),
+            User::class,
+            $updated->id,
+            ['email' => $updated->email]
+        );
+        return new UserResource($updated);
     }
 
     /**
@@ -64,8 +81,17 @@ class UserController extends Controller
      */
     public function destroy(User $user): JsonResponse
     {
+        $name = $user->name ?? $user->email ?? '#' . $user->id;
+        $id = $user->id;
         $this->adminUserService->delete($user);
-
+        app(AuditLogService::class)->log(
+            request()->user(),
+            'user.deleted',
+            'Deleted user: ' . $name,
+            User::class,
+            $id,
+            ['email' => $user->email ?? null]
+        );
         return response()->json(['message' => 'User deleted successfully'], 200);
     }
 
@@ -80,7 +106,14 @@ class UserController extends Controller
         $amount = (float) $request->input('amount');
 
         $transaction = $this->walletService->topUp($user, $amount);
-
+        app(AuditLogService::class)->log(
+            $request->user(),
+            'wallet.top_up',
+            'Topped up wallet for patient: ' . ($user->name ?? $user->email) . ' – ' . number_format($amount, 0) . ' UGX',
+            User::class,
+            $user->id,
+            ['amount' => $amount, 'balance_after' => (float) $transaction->balance_after]
+        );
         return response()->json([
             'message' => 'Credit added successfully.',
             'data' => [

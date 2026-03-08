@@ -9,6 +9,7 @@ use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Requests\Auth\ResetPasswordRequest;
 use App\Http\Requests\Auth\UpdateProfileRequest;
 use App\Http\Resources\UserResource;
+use App\Services\AuditLogService;
 use App\Services\AuthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,7 +25,20 @@ class AuthController extends Controller
     public function register(RegisterRequest $request): JsonResponse
     {
         ['user' => $user, 'token' => $token] = $this->authService->register($request->validated());
-
+        app(\App\Services\NotificationService::class)->notifyAdmins(
+            'user_registered',
+            'New user registered',
+            ($user->name ?? $user->email) . ' has registered on the platform.',
+            ['user_id' => $user->id, 'email' => $user->email, 'role' => $user->role ?? null]
+        );
+        app(AuditLogService::class)->log(
+            $user,
+            'auth.registered',
+            'New user registered: ' . ($user->name ?? $user->email),
+            \App\Models\User::class,
+            $user->id,
+            ['email' => $user->email, 'role' => $user->role ?? null]
+        );
         return response()->json([
             'user' => new UserResource($user),
             'token' => $token,
@@ -37,7 +51,14 @@ class AuthController extends Controller
     public function login(LoginRequest $request): JsonResponse
     {
         ['user' => $user, 'token' => $token] = $this->authService->login($request->validated());
-
+        app(AuditLogService::class)->log(
+            $user,
+            'auth.login',
+            'User logged in: ' . ($user->name ?? $user->email),
+            \App\Models\User::class,
+            $user->id,
+            ['email' => $user->email]
+        );
         return response()->json([
             'user' => new UserResource($user),
             'token' => $token,
@@ -49,7 +70,18 @@ class AuthController extends Controller
      */
     public function logout(Request $request): JsonResponse
     {
-        $request->user()?->currentAccessToken()?->delete();
+        $user = $request->user();
+        if ($user) {
+            app(AuditLogService::class)->log(
+                $user,
+                'auth.logout',
+                'User logged out: ' . ($user->name ?? $user->email),
+                \App\Models\User::class,
+                $user->id,
+                ['email' => $user->email]
+            );
+        }
+        $user?->currentAccessToken()?->delete();
 
         return response()->json(['message' => 'Logged out successfully']);
     }

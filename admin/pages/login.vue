@@ -26,6 +26,7 @@
               :type="showPassword ? 'text' : 'password'"
               placeholder="••••••••"
               size="lg"
+              :ui="{ icon: { trailing: { pointer: '' } } }"
             >
               <template #trailing>
                 <UButton

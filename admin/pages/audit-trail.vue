@@ -5,7 +5,7 @@
         Audit trail
       </h1>
       <p class="text-gray-600 dark:text-gray-300">
-        History of settings changes (who changed what and when).
+        History of all actions in the system (who did what and when).
       </p>
     </div>
 
@@ -21,6 +21,9 @@
           :rows="rows"
           :columns="columns"
         >
+          <template #description-data="{ row }">
+            <span class="max-w-[280px] block" :title="row.description ?? ''">{{ row.description ?? '—' }}</span>
+          </template>
           <template #created_at-data="{ row }">
             {{ formatDate(row.created_at) }}
           </template>
@@ -60,9 +63,9 @@ const page = ref(1)
 const pageSize = ref(20)
 
 const columns = [
-  { key: 'created_at', label: 'When' },
+  { key: 'description', label: 'Action' },
   { key: 'user', label: 'Who' },
-  { key: 'key', label: 'Setting' },
+  { key: 'created_at', label: 'When' },
   { key: 'old_value', label: 'Previous' },
   { key: 'new_value', label: 'New' }
 ]

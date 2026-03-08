@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Doctor;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ConsultationResource;
 use App\Models\Consultation;
+use App\Services\AuditLogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -55,7 +56,20 @@ class ConsultationController extends Controller
             'metadata' => ['nullable', 'array'],
         ]);
 
+        $oldStatus = $consultation->status;
         $consultation->update($validated);
+
+        if (isset($validated['status']) && $validated['status'] !== $oldStatus) {
+            $action = $validated['status'] === 'completed' ? 'consultation.completed' : ($validated['status'] === 'cancelled' ? 'consultation.cancelled_by_doctor' : 'consultation.status_updated');
+            app(AuditLogService::class)->log(
+                $request->user(),
+                $action,
+                'Doctor marked consultation #' . $consultation->id . ' as ' . $validated['status'],
+                Consultation::class,
+                $consultation->id,
+                ['old_status' => $oldStatus, 'new_status' => $validated['status']]
+            );
+        }
 
         return response()->json([
             'data' => (new ConsultationResource($consultation->load(['patient', 'prescriptions'])))->toArray($request),

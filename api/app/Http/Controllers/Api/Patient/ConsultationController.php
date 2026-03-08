@@ -7,6 +7,7 @@ use App\Http\Requests\Patient\ListConsultationsRequest;
 use App\Http\Requests\Patient\RescheduleConsultationRequest;
 use App\Http\Requests\Patient\StoreConsultationRequest;
 use App\Http\Resources\ConsultationResource;
+use App\Services\AuditLogService;
 use App\Services\PatientConsultationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -25,9 +26,16 @@ class ConsultationController extends Controller
 
     public function store(StoreConsultationRequest $request): JsonResponse
     {
-        return (new ConsultationResource(
-            $this->patientConsultationService->createForPatient($request->user(), $request->validated())
-        ))
+        $consultation = $this->patientConsultationService->createForPatient($request->user(), $request->validated());
+        app(AuditLogService::class)->log(
+            $request->user(),
+            'consultation.booked',
+            'Patient booked consultation #' . $consultation->id . ' for ' . $consultation->scheduled_at,
+            \App\Models\Consultation::class,
+            $consultation->id,
+            ['doctor_id' => $consultation->doctor_id, 'consultation_type' => $consultation->consultation_type ?? null]
+        );
+        return (new ConsultationResource($consultation))
             ->response()
             ->setStatusCode(201);
     }
@@ -41,15 +49,29 @@ class ConsultationController extends Controller
 
     public function cancel(Request $request, int $consultationId): ConsultationResource
     {
-        return new ConsultationResource(
-            $this->patientConsultationService->cancelForPatient($request->user(), $consultationId)
+        $consultation = $this->patientConsultationService->cancelForPatient($request->user(), $consultationId);
+        app(AuditLogService::class)->log(
+            $request->user(),
+            'consultation.cancelled',
+            'Patient cancelled consultation #' . $consultation->id,
+            \App\Models\Consultation::class,
+            $consultation->id,
+            ['scheduled_at' => $consultation->scheduled_at]
         );
+        return new ConsultationResource($consultation);
     }
 
     public function reschedule(RescheduleConsultationRequest $request, int $consultationId): ConsultationResource
     {
-        return new ConsultationResource(
-            $this->patientConsultationService->rescheduleForPatient($request->user(), $consultationId, $request->validated())
+        $consultation = $this->patientConsultationService->rescheduleForPatient($request->user(), $consultationId, $request->validated());
+        app(AuditLogService::class)->log(
+            $request->user(),
+            'consultation.rescheduled',
+            'Patient rescheduled consultation #' . $consultation->id . ' to ' . $consultation->scheduled_at,
+            \App\Models\Consultation::class,
+            $consultation->id,
+            ['doctor_id' => $consultation->doctor_id]
         );
+        return new ConsultationResource($consultation);
     }
 }

@@ -7,6 +7,7 @@ use App\Http\Requests\Doctor\StorePrescriptionRequest;
 use App\Http\Resources\PrescriptionResource;
 use App\Models\Consultation;
 use App\Models\Prescription;
+use App\Services\AuditLogService;
 use App\Services\PrescriptionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -43,7 +44,14 @@ class PrescriptionController extends Controller
         ]);
 
         $prescription = $this->prescriptionService->create($payload);
-
+        app(AuditLogService::class)->log(
+            $request->user(),
+            'prescription.issued',
+            'Doctor issued prescription #' . $prescription->id . ' for consultation #' . $prescription->consultation_id,
+            Prescription::class,
+            $prescription->id,
+            ['consultation_id' => $prescription->consultation_id, 'patient_id' => $prescription->patient_id]
+        );
         return (new PrescriptionResource($prescription))
             ->response()
             ->setStatusCode(201);

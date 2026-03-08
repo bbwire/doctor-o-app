@@ -1,16 +1,16 @@
 <template>
   <div class="space-y-6">
-    <AdminBreadcrumbs :items="breadcrumbItems" />
+    <AdminBreadcrumbs :items="[{ label: 'Patients', to: '/patients' }, { label: 'New patient' }]" />
     <div class="flex items-center gap-3">
-      <UButton :to="form.role === 'patient' ? '/patients' : '/users'" variant="ghost" icon="i-lucide-arrow-left" size="sm">
+      <UButton to="/patients" variant="ghost" icon="i-lucide-arrow-left" size="sm">
         Back
       </UButton>
       <div>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
-          {{ form.role === 'patient' ? 'New patient' : 'New user' }}
+          New patient
         </h1>
         <p class="text-gray-600 dark:text-gray-300">
-          Create a patient, doctor, or admin. Doctors can then be linked to institutions under Professionals.
+          Create a patient account. You can add chronic conditions here or edit them later.
         </p>
       </div>
     </div>
@@ -49,40 +49,27 @@
             </template>
           </UInput>
         </UFormGroup>
-        <UFormGroup label="Role" name="role" required>
-          <USelectMenu v-model="form.role" :options="roleOptions" value-attribute="value" option-attribute="label" />
-        </UFormGroup>
-        <UFormGroup v-if="form.role === 'admin'" label="Permissions" name="permissions" hint="Select the areas this admin can manage. Super admins have full access.">
-          <USelectMenu
-            v-model="form.permissions"
-            :options="permissionOptions"
-            value-attribute="key"
-            option-attribute="label"
-            multiple
-            placeholder="Select permissions"
-          />
-        </UFormGroup>
         <UFormGroup label="Phone" name="phone">
           <UInput v-model="form.phone" type="tel" />
         </UFormGroup>
         <UFormGroup label="Date of birth" name="date_of_birth">
           <UInput v-model="form.date_of_birth" type="date" />
         </UFormGroup>
-        <UFormGroup v-if="form.role === 'patient'" label="Chronic conditions" name="chronic_conditions" hint="Visible in patient profile and to doctors during consultations.">
+        <UFormGroup label="Chronic conditions" name="chronic_conditions" hint="Select all that apply. Visible in the patient's profile and to doctors during consultations.">
           <USelectMenu
             v-model="form.chronic_conditions"
             :options="chronicDiseaseOptions"
             value-attribute="value"
             option-attribute="label"
             multiple
-            placeholder="Select conditions"
+            placeholder="Select conditions (optional)"
           />
         </UFormGroup>
         <div class="flex gap-2">
           <UButton type="submit" :loading="saving">
-            Create user
+            Create patient
           </UButton>
-          <UButton variant="outline" :to="form.role === 'patient' ? '/patients' : '/users'">
+          <UButton variant="outline" to="/patients">
             Cancel
           </UButton>
         </div>
@@ -96,7 +83,6 @@ definePageMeta({
   middleware: 'auth-admin'
 })
 
-const route = useRoute()
 const router = useRouter()
 const toast = useToast()
 const showPassword = ref(false)
@@ -106,67 +92,34 @@ const form = reactive({
   name: '',
   email: '',
   password: '',
-  role: (route.query.role as string) || 'patient',
-  permissions: [],
   phone: '',
   date_of_birth: '',
   chronic_conditions: [] as string[]
 })
 
-const breadcrumbItems = computed(() => {
-  const last = form.role === 'patient' ? 'New patient' : 'New user'
-  return form.role === 'patient'
-    ? [{ label: 'Patients', to: '/patients' }, { label: last }]
-    : [{ label: 'Users', to: '/users' }, { label: last }]
-})
-
-const { get, post } = useAdminApi()
-const permissionOptions = ref([])
-
-const roleOptions = [
-  { label: 'Patient', value: 'patient' },
-  { label: 'Doctor', value: 'doctor' },
-  { label: 'Admin', value: 'admin' },
-  { label: 'Super Admin', value: 'super_admin' }
-]
-
+const { post } = useAdminApi()
 const errorMessage = ref('')
 const saving = ref(false)
-
-onMounted(async () => {
-  try {
-    const res = await get('admin/permissions')
-    const data = res?.data ?? []
-    permissionOptions.value = Array.isArray(data) ? data : []
-  } catch {
-    permissionOptions.value = []
-  }
-})
 
 async function onSubmit () {
   errorMessage.value = ''
   saving.value = true
   try {
-    const payload: Record<string, unknown> = {
+    const payload = {
       name: form.name,
       email: form.email,
       password: form.password,
-      role: form.role,
+      role: 'patient',
       phone: form.phone || null,
-      date_of_birth: form.date_of_birth || null
-    }
-    if (form.role === 'admin') {
-      payload.permissions = form.permissions || []
-    }
-    if (form.role === 'patient') {
-      payload.chronic_conditions = Array.isArray(form.chronic_conditions) ? form.chronic_conditions : []
+      date_of_birth: form.date_of_birth || null,
+      chronic_conditions: Array.isArray(form.chronic_conditions) ? form.chronic_conditions : []
     }
     const data = await post('admin/users', payload)
     const user = data?.data ?? data
-    toast.add({ title: 'User created', color: 'green' })
-    await router.push(user?.id ? `/users/${user.id}` : '/users')
+    toast.add({ title: 'Patient created', color: 'green' })
+    await router.push(user?.id ? `/patients/${user.id}` : '/patients')
   } catch (e) {
-    errorMessage.value = e?.data?.message || 'Failed to create user.'
+    errorMessage.value = e?.data?.message || 'Failed to create patient.'
   } finally {
     saving.value = false
   }

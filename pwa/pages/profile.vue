@@ -122,6 +122,16 @@
             <UFormGroup label="Preferred Language">
               <USelectMenu v-model="state.preferred_language" :options="languageOptions" searchable />
             </UFormGroup>
+            <UFormGroup v-if="user?.role === 'patient'" label="Chronic conditions" hint="Select any that apply. Visible to your doctors during consultations.">
+              <USelectMenu
+                v-model="state.chronic_conditions"
+                :options="chronicDiseaseOptions"
+                value-attribute="value"
+                option-attribute="label"
+                multiple
+                placeholder="Select conditions (optional)"
+              />
+            </UFormGroup>
           </div>
 
           <UAlert
@@ -159,7 +169,7 @@
         <div class="mb-4">
           <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Professional information</h2>
           <p class="text-sm text-gray-600 dark:text-gray-400">
-            Update your speciality, license number, bio, qualifications and typical daily availability.
+            Update your speciality, license number, motivational statement, qualifications and typical daily availability.
           </p>
         </div>
 
@@ -215,11 +225,11 @@
             </UFormGroup>
           </div>
 
-          <UFormGroup label="Short bio">
+          <UFormGroup label="Motivational statement">
             <UTextarea
               v-model="professionalState.bio"
               :rows="3"
-              placeholder="Describe your experience, areas of interest, and how you like to work with patients."
+              placeholder="e.g. What drives you in your practice and how you like to work with patients."
             />
           </UFormGroup>
 
@@ -575,6 +585,7 @@ const initialProfile = ref({
   phone: '',
   date_of_birth: '',
   preferred_language: '',
+  chronic_conditions: [] as string[],
   profile_photo_url: null as string | null
 })
 const languageOptions = [
@@ -592,12 +603,24 @@ const languageOptions = [
   'Alur'
 ]
 
+const chronicDiseaseOptions = [
+  { label: 'Hypertension', value: 'Hypertension' },
+  { label: 'Diabetes', value: 'Diabetes' },
+  { label: 'Haemophilia', value: 'Haemophilia' },
+  { label: 'Sickle cell', value: 'Sickle cell' },
+  { label: 'Chronic Kidney disease', value: 'Chronic Kidney disease' },
+  { label: 'Allergies (Drugs)', value: 'Allergies (Drugs)' },
+  { label: 'Allergies (Other)', value: 'Allergies (Other)' },
+  { label: 'Others', value: 'Others' }
+]
+
 const state = reactive({
   name: '',
   email: '',
   phone: '',
   date_of_birth: '',
-  preferred_language: ''
+  preferred_language: '',
+  chronic_conditions: [] as string[]
 })
 
 const activeProfileTab = ref<'account' | 'professional' | 'academic' | 'dependants'>('account')
@@ -895,6 +918,7 @@ const hasUnsavedChanges = computed(() => {
     || state.phone !== initialProfile.value.phone
     || state.date_of_birth !== initialProfile.value.date_of_birth
     || state.preferred_language !== initialProfile.value.preferred_language
+    || JSON.stringify(state.chronic_conditions || []) !== JSON.stringify(initialProfile.value.chronic_conditions || [])
 
   const photoChanged = Boolean(selectedPhoto.value)
     || removeProfilePhoto.value
@@ -1079,6 +1103,7 @@ const onCancelChanges = () => {
   state.phone = initialProfile.value.phone
   state.date_of_birth = initialProfile.value.date_of_birth
   state.preferred_language = initialProfile.value.preferred_language
+  state.chronic_conditions = Array.isArray(initialProfile.value.chronic_conditions) ? [...initialProfile.value.chronic_conditions] : []
   avatarPreview.value = initialProfile.value.profile_photo_url
 }
 
@@ -1401,6 +1426,7 @@ const onSubmit = async () => {
     formData.append('date_of_birth', state.date_of_birth || '')
     formData.append('preferred_language', state.preferred_language || '')
     formData.append('profile_photo_remove', removeProfilePhoto.value ? '1' : '0')
+    ;(state.chronic_conditions || []).forEach((c: string) => formData.append('chronic_conditions[]', c))
 
     if (selectedPhoto.value) {
       formData.append('profile_photo', selectedPhoto.value)
@@ -1428,6 +1454,7 @@ const onSubmit = async () => {
       phone: response?.data?.phone || state.phone,
       date_of_birth: response?.data?.date_of_birth || state.date_of_birth,
       preferred_language: response?.data?.preferred_language || state.preferred_language,
+      chronic_conditions: response?.data?.chronic_conditions ?? state.chronic_conditions ?? [],
       profile_photo_url: response?.data?.profile_photo_url || null
     }
     avatarPreview.value = initialProfile.value.profile_photo_url

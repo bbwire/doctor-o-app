@@ -82,6 +82,15 @@ class WalletService
                 'doctor_earning' => $doctorEarning,
             ]);
 
+            app(AuditLogService::class)->log(
+                $user,
+                'wallet.consultation_charge',
+                'Wallet charged for consultation #' . $consultation->id . ': ' . number_format($amount, 0) . ' UGX',
+                \App\Models\Consultation::class,
+                $consultation->id,
+                ['amount' => $amount, 'consultation_type' => $consultation->consultation_type ?? null]
+            );
+
             return WalletTransaction::create([
                 'user_id' => $user->id,
                 'type' => 'consultation_charge',

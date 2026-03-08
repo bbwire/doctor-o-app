@@ -53,6 +53,12 @@ class PrescriptionService
             'A new prescription has been issued for you.',
             ['prescription_id' => $prescription->id]
         );
+        app(NotificationService::class)->notifyAdmins(
+            'prescription_issued',
+            'New prescription issued',
+            'A prescription has been issued for consultation #' . $prescription->consultation_id . '.',
+            ['prescription_id' => $prescription->id, 'consultation_id' => $prescription->consultation_id]
+        );
 
         return $prescription;
     }

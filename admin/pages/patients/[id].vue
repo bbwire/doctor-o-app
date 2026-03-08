@@ -1,17 +1,17 @@
 <template>
   <div class="space-y-6">
-    <AdminBreadcrumbs :items="[{ label: 'Users', to: '/users' }, { label: user?.name || 'User details' }]" />
+    <AdminBreadcrumbs :items="[{ label: 'Patients', to: '/patients' }, { label: user?.name || 'Patient details' }]" />
     <div class="flex items-center justify-between gap-3">
       <div class="flex items-center gap-3">
-        <UButton :to="user?.role === 'patient' ? '/patients' : '/users'" variant="ghost" icon="i-lucide-arrow-left" size="sm">
+        <UButton to="/patients" variant="ghost" icon="i-lucide-arrow-left" size="sm">
           Back
         </UButton>
         <div>
           <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
-            User details
+            Patient details
           </h1>
           <p class="text-gray-600 dark:text-gray-300">
-            View and edit user profile
+            View and edit patient profile and chronic conditions
           </p>
         </div>
       </div>
@@ -34,7 +34,7 @@
     />
 
     <div v-if="loading && !user" class="py-10 text-center text-gray-500 dark:text-gray-400">
-      Loading user...
+      Loading patient...
     </div>
 
     <template v-else-if="user">
@@ -46,8 +46,8 @@
               <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ user.name }}
               </h2>
-              <UBadge :color="roleColor(user.role)" variant="soft" class="mt-1">
-                {{ user.role }}
+              <UBadge color="blue" variant="soft" class="mt-1">
+                Patient
               </UBadge>
             </div>
           </div>
@@ -68,30 +68,23 @@
               <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">ID</dt>
               <dd class="mt-0.5 text-gray-900 dark:text-white">{{ user.id }}</dd>
             </div>
-            <div v-if="user.role === 'admin' && Array.isArray(user.permissions) && user.permissions.length" class="sm:col-span-2">
-              <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Permissions</dt>
-              <dd class="mt-0.5 flex flex-wrap gap-1">
-                <UBadge v-for="p in user.permissions" :key="p" size="xs" color="primary" variant="soft">{{ p }}</UBadge>
-              </dd>
-            </div>
-            <div v-if="user.role === 'super_admin'">
-              <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Access</dt>
-              <dd class="mt-0.5 text-gray-900 dark:text-white">Full access (Super Admin)</dd>
-            </div>
-            <div v-if="user.role === 'patient'" class="sm:col-span-2">
+            <div class="sm:col-span-2">
               <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Wallet balance</dt>
               <dd class="mt-0.5 text-gray-900 dark:text-white">{{ formatUgx(user.wallet_balance ?? 0) }}</dd>
             </div>
-            <div v-if="user.role === 'patient' && Array.isArray(user.chronic_conditions) && user.chronic_conditions.length" class="sm:col-span-2">
+            <div class="sm:col-span-2">
               <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Chronic conditions</dt>
               <dd class="mt-0.5 flex flex-wrap gap-1">
-                <UBadge v-for="c in user.chronic_conditions" :key="c" size="xs" color="neutral" variant="soft">{{ c }}</UBadge>
+                <template v-if="Array.isArray(user.chronic_conditions) && user.chronic_conditions.length">
+                  <UBadge v-for="c in user.chronic_conditions" :key="c" size="xs" color="neutral" variant="soft">{{ c }}</UBadge>
+                </template>
+                <span v-else class="text-gray-400">None recorded</span>
               </dd>
             </div>
           </dl>
-          <div v-if="user.role === 'patient' && !editing" class="mt-4 border-t border-gray-200 pt-4 dark:border-gray-800">
+          <div v-if="!editing" class="mt-4 border-t border-gray-200 pt-4 dark:border-gray-800">
             <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Top-up credit</h3>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Add wallet credit for this patient (testing / before payment integration).</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Add wallet credit for this patient.</p>
             <form class="flex flex-wrap items-end gap-2" @submit.prevent="submitTopUp">
               <UFormGroup label="Amount (UGX)" class="min-w-[120px]">
                 <UInput v-model.number="topUpAmount" type="number" min="1" step="1" placeholder="e.g. 10000" />
@@ -102,12 +95,6 @@
             </form>
             <p v-if="topUpError" class="mt-2 text-sm text-red-600 dark:text-red-400">{{ topUpError }}</p>
           </div>
-          <div v-if="user.healthcare_professional" class="mt-4 border-t border-gray-200 pt-4 dark:border-gray-800">
-            <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">Healthcare professional</h3>
-            <p class="text-sm text-gray-600 dark:text-gray-400">
-              {{ user.healthcare_professional?.institution?.name || '—' }}
-            </p>
-          </div>
         </div>
 
         <UForm v-else :state="form" @submit="onSubmit" class="space-y-4">
@@ -117,26 +104,13 @@
           <UFormGroup label="Email" name="email" required>
             <UInput v-model="form.email" type="email" />
           </UFormGroup>
-          <UFormGroup label="Role" name="role">
-            <USelectMenu v-model="form.role" :options="roleOptions" value-attribute="value" option-attribute="label" />
-          </UFormGroup>
-          <UFormGroup v-if="form.role === 'admin'" label="Permissions" name="permissions">
-            <USelectMenu
-              v-model="form.permissions"
-              :options="permissionOptions"
-              value-attribute="key"
-              option-attribute="label"
-              multiple
-              placeholder="Select permissions"
-            />
-          </UFormGroup>
           <UFormGroup label="Phone" name="phone">
             <UInput v-model="form.phone" type="tel" />
           </UFormGroup>
           <UFormGroup label="Date of birth" name="date_of_birth">
             <UInput v-model="form.date_of_birth" type="date" />
           </UFormGroup>
-          <UFormGroup v-if="form.role === 'patient'" label="Chronic conditions" name="chronic_conditions">
+          <UFormGroup label="Chronic conditions" name="chronic_conditions" hint="Select all that apply. Visible in patient profile and to doctors during consultations.">
             <USelectMenu
               v-model="form.chronic_conditions"
               :options="chronicDiseaseOptions"
@@ -159,8 +133,8 @@
     </template>
 
     <div v-else-if="!loading" class="rounded-lg border border-gray-200 bg-white p-8 text-center dark:border-gray-800 dark:bg-gray-900">
-      <p class="text-gray-500 dark:text-gray-400">User not found.</p>
-      <UButton to="/users" variant="ghost" class="mt-3">Back to users</UButton>
+      <p class="text-gray-500 dark:text-gray-400">Patient not found.</p>
+      <UButton to="/patients" variant="ghost" class="mt-3">Back to patients</UButton>
     </div>
   </div>
 </template>
@@ -171,6 +145,7 @@ definePageMeta({
 })
 
 const route = useRoute()
+const router = useRouter()
 const toast = useToast()
 const { get, patch, post } = useAdminApi()
 const { options: chronicDiseaseOptions } = useChronicDiseases()
@@ -192,33 +167,15 @@ function formatUgx (value) {
 const form = reactive({
   name: '',
   email: '',
-  role: 'patient',
-  permissions: [],
   phone: '',
   date_of_birth: '',
   chronic_conditions: [] as string[]
 })
 
-const permissionOptions = ref([])
-
-const roleOptions = [
-  { label: 'Patient', value: 'patient' },
-  { label: 'Doctor', value: 'doctor' },
-  { label: 'Admin', value: 'admin' },
-  { label: 'Super Admin', value: 'super_admin' }
-]
-
-const roleColor = (role) => {
-  const colors = { patient: 'blue', doctor: 'green', admin: 'purple', super_admin: 'amber' }
-  return colors[role] || 'gray'
-}
-
 function syncFormFromUser () {
   if (!user.value) return
   form.name = user.value.name || ''
   form.email = user.value.email || ''
-  form.role = user.value.role || 'patient'
-  form.permissions = Array.isArray(user.value.permissions) ? [...user.value.permissions] : []
   form.phone = user.value.phone || ''
   form.date_of_birth = user.value.date_of_birth || ''
   form.chronic_conditions = Array.isArray(user.value.chronic_conditions) ? [...user.value.chronic_conditions] : []
@@ -229,10 +186,15 @@ async function fetchUser () {
   errorMessage.value = ''
   try {
     const data = await get(`admin/users/${userId.value}`)
-    user.value = data?.data ?? data
+    const u = data?.data ?? data
+    if (u?.role !== 'patient') {
+      await router.replace(`/users/${userId.value}`)
+      return
+    }
+    user.value = u
     syncFormFromUser()
   } catch (e) {
-    errorMessage.value = e?.data?.message || 'Failed to load user.'
+    errorMessage.value = e?.data?.message || 'Failed to load patient.'
     user.value = null
   } finally {
     loading.value = false
@@ -248,26 +210,20 @@ async function onSubmit () {
   saving.value = true
   errorMessage.value = ''
   try {
-    const payload: Record<string, unknown> = {
+    const payload = {
       name: form.name,
       email: form.email,
-      role: form.role,
       phone: form.phone || null,
-      date_of_birth: form.date_of_birth || null
-    }
-    if (form.role === 'patient') {
-      payload.chronic_conditions = Array.isArray(form.chronic_conditions) ? form.chronic_conditions : []
-    }
-    if (form.role === 'admin') {
-      payload.permissions = form.permissions || []
+      date_of_birth: form.date_of_birth || null,
+      chronic_conditions: Array.isArray(form.chronic_conditions) ? form.chronic_conditions : []
     }
     const data = await patch(`admin/users/${userId.value}`, payload)
     user.value = data?.data ?? data
     syncFormFromUser()
     editing.value = false
-    toast.add({ title: 'User updated', color: 'green' })
+    toast.add({ title: 'Patient updated', color: 'green' })
   } catch (e) {
-    errorMessage.value = e?.data?.message || 'Failed to update user.'
+    errorMessage.value = e?.data?.message || 'Failed to update patient.'
   } finally {
     saving.value = false
   }
@@ -293,14 +249,7 @@ async function submitTopUp () {
   }
 }
 
-onMounted(async () => {
-  try {
-    const res = await get('admin/permissions')
-    const data = res?.data ?? []
-    permissionOptions.value = Array.isArray(data) ? data : []
-  } catch {
-    permissionOptions.value = []
-  }
-  await fetchUser()
+onMounted(() => {
+  fetchUser()
 })
 </script>

@@ -98,7 +98,7 @@
             <div><dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Institution</dt><dd class="mt-0.5 text-gray-900 dark:text-white">{{ item.institution?.name || '—' }}</dd></div>
             <div><dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Speciality</dt><dd class="mt-0.5 text-gray-900 dark:text-white">{{ item.speciality || '—' }}</dd></div>
             <div><dt class="text-sm font-medium text-gray-500 dark:text-gray-400">License number</dt><dd class="mt-0.5 text-gray-900 dark:text-white">{{ item.license_number || '—' }}</dd></div>
-            <div class="sm:col-span-2"><dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Bio</dt><dd class="mt-0.5 text-gray-900 dark:text-white">{{ item.bio || '—' }}</dd></div>
+            <div class="sm:col-span-2"><dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Motivational statement</dt><dd class="mt-0.5 text-gray-900 dark:text-white">{{ item.bio || '—' }}</dd></div>
           </dl>
 
           <div v-if="item.academic_documents && item.academic_documents.length" class="pt-4 border-t border-gray-200 dark:border-gray-800">
@@ -156,8 +156,8 @@
           <UFormGroup label="License number" name="license_number">
             <UInput v-model="form.license_number" />
           </UFormGroup>
-          <UFormGroup label="Bio" name="bio">
-            <UTextarea v-model="form.bio" />
+          <UFormGroup label="Motivational statement" name="bio">
+            <UTextarea v-model="form.bio" placeholder="e.g. What drives you in your practice" />
           </UFormGroup>
           <UFormGroup label="Approved" name="is_approved">
             <UCheckbox v-model="form.is_approved" />

@@ -84,7 +84,10 @@ class AuthService
      */
     public function updateProfile(User $user, array $validated): User
     {
-        $attributes = Arr::only($validated, ['name', 'email', 'phone', 'date_of_birth', 'preferred_language']);
+        $attributes = Arr::only($validated, ['name', 'email', 'phone', 'date_of_birth', 'preferred_language', 'chronic_conditions']);
+        if (array_key_exists('chronic_conditions', $attributes) && $user->role !== 'patient') {
+            unset($attributes['chronic_conditions']);
+        }
 
         if (($validated['profile_photo_remove'] ?? false) && $user->profile_photo_path) {
             Storage::disk('public')->delete($user->profile_photo_path);

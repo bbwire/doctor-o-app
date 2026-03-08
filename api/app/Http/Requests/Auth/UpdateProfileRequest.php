@@ -34,6 +34,8 @@ class UpdateProfileRequest extends FormRequest
             'preferred_language' => ['nullable', 'string', 'max:100'],
             'profile_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:3072'],
             'profile_photo_remove' => ['nullable', 'boolean'],
+            'chronic_conditions' => ['nullable', 'array'],
+            'chronic_conditions.*' => ['string', 'max:255'],
         ];
     }
 }

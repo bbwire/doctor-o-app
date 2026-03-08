@@ -8,6 +8,7 @@ use App\Http\Requests\Admin\StoreHealthcareProfessionalRequest;
 use App\Http\Requests\Admin\UpdateHealthcareProfessionalRequest;
 use App\Http\Resources\HealthcareProfessionalResource;
 use App\Models\HealthcareProfessional;
+use App\Services\AuditLogService;
 use App\Services\HealthcareProfessionalService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -25,7 +26,16 @@ class HealthcareProfessionalController extends Controller
 
     public function store(StoreHealthcareProfessionalRequest $request): JsonResponse
     {
-        return (new HealthcareProfessionalResource($this->healthcareProfessionalService->createWithNewUser($request->validated())))
+        $hp = $this->healthcareProfessionalService->createWithNewUser($request->validated());
+        app(AuditLogService::class)->log(
+            $request->user(),
+            'healthcare_professional.created',
+            'Created healthcare professional: ' . ($hp->user->name ?? $hp->user->email),
+            HealthcareProfessional::class,
+            $hp->id,
+            ['email' => $hp->user->email ?? null]
+        );
+        return (new HealthcareProfessionalResource($hp))
             ->response()
             ->setStatusCode(201);
     }
@@ -41,9 +51,16 @@ class HealthcareProfessionalController extends Controller
         UpdateHealthcareProfessionalRequest $request,
         HealthcareProfessional $healthcareProfessional
     ): HealthcareProfessionalResource {
-        return new HealthcareProfessionalResource(
-            $this->healthcareProfessionalService->update($healthcareProfessional, $request->validated())
+        $hp = $this->healthcareProfessionalService->update($healthcareProfessional, $request->validated());
+        app(AuditLogService::class)->log(
+            $request->user(),
+            'healthcare_professional.updated',
+            'Updated healthcare professional: ' . ($hp->user->name ?? $hp->user->email),
+            HealthcareProfessional::class,
+            $hp->id,
+            ['email' => $hp->user->email ?? null]
         );
+        return new HealthcareProfessionalResource($hp);
     }
 
     public function destroy(HealthcareProfessional $healthcareProfessional): JsonResponse
@@ -65,7 +82,15 @@ class HealthcareProfessionalController extends Controller
             'is_active' => ['sometimes', 'boolean'],
         ]);
         $healthcareProfessional->update($validated);
-
+        $name = $healthcareProfessional->user->name ?? $healthcareProfessional->user->email ?? '#' . $healthcareProfessional->id;
+        app(AuditLogService::class)->log(
+            $request->user(),
+            'healthcare_professional.status_updated',
+            'Updated status for healthcare professional: ' . $name,
+            HealthcareProfessional::class,
+            $healthcareProfessional->id,
+            $validated
+        );
         return new HealthcareProfessionalResource(
             $healthcareProfessional->refresh()->load(['user', 'institution', 'academicDocuments'])
         );
