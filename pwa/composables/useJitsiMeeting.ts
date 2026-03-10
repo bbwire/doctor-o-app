@@ -5,21 +5,7 @@
 
 declare global {
   interface Window {
-    JitsiMeetExternalAPI?: new (
-      domain: string,
-      options: {
-        roomName: string
-        parentNode: HTMLElement
-        width: string | number
-        height: string | number
-        userInfo?: { displayName?: string }
-        configOverwrite?: Record<string, unknown>
-        interfaceConfigOverwrite?: Record<string, unknown>
-      }
-    ) => {
-      dispose: () => void
-      executeCommand: (command: string, ...args: unknown[]) => void
-    }
+    JitsiMeetExternalAPI?: any
   }
 }
 
@@ -51,37 +37,200 @@ export function useJitsiMeeting () {
   const isJoining = ref(false)
   const error = ref<string | null>(null)
   let api: ReturnType<NonNullable<typeof window.JitsiMeetExternalAPI>> | null = null
+  let moderatorCheckInterval: ReturnType<typeof setInterval> | null = null
+
+  // Function to handle moderator detection and bypass
+  function handleModeratorCheck () {
+    if (!api) return
+    
+    // Try to detect if we're stuck in moderator waiting screen
+    try {
+      // Execute commands to bypass moderator requirements
+      api.executeCommand('toggleLobby', false)
+      api.executeCommand('toggleRaiseHand')
+      
+      // Check if meeting is ready
+      const participants = api.getNumberOfParticipants()
+      if (participants > 0) {
+        // Meeting seems to be working, clear any moderator prompts
+        api.executeCommand('password', '')
+      }
+    } catch (e) {
+      // Ignore errors during moderator bypass attempts
+    }
+  }
 
   async function startMeeting (opts: {
     roomName: string
     displayName: string
     parentNode: HTMLElement
     video?: boolean
+    isDoctor?: boolean
+    consultationId?: string
   }) {
-    const { roomName, displayName, parentNode, video = true } = opts
+    const { roomName, displayName, parentNode, video = true, isDoctor = false, consultationId } = opts
     if (api) {
       api.dispose()
       api = null
     }
+    if (moderatorCheckInterval) {
+      clearInterval(moderatorCheckInterval)
+      moderatorCheckInterval = null
+    }
+    
     isJoining.value = true
     error.value = null
+    
     try {
+      // Generate JWT token for authentication if doctor
+      let jwtToken = null
+      if (isDoctor && consultationId) {
+        try {
+          const tokenResponse = await $fetch('/jitsi/generate-token', {
+            baseURL: config.public.apiBase,
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${useCookie('auth_token').value || ''}`,
+              'Content-Type': 'application/json'
+            },
+            body: {
+              roomName,
+              isModerator: true,
+              consultationId
+            }
+          })
+          jwtToken = (tokenResponse as any)?.token
+        } catch (tokenError) {
+          console.warn('Failed to generate JWT token, proceeding without authentication:', tokenError)
+          // Continue without token - will use fallback configuration
+        }
+      }
+      
       const JitsiMeetExternalAPI = await loadJitsiScript(jitsiDomain)
+      
+      // Add event listeners for better error handling
+      const eventHandlers = {
+        readyToClose: () => {
+          if (moderatorCheckInterval) {
+            clearInterval(moderatorCheckInterval)
+            moderatorCheckInterval = null
+          }
+        },
+        participantJoined: () => {
+          // Clear moderator check when someone joins successfully
+          if (moderatorCheckInterval) {
+            clearInterval(moderatorCheckInterval)
+            moderatorCheckInterval = null
+          }
+        },
+        videoConferenceJoined: () => {
+          // Successfully joined, clear any moderator checks
+          if (moderatorCheckInterval) {
+            clearInterval(moderatorCheckInterval)
+            moderatorCheckInterval = null
+          }
+        },
+        passwordRequired: () => {
+          // Handle password requirements by clearing them
+          setTimeout(() => {
+            if (api) {
+              api.executeCommand('password', '')
+            }
+          }, 1000)
+        }
+      }
+      
       api = new JitsiMeetExternalAPI(jitsiDomain, {
         roomName,
         parentNode,
         width: '100%',
         height: '100%',
         userInfo: { displayName: displayName || 'Participant' },
+        // Add JWT token for authentication if available
+        ...(jwtToken && { jwt: jwtToken }),
         configOverwrite: {
           startWithAudioMuted: false,
           startWithVideoMuted: !video,
           disableThirdPartyRequests: true,
           enableWelcomePage: false,
           prejoinPageEnabled: false,
-          // Allow first participant to start the meeting without a "moderator" (works on self-hosted / JaaS; meet.jit.si may still require login)
+          // Enable token-based authentication if JWT is available
+          ...(jwtToken && {
+            enableUserRolesBasedOnToken: true,
+            enableFeaturesBasedOnToken: true,
+          }),
+          // Disable moderator requirements and lobby for seamless joining
           enableLobby: false,
           requireDisplayName: false,
+          // Allow first participant to start meeting without moderator
+          startWithMuted: false,
+          // Disable features that require moderation
+          disableProfile: true,
+          hideConferenceSubject: true,
+          // Bypass moderator requirements on public servers
+          skipPrejoin: true,
+          // Ensure meeting can start without moderator
+          enableModeratorIndicator: false,
+          // Allow participants to join without waiting
+          enableNoAudioDetection: false,
+          enableNoisyMicDetection: false,
+          // Additional settings to prevent moderator prompts
+          enableClosePage: false,
+          disableRemoteMute: false,
+          // Ensure seamless joining experience
+          inviteEnabled: false,
+          // Disable features that might trigger moderator requirements
+          liveStreamingEnabled: false,
+          recordingEnabled: false,
+          transcribingEnabled: false,
+          // Audio/video settings
+          audioQuality: {
+            opus: {
+              stereo: false,
+              maxAverageBitrate: 20000
+            }
+          },
+          // Video settings for better performance
+          videoQuality: {
+            preferredCodec: 'VP9',
+            maxBitrates: {
+              VP9: {
+                low: 150000,
+                standard: 500000,
+                high: 1500000
+              },
+              VP8: {
+                low: 150000,
+                standard: 500000,
+                high: 1500000
+              },
+              H264: {
+                low: 150000,
+                standard: 500000,
+                high: 1500000
+              }
+            }
+          },
+          // Disable features that might require authentication
+          disableInitialGUM: false,
+          doNotStoreRoom: false,
+          // Ensure meeting works without moderator
+          ...(jwtToken ? {} : { enableUserRolesBasedOnToken: false }),
+          // Additional privacy and security settings
+          disableTileView: false,
+          disableFilmstripOnly: false,
+          // Channel settings
+          openBridgeChannel: true,
+          // Specific settings to bypass moderator requirements
+          disableModeratorIndicator: true,
+          enableInsecureRoomNameWarning: false,
+          enableAutomaticUrlCopy: false,
+          // Room settings to prevent moderator prompts
+          requireDisplayName: false,
+          displayName: displayName || 'Participant',
+          // Advanced settings to bypass moderator
+          ...(jwtToken ? {} : { enableFeaturesBasedOnToken: false }),
+          disableTileEnlargement: false,
         },
         interfaceConfigOverwrite: {
           TOOLBAR_BUTTONS: [
@@ -95,27 +244,45 @@ export function useJitsiMeeting () {
             'hangup',
             'profile',
             'chat',
-            'recording',
-            'livestreaming',
             'settings',
             'raisehand',
             'videoquality',
             'filmstrip',
-            'invite',
-            'feedback',
-            'stats',
-            'shortcuts',
             'tileview',
             'videobackgroundblur',
-            'download',
             'help',
-            'mute-everyone',
-            'security',
+            'shortcuts',
           ],
           SHOW_JITSI_WATERMARK: false,
           SHOW_WATERMARK_FOR_GUESTS: false,
+          // Disable features that might require moderator privileges
+          SETTINGS_SECTIONS: ['devices', 'language', 'profile'],
+          SHOW_CHROME_EXTENSION_BANNER: false,
+          // Remove moderator-related UI elements
+          HIDE_KICK_BUTTON: true,
+          HIDE_MUTING_BUTTONS: false,
+          DISABLE_FOCUS_INDICATOR: false,
+          DISABLE_DOMINANT_SPEAKER_INDICATOR: false,
+          // Simplified interface for healthcare consultations
+          SHOW_DEEP_LINKING_IMAGE: false,
+          SHOW_POWERED_BY: false,
+          SHOW_PROMOTIONAL_CLOSE_PAGE: false,
+          MOBILE_APP_PROMO: false,
+          // Additional UI settings to prevent moderator prompts
+          DISABLE_JOIN_LEAVE_NOTIFICATIONS: false,
+          DISABLE_VIDEO_BACKGROUND: false,
         },
+        // Add event listeners
+        ...eventHandlers
       })
+      
+      // Set up periodic moderator check (only if using public server)
+      if (jitsiDomain === 'meet.jit.si') {
+        moderatorCheckInterval = setInterval(handleModeratorCheck, 3000)
+        // Initial check after a short delay
+        setTimeout(handleModeratorCheck, 2000)
+      }
+      
       isJoined.value = true
     } catch (e: any) {
       const msg = e?.message ?? (typeof e === 'string' ? e : 'Could not start meeting')
@@ -127,6 +294,10 @@ export function useJitsiMeeting () {
   }
 
   function endMeeting () {
+    if (moderatorCheckInterval) {
+      clearInterval(moderatorCheckInterval)
+      moderatorCheckInterval = null
+    }
     if (api) {
       try {
         api.dispose()

@@ -36,6 +36,12 @@
         <template #issued_at-data="{ row }">
           {{ formatDate(row.issued_at) }}
         </template>
+        <template #consultation-data="{ row }">
+          <NuxtLink v-if="row.consultation" :to="`/consultations/${row.consultation.id}`" class="text-primary-600 hover:underline dark:text-primary-400">
+            #{{ row.consultation.id }}
+          </NuxtLink>
+          <span v-else>—</span>
+        </template>
         <template #patient-data="{ row }">
           {{ row.patient?.name || '—' }}
         </template>
@@ -84,6 +90,7 @@ const statusOptions = [
 const columns = [
   { key: 'id', label: 'ID' },
   { key: 'issued_at', label: 'Issued' },
+  { key: 'consultation', label: 'Consultation' },
   { key: 'patient', label: 'Patient' },
   { key: 'doctor', label: 'Doctor' },
   { key: 'status', label: 'Status' },

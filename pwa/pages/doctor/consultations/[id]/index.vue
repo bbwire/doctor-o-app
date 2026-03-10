@@ -169,9 +169,11 @@
           <ul class="mt-2 space-y-1 text-sm text-gray-600 dark:text-gray-400">
             <li v-for="(med, i) in (p.medications || [])" :key="i">
               {{ med.name }}
+              <span v-if="med.form"> ({{ med.form }})</span>
               <span v-if="med.dosage"> — {{ med.dosage }}</span>
               <span v-if="med.frequency">, {{ med.frequency }}</span>
               <span v-if="med.duration"> ({{ med.duration }})</span>
+              <span v-if="med.instructions" class="block text-gray-500 dark:text-gray-500 mt-0.5">{{ med.instructions }}</span>
             </li>
           </ul>
           <p v-if="p.instructions" class="mt-2 text-sm text-gray-500 dark:text-gray-400">
@@ -192,46 +194,60 @@
 
           <UForm :state="prescriptionForm" @submit="submitPrescription" class="space-y-4">
             <UFormGroup label="Medications" required>
-              <div class="space-y-2">
+              <div class="space-y-4">
                 <div
                   v-for="(med, i) in prescriptionForm.medications"
                   :key="i"
-                  class="flex gap-2 items-start"
+                  class="rounded-lg border border-gray-200 dark:border-gray-700 p-3 space-y-3"
                 >
+                  <div class="flex gap-2 items-start">
+                    <UInput
+                      v-model="med.name"
+                      placeholder="Drug name"
+                      class="flex-1"
+                    />
+                    <USelectMenu
+                      v-model="med.form"
+                      :options="formOptions"
+                      value-attribute="value"
+                      option-attribute="label"
+                      placeholder="Form"
+                      class="w-32"
+                    />
+                    <UButton
+                      v-if="prescriptionForm.medications.length > 1"
+                      color="red"
+                      variant="ghost"
+                      icon="i-lucide-trash-2"
+                      size="xs"
+                      @click.prevent="prescriptionForm.medications.splice(i, 1)"
+                    />
+                  </div>
+                  <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <UInput v-model="med.dosage" placeholder="Dosage" />
+                    <UInput v-model="med.frequency" placeholder="Frequency" />
+                    <UInput v-model="med.duration" placeholder="Duration" />
+                  </div>
                   <UInput
-                    v-model="med.name"
-                    placeholder="Medication name"
-                    class="flex-1"
-                  />
-                  <UInput
-                    v-model="med.dosage"
-                    placeholder="Dosage"
-                    class="w-28"
-                  />
-                  <UButton
-                    v-if="prescriptionForm.medications.length > 1"
-                    color="red"
-                    variant="ghost"
-                    icon="i-lucide-trash-2"
-                    size="xs"
-                    @click.prevent="prescriptionForm.medications.splice(i, 1)"
+                    v-model="med.instructions"
+                    placeholder="Instructions (e.g. Take with food)"
                   />
                 </div>
                 <UButton
                   variant="outline"
                   size="sm"
                   icon="i-lucide-plus"
-                  @click.prevent="prescriptionForm.medications.push({ name: '', dosage: '', frequency: '', duration: '' })"
+                  @click.prevent="prescriptionForm.medications.push({ name: '', form: '', dosage: '', frequency: '', duration: '', instructions: '' })"
                 >
                   Add medication
                 </UButton>
               </div>
             </UFormGroup>
 
-            <UFormGroup label="Instructions (optional)">
+            <UFormGroup label="General instructions (optional)">
               <UTextarea
                 v-model="prescriptionForm.instructions"
-                placeholder="Take with food, avoid alcohol..."
+                placeholder="Additional notes for the patient..."
                 :rows="2"
               />
             </UFormGroup>
@@ -276,9 +292,16 @@ const consultation = ref<any | null>(null)
 const notesDraft = ref('')
 const showIssuePrescription = ref(false)
 
+const formOptions = [
+  { label: 'Tablet', value: 'Tablet' },
+  { label: 'Capsule', value: 'Capsule' },
+  { label: 'Suppository', value: 'Suppository' },
+  { label: 'Syrup', value: 'Syrup' }
+]
+
 const prescriptionForm = reactive({
   consultation_id: 0,
-  medications: [{ name: '', dosage: '', frequency: '', duration: '' }],
+  medications: [{ name: '', form: '', dosage: '', frequency: '', duration: '', instructions: '' }],
   instructions: ''
 })
 
@@ -387,9 +410,11 @@ async function submitPrescription () {
     .filter(m => m.name?.trim())
     .map(m => ({
       name: m.name.trim(),
+      form: m.form?.trim() || null,
       dosage: m.dosage?.trim() || null,
       frequency: m.frequency?.trim() || null,
-      duration: m.duration?.trim() || null
+      duration: m.duration?.trim() || null,
+      instructions: m.instructions?.trim() || null
     }))
 
   if (!meds.length) {
@@ -410,7 +435,7 @@ async function submitPrescription () {
       headers: getHeaders()
     })
     showIssuePrescription.value = false
-    prescriptionForm.medications = [{ name: '', dosage: '', frequency: '', duration: '' }]
+    prescriptionForm.medications = [{ name: '', form: '', dosage: '', frequency: '', duration: '', instructions: '' }]
     prescriptionForm.instructions = ''
     await fetchConsultation()
     toast.add({ title: 'Prescription issued', color: 'green' })

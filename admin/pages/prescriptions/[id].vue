@@ -57,9 +57,22 @@
           </div>
           <div class="sm:col-span-2">
             <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Medications</dt>
-            <dd class="mt-0.5 text-gray-900 dark:text-white">
-              <pre v-if="prescription.medications && (Array.isArray(prescription.medications) ? prescription.medications.length : Object.keys(prescription.medications).length)" class="whitespace-pre-wrap rounded bg-gray-100 p-2 text-sm dark:bg-gray-800">{{ JSON.stringify(prescription.medications, null, 2) }}</pre>
-              <span v-else>—</span>
+            <dd class="mt-0.5">
+              <ul v-if="prescription.medications?.length" class="space-y-2 text-gray-900 dark:text-white">
+                <li
+                  v-for="(med, i) in prescription.medications"
+                  :key="i"
+                  class="rounded bg-gray-100 dark:bg-gray-800 p-2 text-sm"
+                >
+                  <span class="font-medium">{{ med.name }}</span>
+                  <span v-if="med.form"> ({{ med.form }})</span>
+                  <span v-if="med.dosage"> — {{ med.dosage }}</span>
+                  <span v-if="med.frequency">, {{ med.frequency }}</span>
+                  <span v-if="med.duration"> ({{ med.duration }})</span>
+                  <p v-if="med.instructions" class="mt-1 text-gray-600 dark:text-gray-400">{{ med.instructions }}</p>
+                </li>
+              </ul>
+              <span v-else class="text-gray-900 dark:text-white">—</span>
             </dd>
           </div>
           <div class="sm:col-span-2">

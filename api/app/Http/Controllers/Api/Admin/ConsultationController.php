@@ -33,7 +33,7 @@ class ConsultationController extends Controller
 
     public function show(Consultation $consultation): ConsultationResource
     {
-        return new ConsultationResource($consultation->load(['patient', 'doctor']));
+        return new ConsultationResource($consultation->load(['patient', 'doctor', 'prescriptions']));
     }
 
     public function update(UpdateConsultationRequest $request, Consultation $consultation): ConsultationResource

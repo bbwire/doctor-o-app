@@ -451,6 +451,8 @@ async function joinJitsi () {
       displayName: getPatientDisplayName(),
       parentNode: parent,
       video: consultation.value?.consultation_type === 'video',
+      isDoctor: false,
+      consultationId: id,
     })
   } catch (e: any) {
     const msg = e?.message ?? (typeof e === 'string' ? e : 'Please allow microphone (and camera for video).')

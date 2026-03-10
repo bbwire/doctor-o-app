@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\Patient\WalletController as PatientWalletController
 use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Http\Controllers\Api\Doctor\ProfileController as DoctorProfileController;
 use App\Http\Controllers\Api\Doctor\AcademicDocumentController as DoctorAcademicDocumentController;
+use App\Http\Controllers\Api\JitsiController;
 use App\Http\Controllers\Api\InstitutionController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Artisan;
@@ -90,6 +91,10 @@ Route::prefix('v1')->group(function () {
         Route::patch('/notifications/{notification}', [NotificationController::class, 'markRead']);
 
         // Shared/authenticated routes (any role)
+        
+        // Jitsi video conferencing routes
+        Route::get('/jitsi/config', [JitsiController::class, 'getConfig']);
+        Route::post('/jitsi/generate-token', [JitsiController::class, 'generateToken']);
 
         Route::middleware('patient')->group(function () {
             Route::get('/dashboard/summary', [PatientDashboardController::class, 'summary']);

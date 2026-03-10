@@ -83,9 +83,6 @@
           >
             Start {{ consultation?.consultation_type === 'video' ? 'video' : 'audio' }} call
           </UButton>
-          <p class="mt-4 text-xs text-gray-500 text-center max-w-sm">
-            If you see &quot;wait for moderator&quot;, the public video server may require a one-time sign-in. For production, use <a href="https://jaas.8x8.vc/" target="_blank" rel="noopener" class="underline">Jitsi as a Service</a> or self-hosted Jitsi.
-          </p>
         </div>
       </div>
 
@@ -445,6 +442,8 @@ async function joinJitsi () {
       displayName: getDoctorDisplayName(),
       parentNode: parent,
       video: consultation.value?.consultation_type === 'video',
+      isDoctor: true,
+      consultationId: id,
     })
   } catch (e: any) {
     const msg = e?.message ?? (typeof e === 'string' ? e : 'Please allow microphone (and camera for video).')

@@ -28,9 +28,11 @@ class PrescriptionFactory extends Factory
             'medications' => [
                 [
                     'name' => fake()->word(),
+                    'form' => fake()->randomElement(['Tablet', 'Capsule', 'Suppository', 'Syrup']),
                     'dosage' => '1 tablet',
                     'frequency' => 'Twice daily',
                     'duration' => '5 days',
+                    'instructions' => fake()->optional()->sentence(),
                 ],
             ],
             'instructions' => fake()->sentence(),

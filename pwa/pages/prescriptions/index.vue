@@ -56,9 +56,11 @@
                   class="text-sm text-gray-700 dark:text-gray-300"
                 >
                   <span class="font-medium">{{ medication.name }}</span>
+                  <span v-if="medication.form"> ({{ medication.form }})</span>
                   <span v-if="medication.dosage"> - {{ medication.dosage }}</span>
                   <span v-if="medication.frequency"> - {{ medication.frequency }}</span>
                   <span v-if="medication.duration"> - {{ medication.duration }}</span>
+                  <span v-if="medication.instructions" class="block text-gray-600 dark:text-gray-400 mt-0.5">{{ medication.instructions }}</span>
                 </li>
               </ul>
             </div>

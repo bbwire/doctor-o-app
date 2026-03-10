@@ -32,9 +32,11 @@ class AdminPrescriptionsApiTest extends TestCase
             'medications' => [
                 [
                     'name' => 'Paracetamol',
+                    'form' => 'Tablet',
                     'dosage' => '500mg',
                     'frequency' => 'Twice daily',
                     'duration' => '5 days',
+                    'instructions' => 'Take after meals',
                 ],
             ],
             'instructions' => 'Take after meals',
@@ -75,7 +77,7 @@ class AdminPrescriptionsApiTest extends TestCase
             'consultation_id' => $consultation->id,
             'doctor_id' => $notDoctor->id,
             'patient_id' => $notPatient->id,
-            'medications' => [['name' => 'Paracetamol']],
+            'medications' => [['name' => 'Paracetamol', 'form' => 'Tablet']],
             'issued_at' => now()->toISOString(),
         ]);
 
@@ -101,7 +103,7 @@ class AdminPrescriptionsApiTest extends TestCase
             'consultation_id' => $consultation->id,
             'doctor_id' => $otherDoctor->id,
             'patient_id' => $patient->id,
-            'medications' => [['name' => 'Paracetamol']],
+            'medications' => [['name' => 'Paracetamol', 'form' => 'Tablet']],
             'issued_at' => now()->toISOString(),
         ]);
 

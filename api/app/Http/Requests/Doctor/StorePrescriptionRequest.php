@@ -28,9 +28,11 @@ class StorePrescriptionRequest extends FormRequest
             'consultation_id' => ['required', 'integer', 'exists:consultations,id'],
             'medications' => ['required', 'array', 'min:1'],
             'medications.*.name' => ['required', 'string', 'max:255'],
+            'medications.*.form' => ['nullable', 'string', Rule::in(['Tablet', 'Capsule', 'Suppository', 'Syrup'])],
             'medications.*.dosage' => ['nullable', 'string', 'max:255'],
             'medications.*.frequency' => ['nullable', 'string', 'max:255'],
             'medications.*.duration' => ['nullable', 'string', 'max:255'],
+            'medications.*.instructions' => ['nullable', 'string', 'max:65535'],
             'instructions' => ['nullable', 'string', 'max:65535'],
             'status' => ['sometimes', Rule::in(['active', 'completed', 'cancelled'])],
         ];
