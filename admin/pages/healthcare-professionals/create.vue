@@ -74,6 +74,16 @@
             <h2 class="text-sm font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
               Professional profile
             </h2>
+            <UFormGroup label="Regulatory council" name="regulatory_council">
+              <USelectMenu
+                v-model="form.regulatory_council"
+                :options="regulatoryCouncilOptions"
+                value-attribute="value"
+                option-attribute="label"
+                searchable
+                placeholder="Select council (optional)"
+              />
+            </UFormGroup>
             <UFormGroup label="Institution" name="institution_id">
               <USelectMenu
                 v-model="form.institution_id"
@@ -93,21 +103,14 @@
                 placeholder="Select speciality"
               />
             </UFormGroup>
-            <UFormGroup label="Registration / license number" name="license_number">
-              <UInput v-model="form.license_number" placeholder="e.g. MDPC-12345" />
+            <UFormGroup label="Registration number" name="registration_number">
+              <UInput v-model="form.registration_number" placeholder="e.g. MDPC-12345" />
+            </UFormGroup>
+            <UFormGroup label="License number" name="license_number">
+              <UInput v-model="form.license_number" placeholder="e.g. LCN-67890" />
             </UFormGroup>
             <UFormGroup label="Registration date" name="registration_date">
               <UInput v-model="form.registration_date" type="date" />
-            </UFormGroup>
-            <UFormGroup label="Regulatory council" name="regulatory_council">
-              <USelectMenu
-                v-model="form.regulatory_council"
-                :options="regulatoryCouncilOptions"
-                value-attribute="value"
-                option-attribute="label"
-                searchable
-                placeholder="Select council (optional)"
-              />
             </UFormGroup>
             <UFormGroup label="Active" name="is_active">
               <UCheckbox v-model="form.is_active" />
@@ -149,6 +152,7 @@ const form = reactive({
   date_of_birth: '',
   institution_id: null,
   speciality: '',
+  registration_number: '',
   license_number: '',
   registration_date: '',
   regulatory_council: '',
@@ -202,6 +206,7 @@ async function onSubmit () {
       date_of_birth: form.date_of_birth || null,
       institution_id: form.institution_id || null,
       speciality: form.speciality || null,
+      registration_number: form.registration_number || null,
       license_number: form.license_number || null,
       registration_date: form.registration_date || null,
       regulatory_council: form.regulatory_council || null,

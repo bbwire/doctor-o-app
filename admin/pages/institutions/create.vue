@@ -25,59 +25,68 @@
 
     <UCard :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }">
       <UForm :state="form" @submit="onSubmit" class="space-y-4">
-        <UFormGroup label="Name" name="name" required>
-          <UInput v-model="form.name" />
-        </UFormGroup>
-        <UFormGroup label="Type" name="type" required>
-          <USelectMenu v-model="form.type" :options="typeOptions" value-attribute="value" />
-        </UFormGroup>
-        <UFormGroup
-          v-if="form.type === 'hospital' || form.type === 'clinic'"
-          label="Services"
-          name="services"
-          :hint="form.type === 'hospital' ? 'Select all services this hospital offers.' : 'Select all services this clinic offers.'"
-        >
-          <USelectMenu
-            v-model="form.services"
-            :options="serviceOptions"
-            value-attribute="value"
-            option-attribute="label"
-            multiple
-            placeholder="Select services"
-          />
-          <div
-            v-if="form.services && form.services.length"
-            class="mt-2 flex flex-wrap gap-1"
-          >
-            <UBadge
-              v-for="value in form.services"
-              :key="value"
-              size="xs"
-              color="primary"
-              variant="soft"
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="space-y-4">
+            <UFormGroup label="Name" name="name" required>
+              <UInput v-model="form.name" />
+            </UFormGroup>
+            <UFormGroup label="Type" name="type" required>
+              <USelectMenu v-model="form.type" :options="typeOptions" value-attribute="value" />
+            </UFormGroup>
+            <UFormGroup
+              v-if="form.type === 'hospital' || form.type === 'clinic'"
+              label="Services"
+              name="services"
+              :hint="form.type === 'hospital' ? 'Select all services this hospital offers.' : 'Select all services this clinic offers.'"
             >
-              {{ serviceLabel(value) }}
-            </UBadge>
+              <USelectMenu
+                v-model="form.services"
+                :options="serviceOptions"
+                value-attribute="value"
+                option-attribute="label"
+                multiple
+                placeholder="Select services"
+              />
+              <div
+                v-if="form.services && form.services.length"
+                class="mt-2 flex flex-wrap gap-1"
+              >
+                <UBadge
+                  v-for="value in form.services"
+                  :key="value"
+                  size="xs"
+                  color="primary"
+                  variant="soft"
+                >
+                  {{ serviceLabel(value) }}
+                </UBadge>
+              </div>
+            </UFormGroup>
+            <UFormGroup label="Address" name="address">
+              <UInput v-model="form.address" />
+            </UFormGroup>
+            <UFormGroup label="Location" name="location" hint="e.g. city, district, or area">
+              <UInput v-model="form.location" placeholder="e.g. Kampala, Central" />
+            </UFormGroup>
           </div>
-        </UFormGroup>
-        <UFormGroup label="Address" name="address">
-          <UInput v-model="form.address" />
-        </UFormGroup>
-        <UFormGroup label="Location" name="location" hint="e.g. city, district, or area">
-          <UInput v-model="form.location" placeholder="e.g. Kampala, Central" />
-        </UFormGroup>
-        <UFormGroup label="Phone" name="phone">
-          <UInput v-model="form.phone" type="tel" />
-        </UFormGroup>
-        <UFormGroup label="Email" name="email">
-          <UInput v-model="form.email" type="email" />
-        </UFormGroup>
-        <UFormGroup label="Active" name="is_active">
-          <UCheckbox v-model="form.is_active" />
-        </UFormGroup>
-        <UFormGroup label="Practicing certificate" name="certificate" hint="Optional. PDF or image (JPEG, PNG, WebP). Max 10 MB.">
-          <CertificateDropzone v-model="certificateFile" :disabled="saving" />
-        </UFormGroup>
+          <div class="space-y-4">
+            <UFormGroup label="Phone" name="phone">
+              <UInput v-model="form.phone" type="tel" />
+            </UFormGroup>
+            <UFormGroup label="Email" name="email">
+              <UInput v-model="form.email" type="email" />
+            </UFormGroup>
+            <UFormGroup label="Active" name="is_active">
+              <UCheckbox v-model="form.is_active" />
+            </UFormGroup>
+            <UFormGroup label="Registration certificate" name="registration_certificate" hint="Optional. PDF or image (JPEG, PNG, WebP). Max 10 MB.">
+              <CertificateDropzone v-model="registrationCertificateFile" :disabled="saving" />
+            </UFormGroup>
+            <UFormGroup label="Operating License" name="operating_license" hint="Optional. PDF or image (JPEG, PNG, WebP). Max 10 MB.">
+              <CertificateDropzone v-model="operatingLicenseFile" :disabled="saving" />
+            </UFormGroup>
+          </div>
+        </div>
         <div class="flex gap-2">
           <UButton type="submit" :loading="saving">
             Create institution
@@ -102,7 +111,8 @@ const config = useRuntimeConfig()
 const tokenCookie = useCookie('auth_token')
 const { post } = useAdminApi()
 
-const certificateFile = ref(null)
+const registrationCertificateFile = ref(null)
+const operatingLicenseFile = ref(null)
 
 const form = reactive({
   name: '',
@@ -121,7 +131,8 @@ const typeOptions = [
   { label: 'Lab', value: 'lab' },
   { label: 'Drugshop', value: 'drugshop' },
   { label: 'Pharmacy', value: 'pharmacy' },
-  { label: 'Nursing Home', value: 'nursing_home' }
+  { label: 'Nursing Home', value: 'nursing_home' },
+  { label: 'Radiology Center', value: 'radiology_center' }
 ]
 
 const serviceOptions = [
@@ -156,18 +167,33 @@ async function onSubmit () {
       is_active: form.is_active
     })
     const createdId = res?.data?.id ?? res?.id
-    if (certificateFile.value && createdId) {
-      const formData = new FormData()
-      formData.append('file', certificateFile.value)
-      await $fetch(`/admin/institutions/${createdId}/practicing-certificate`, {
-        method: 'POST',
-        baseURL: config.public.apiBase,
-        headers: {
-          Authorization: `Bearer ${tokenCookie.value || ''}`,
-          Accept: 'application/json'
-        },
-        body: formData
-      })
+    if (createdId) {
+      if (registrationCertificateFile.value) {
+        const formData = new FormData()
+        formData.append('file', registrationCertificateFile.value)
+        await $fetch(`/admin/institutions/${createdId}/registration-certificate`, {
+          method: 'POST',
+          baseURL: config.public.apiBase,
+          headers: {
+            Authorization: `Bearer ${tokenCookie.value || ''}`,
+            Accept: 'application/json'
+          },
+          body: formData
+        })
+      }
+      if (operatingLicenseFile.value) {
+        const formData = new FormData()
+        formData.append('file', operatingLicenseFile.value)
+        await $fetch(`/admin/institutions/${createdId}/operating-license`, {
+          method: 'POST',
+          baseURL: config.public.apiBase,
+          headers: {
+            Authorization: `Bearer ${tokenCookie.value || ''}`,
+            Accept: 'application/json'
+          },
+          body: formData
+        })
+      }
     }
     toast.add({ title: 'Institution created', color: 'green' })
     await router.push('/institutions')

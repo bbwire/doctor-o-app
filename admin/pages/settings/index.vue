@@ -52,8 +52,8 @@
           </h2>
         </div>
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <UFormGroup label="Slot interval (minutes)" name="consultations.slot_interval_minutes" hint="15–120">
-            <UInput v-model.number="form.consultations.slot_interval_minutes" type="number" min="15" max="120" />
+          <UFormGroup label="Slot interval (days)" name="consultations.slot_interval_days" hint="1–30">
+            <UInput v-model.number="form.consultations.slot_interval_days" type="number" min="1" max="30" />
           </UFormGroup>
           <UFormGroup label="Availability window (days)" name="consultations.availability_window_days" hint="1–30">
             <UInput v-model.number="form.consultations.availability_window_days" type="number" min="1" max="30" />
@@ -148,7 +148,7 @@ function buildForm (data) {
       env: data.app?.env ?? 'production'
     },
     consultations: {
-      slot_interval_minutes: data.consultations?.slot_interval_minutes ?? 60,
+      slot_interval_days: data.consultations?.slot_interval_days ?? 1,
       availability_window_days: data.consultations?.availability_window_days ?? 14,
       minimum_action_lead_hours: data.consultations?.minimum_action_lead_hours ?? 2,
       pricing: {
@@ -189,7 +189,7 @@ async function onSubmit () {
         timezone: form.value.app.timezone ?? ''
       },
       consultations: {
-        slot_interval_minutes: Number(form.value.consultations.slot_interval_minutes) || 60,
+        slot_interval_days: Number(form.value.consultations.slot_interval_days) || 1,
         availability_window_days: Number(form.value.consultations.availability_window_days) || 14,
         minimum_action_lead_hours: Number(form.value.consultations.minimum_action_lead_hours) || 2,
         pricing: {

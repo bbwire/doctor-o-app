@@ -23,25 +23,25 @@
 
     <template v-else>
       <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <UCard :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }">
+        <UCard @click="navigateToTopUps" :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }" class="cursor-pointer hover:shadow-lg transition-shadow">
           <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Patient top-ups</p>
           <p class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">
             {{ formatMoney(summary.total_patient_top_ups) }}
           </p>
         </UCard>
-        <UCard :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }">
-          <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Consultation fees</p>
+        <UCard @click="navigateToConsultationRevenue" :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }" class="cursor-pointer hover:shadow-lg transition-shadow">
+          <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Consultation Revenue</p>
           <p class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">
             {{ formatMoney(summary.total_consultation_fees) }}
           </p>
         </UCard>
-        <UCard :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }">
+        <UCard @click="navigateToPlatformRevenue" :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }" class="cursor-pointer hover:shadow-lg transition-shadow">
           <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Platform revenue</p>
           <p class="mt-1 text-2xl font-bold text-primary-600 dark:text-primary-400">
             {{ formatMoney(summary.total_platform_revenue) }}
           </p>
         </UCard>
-        <UCard :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }">
+        <UCard @click="navigateToDoctorEarnings" :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }" class="cursor-pointer hover:shadow-lg transition-shadow">
           <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Doctor earnings</p>
           <p class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">
             {{ formatMoney(summary.total_doctor_earnings) }}
@@ -63,17 +63,17 @@
         />
       </div>
 
-      <div class="grid gap-6 lg:grid-cols-1">
+      <div class="space-y-8">
         <UCard :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }">
           <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
             Trends
           </h2>
           <ClientOnly>
             <AdminFinanceTrendCharts
-              v-if="trends.top_ups"
-              :top-ups="trends.top_ups"
-              :consultation-fees="trends.consultation_fees"
-              :platform-revenue="trends.platform_revenue"
+              :top-ups="trends.top_ups || { dates: [], values: [] }"
+              :consultation-revenue="trends.consultation_fees || { dates: [], values: [] }"
+              :platform-revenue="trends.platform_revenue || { dates: [], values: [] }"
+              :doctor-earnings="trends.doctor_earnings || { dates: [], values: [] }"
             />
             <template #fallback>
               <div class="h-80 flex items-center justify-center text-gray-500 dark:text-gray-400">
@@ -103,7 +103,7 @@
 
       <UCard :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Consultation settlements (fees & platform revenue)
+          Consultation settlements (revenue & platform earnings)
         </h2>
         <div v-if="settlementsLoading" class="py-4 text-center text-sm text-gray-500">
           Loading...
@@ -167,6 +167,24 @@ function formatMoney (value) {
   return new Intl.NumberFormat('en-UG', { style: 'currency', currency: 'UGX', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Number(value) ?? 0)
 }
 
+const router = useRouter()
+
+function navigateToTopUps () {
+  router.push('/finance/patient-top-ups')
+}
+
+function navigateToConsultationRevenue () {
+  router.push('/finance/consultation-revenue')
+}
+
+function navigateToPlatformRevenue () {
+  router.push('/finance/platform-revenue')
+}
+
+function navigateToDoctorEarnings () {
+  router.push('/finance/doctor-earnings')
+}
+
 async function fetchFinance () {
   loading.value = true
   errorMessage.value = ''
@@ -175,7 +193,7 @@ async function fetchFinance () {
     const data = res?.data ?? {}
     summary.value = data.summary ?? summary.value
     platformRevenuePercent.value = data.platform_revenue_percentage ?? 10
-    trends.value = data.trends ?? { top_ups: null, consultation_fees: null, platform_revenue: null }
+    trends.value = data.trends ?? { top_ups: null, consultation_fees: null, platform_revenue: null, doctor_earnings: null }
   } catch (e) {
     errorMessage.value = e?.data?.message || 'Failed to load finance data.'
   } finally {
