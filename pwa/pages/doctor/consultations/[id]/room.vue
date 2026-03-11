@@ -87,7 +87,7 @@
       </div>
 
       <!-- In-call: Jitsi container + controls -->
-      <div v-else class="flex-1 flex flex-col min-h-0">
+      <div v-else class="flex-1 flex flex-col min-h-0 relative">
         <div class="flex-1 min-h-0 relative">
           <div
             v-if="jitsi.isJoining.value"
@@ -114,6 +114,15 @@
             End call
           </UButton>
           <UButton
+            color="primary"
+            variant="soft"
+            size="md"
+            icon="i-lucide-clipboard-list"
+            @click="showClinicalNotes = !showClinicalNotes"
+          >
+            {{ showClinicalNotes ? 'Hide notes' : 'Clinical notes' }}
+          </UButton>
+          <UButton
             color="neutral"
             variant="soft"
             size="md"
@@ -122,6 +131,24 @@
           >
             {{ showCallChat ? 'Hide chat' : 'Open chat' }}
           </UButton>
+        </div>
+
+        <!-- Clinical notes slide-out panel -->
+        <div
+          v-if="showClinicalNotes"
+          class="absolute inset-y-0 right-0 z-20 w-full max-w-md bg-gray-900 border-l border-gray-800 shadow-xl flex flex-col"
+        >
+          <div class="shrink-0 flex items-center justify-between px-4 py-2 border-b border-gray-800">
+            <span class="text-sm font-medium text-gray-200">Clinical notes</span>
+            <UButton variant="ghost" size="xs" icon="i-lucide-x" @click="showClinicalNotes = false" />
+          </div>
+          <ClinicalNotesForm
+            v-model="clinicalNotesData"
+            :patient-date-of-birth="consultation?.patient?.date_of_birth"
+            :consultation-id="id"
+            :on-save="saveClinicalNotes"
+            @done="showClinicalNotes = false"
+          />
         </div>
 
         <!-- Inline chat panel -->
@@ -225,8 +252,35 @@
     <!-- Text room - full-height chat -->
     <div
       v-else-if="consultation?.consultation_type === 'text'"
-      class="flex-1 flex flex-col min-h-0 overflow-hidden"
+      class="flex-1 flex flex-col min-h-0 overflow-hidden relative"
     >
+      <div class="absolute top-14 right-4 z-10 flex gap-2">
+        <UButton
+          color="primary"
+          variant="soft"
+          size="sm"
+          icon="i-lucide-clipboard-list"
+          @click="showClinicalNotes = !showClinicalNotes"
+        >
+          {{ showClinicalNotes ? 'Hide notes' : 'Clinical notes' }}
+        </UButton>
+      </div>
+      <div
+        v-if="showClinicalNotes"
+        class="absolute inset-y-0 right-0 z-20 w-full max-w-md bg-gray-900 border-l border-gray-800 shadow-xl flex flex-col"
+      >
+        <div class="shrink-0 flex items-center justify-between px-4 py-2 border-b border-gray-800">
+          <span class="text-sm font-medium text-gray-200">Clinical notes</span>
+          <UButton variant="ghost" size="xs" icon="i-lucide-x" @click="showClinicalNotes = false" />
+        </div>
+        <ClinicalNotesForm
+          v-model="clinicalNotesData"
+          :patient-date-of-birth="consultation?.patient?.date_of_birth"
+          :consultation-id="id"
+          :on-save="saveClinicalNotes"
+          @done="showClinicalNotes = false"
+        />
+      </div>
       <div class="flex-1 flex flex-col min-h-0 bg-gray-900/50 overflow-hidden">
         <div
           ref="messagesContainer"
@@ -405,6 +459,8 @@ const imagePreview = ref<string | null>(null)
 const uploadingImage = ref(false)
 let pollInterval: ReturnType<typeof setInterval> | null = null
 const showCallChat = ref(false)
+const showClinicalNotes = ref(false)
+const clinicalNotesData = ref<Record<string, unknown>>({})
 
 const jitsi = useJitsiMeeting()
 const jitsiContainerRef = ref<HTMLElement | null>(null)
@@ -625,11 +681,25 @@ async function fetchConsultation () {
       headers: getHeaders()
     })
     consultation.value = (res as any)?.data ?? null
+    if (consultation.value?.clinical_notes) {
+      clinicalNotesData.value = { ...consultation.value.clinical_notes }
+    }
   } catch (e: any) {
     errorMessage.value = e?.data?.message || 'Failed to load consultation.'
   } finally {
     loading.value = false
   }
+}
+
+async function saveClinicalNotes (data: Record<string, unknown>) {
+  const res = await $fetch<{ data: any }>(`/doctor/consultations/${id}`, {
+    baseURL: config.public.apiBase,
+    method: 'PATCH',
+    body: { clinical_notes: data },
+    headers: getHeaders()
+  })
+  consultation.value = res?.data ?? consultation.value
+  toast.add({ title: 'Clinical notes saved', color: 'green' })
 }
 
 onMounted(async () => {

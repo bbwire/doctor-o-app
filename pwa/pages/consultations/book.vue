@@ -19,16 +19,30 @@
           />
 
           <UForm :state="state" class="space-y-4" @submit="onSubmit">
-            <UFormGroup label="Doctor" required>
+            <UFormGroup label="Category" required>
+              <USelectMenu
+                v-model="state.category"
+                :options="categoryOptions"
+                option-attribute="label"
+                value-attribute="value"
+                placeholder="Select a healthcare category"
+                @change="onCategoryChange"
+              />
+            </UFormGroup>
+
+            <UFormGroup v-if="state.category" label="Doctor (Optional)">
               <USelectMenu
                 v-model="state.doctor_id"
-                :options="doctorOptions"
+                :options="filteredDoctorOptions"
                 option-attribute="label"
                 value-attribute="value"
                 searchable
                 :loading="loadingDoctors"
-                placeholder="Select a doctor"
+                placeholder="Select a doctor (optional - system will assign available doctor)"
               />
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                If no doctor is selected, the system will assign an available doctor in the selected category for your chosen time slot.
+              </p>
             </UFormGroup>
 
             <UFormGroup label="Preferred Date & Time">
@@ -164,20 +178,38 @@ interface DoctorOption {
 }
 
 const state = reactive({
+  category: null as string | null,
   doctor_id: null as number | null,
   scheduled_at: '',
   consultation_type: 'video',
   reason: ''
 })
 
+const categoryOptions = ref([
+  { label: 'General Doctor', value: 'General Doctor' },
+  { label: 'Physician', value: 'Physician' },
+  { label: 'Surgeon', value: 'Surgeon' },
+  { label: 'Paediatrician', value: 'Paediatrician' },
+  { label: 'Nurse', value: 'Nurse' },
+  { label: 'Pharmacist', value: 'Pharmacist' },
+  { label: 'Gynecologist', value: 'Gynecologist' },
+  { label: 'Dentist', value: 'Dentist' }
+])
+
 const doctorOptions = ref<DoctorOption[]>([])
+const filteredDoctorOptions = computed(() => {
+  if (!state.category) return []
+  return doctorOptions.value.filter(doctor => 
+    doctor.label.includes(state.category)
+  )
+})
 
 const reasonEditor = ref<HTMLElement | null>(null)
 const reasonImageInput = ref<HTMLInputElement | null>(null)
 const uploadingReasonImage = ref(false)
 
 const canSubmit = computed(() => {
-  if (!state.doctor_id || !state.scheduled_at || !state.reason.trim()) {
+  if (!state.category || !state.scheduled_at || !state.reason.trim()) {
     return false
   }
 
@@ -194,6 +226,12 @@ const apiHeaders = computed(() => ({
   Authorization: `Bearer ${tokenCookie.value || ''}`,
   Accept: 'application/json'
 }))
+
+const onCategoryChange = () => {
+  // Reset doctor selection when category changes
+  state.doctor_id = null
+  suggestedSlots.value = []
+}
 
 const fetchDoctors = async () => {
   loadingDoctors.value = true
@@ -342,6 +380,7 @@ const onSubmit = async () => {
       baseURL: config.public.apiBase,
       headers: apiHeaders.value,
       body: {
+        category: state.category,
         doctor_id: state.doctor_id,
         scheduled_at: new Date(state.scheduled_at).toISOString(),
         consultation_type: state.consultation_type,
@@ -367,23 +406,29 @@ const onSubmit = async () => {
 
     errorMessage.value = validationMessage || (typeof message === 'string' ? message : 'Failed to book consultation.')
 
-    if (typeof validationMessage === 'string' && validationMessage.includes('already booked') && state.doctor_id) {
-      await fetchSuggestedSlots(state.doctor_id, new Date(state.scheduled_at).toISOString())
+    if (typeof validationMessage === 'string' && validationMessage.includes('already booked') && (state.doctor_id || state.category)) {
+      await fetchSuggestedSlots(state.doctor_id || state.category!, new Date(state.scheduled_at).toISOString())
     }
   } finally {
     submitting.value = false
   }
 }
 
-const fetchSuggestedSlots = async (doctorId: number, from: string) => {
+const fetchSuggestedSlots = async (doctorIdOrCategory: number | string, from: string) => {
   try {
-    const response = await $fetch<{ data?: { available_slots?: string[] } }>(`/doctors/${doctorId}/availability`, {
+    let url: string
+    if (typeof doctorIdOrCategory === 'string') {
+      // For category-based availability, we'll need a new endpoint
+      // For now, try to get availability for any doctor in this category
+      url = `/doctors/availability?category=${encodeURIComponent(doctorIdOrCategory)}&from=${encodeURIComponent(from)}&limit=5`
+    } else {
+      // Existing doctor-specific endpoint
+      url = `/doctors/${doctorIdOrCategory}/availability?from=${encodeURIComponent(from)}&limit=5`
+    }
+    
+    const response = await $fetch<{ data?: { available_slots?: string[] } }>(url, {
       baseURL: config.public.apiBase,
-      headers: apiHeaders.value,
-      query: {
-        from,
-        limit: 5
-      }
+      headers: apiHeaders.value
     })
 
     suggestedSlots.value = response?.data?.available_slots || []
@@ -414,6 +459,10 @@ watch([isApiReachable, hasApiStatusChecked], async ([reachable, checked]) => {
     await fetchDoctors()
     reconnectRetryInProgress.value = false
   }
+})
+
+watch(() => state.category, () => {
+  suggestedSlots.value = []
 })
 
 watch(() => state.doctor_id, () => {

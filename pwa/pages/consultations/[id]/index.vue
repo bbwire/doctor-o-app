@@ -142,6 +142,82 @@
         </div>
       </UCard>
 
+      <!-- Consultation summary (patient-facing: summary of history, differential diagnosis, management plan) -->
+      <UCard
+        v-if="consultation.status === 'completed' && hasConsultationSummary"
+        :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }"
+      >
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-base font-semibold text-gray-900 dark:text-white">Consultation summary</h3>
+          <UButton
+            size="sm"
+            icon="i-lucide-download"
+            :loading="downloadingSummary"
+            @click="downloadConsultationSummary"
+          >
+            Download PDF
+          </UButton>
+        </div>
+        <div class="space-y-4">
+          <div v-if="consultation.consultation_summary?.summary_of_history">
+            <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Summary of history</p>
+            <p class="text-sm text-gray-800 dark:text-gray-200 mt-1 whitespace-pre-line">
+              {{ consultation.consultation_summary.summary_of_history }}
+            </p>
+          </div>
+          <div v-if="consultation.consultation_summary?.differential_diagnosis">
+            <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Differential diagnosis</p>
+            <p class="text-sm text-gray-800 dark:text-gray-200 mt-1 whitespace-pre-line">
+              {{ consultation.consultation_summary.differential_diagnosis }}
+            </p>
+          </div>
+          <div v-if="consultation.consultation_summary?.final_diagnosis">
+            <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Final diagnosis</p>
+            <p class="text-sm text-gray-800 dark:text-gray-200 mt-1 whitespace-pre-line">
+              {{ consultation.consultation_summary.final_diagnosis }}
+            </p>
+          </div>
+          <div v-if="hasStructuredPatientMp" class="space-y-2">
+            <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Management plan</p>
+            <div v-if="patientMp.treatment" class="pl-2 border-l-2 border-gray-200 dark:border-gray-700">
+              <p class="text-xs text-gray-500 dark:text-gray-400">Treatment</p>
+              <p class="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-line">{{ patientMp.treatment }}</p>
+            </div>
+            <div v-if="patientMp.investigation_radiology || patientMp.investigation_laboratory || patientMp.investigation_interventional" class="pl-2 border-l-2 border-gray-200 dark:border-gray-700">
+              <p class="text-xs text-gray-500 dark:text-gray-400">Investigation</p>
+              <p v-if="patientMp.investigation_radiology" class="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-line">Radiology: {{ patientMp.investigation_radiology }}</p>
+              <p v-if="patientMp.investigation_laboratory" class="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-line">Laboratory: {{ patientMp.investigation_laboratory }}</p>
+              <p v-if="patientMp.investigation_interventional" class="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-line">Interventional: {{ patientMp.investigation_interventional }}</p>
+            </div>
+            <div v-if="patientMp.referrals" class="pl-2 border-l-2 border-gray-200 dark:border-gray-700">
+              <p class="text-xs text-gray-500 dark:text-gray-400">Referrals</p>
+              <p class="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-line">{{ patientMp.referrals }}</p>
+            </div>
+            <div v-if="hasStructuredPatientIpv" class="pl-2 border-l-2 border-gray-200 dark:border-gray-700">
+              <p class="text-xs text-gray-500 dark:text-gray-400">In-person visit</p>
+              <div v-if="patientIpv.revisit_history" class="mt-1">
+                <p class="text-xs text-gray-500 dark:text-gray-400">Doctor revisits history</p>
+                <p class="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-line">{{ patientIpv.revisit_history }}</p>
+              </div>
+              <div v-if="patientIpv.general_examination" class="mt-1">
+                <p class="text-xs text-gray-500 dark:text-gray-400">General examination</p>
+                <p class="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-line">{{ patientIpv.general_examination }}</p>
+              </div>
+              <div v-if="patientIpv.system_examination" class="mt-1">
+                <p class="text-xs text-gray-500 dark:text-gray-400">System examination</p>
+                <p class="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-line">{{ patientIpv.system_examination }}</p>
+              </div>
+            </div>
+          </div>
+          <div v-else-if="consultation.consultation_summary?.management_plan && typeof consultation.consultation_summary.management_plan === 'string'" class="pl-2 border-l-2 border-gray-200 dark:border-gray-700">
+            <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Management plan</p>
+            <p class="text-sm text-gray-800 dark:text-gray-200 mt-1 whitespace-pre-line">
+              {{ consultation.consultation_summary.management_plan }}
+            </p>
+          </div>
+        </div>
+      </UCard>
+
       <UCard :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }">
         <h3 class="text-base font-semibold text-gray-900 dark:text-white">Status Timeline</h3>
 
@@ -181,6 +257,28 @@ definePageMeta({
   middleware: 'auth'
 })
 
+interface InPersonVisitSummary {
+  revisit_history?: string | null
+  general_examination?: string | null
+  system_examination?: string | null
+}
+
+interface ManagementPlanSummary {
+  treatment?: string | null
+  investigation_radiology?: string | null
+  investigation_laboratory?: string | null
+  investigation_interventional?: string | null
+  referrals?: string | null
+  in_person_visit?: InPersonVisitSummary | string | null
+}
+
+interface ConsultationSummary {
+  summary_of_history?: string | null
+  differential_diagnosis?: string | null
+  management_plan?: ManagementPlanSummary | string | null
+  final_diagnosis?: string | null
+}
+
 interface ConsultationItem {
   id: number
   scheduled_at: string
@@ -188,6 +286,7 @@ interface ConsultationItem {
   status: 'scheduled' | 'completed' | 'cancelled'
   reason?: string
   notes?: string
+  consultation_summary?: ConsultationSummary | null
   doctor?: {
     id?: number
     name?: string
@@ -220,8 +319,37 @@ const consultation = ref<ConsultationItem | null>(null)
 const rescheduleAt = ref('')
 const suggestedSlots = ref<string[]>([])
 const showConsentModal = ref(false)
+const downloadingSummary = ref(false)
 
 const consultationId = computed(() => route.params.id)
+
+const hasConsultationSummary = computed(() => {
+  const s = consultation.value?.consultation_summary
+  if (!s) return false
+  const hasMp = hasStructuredPatientMp.value
+  return !!(s.summary_of_history || s.differential_diagnosis || hasMp || s.final_diagnosis)
+})
+
+const patientMp = computed(() => {
+  const m = consultation.value?.consultation_summary?.management_plan
+  return (typeof m === 'object' && m) ? m : {}
+})
+
+const patientIpv = computed(() =>
+  (typeof patientMp.value.in_person_visit === 'object' && patientMp.value.in_person_visit)
+    ? patientMp.value.in_person_visit
+    : {}
+)
+
+const hasStructuredPatientIpv = computed(() =>
+  !!(patientIpv.value.revisit_history || patientIpv.value.general_examination || patientIpv.value.system_examination)
+)
+
+const hasStructuredPatientMp = computed(() => {
+  const m = patientMp.value
+  if (m.treatment || m.investigation_radiology || m.investigation_laboratory || m.investigation_interventional || m.referrals) return true
+  return hasStructuredPatientIpv.value
+})
 const apiHeaders = computed(() => ({
   Authorization: `Bearer ${tokenCookie.value || ''}`,
   Accept: 'application/json'
@@ -456,6 +584,29 @@ const statusColor = (status: ConsultationItem['status']) => {
   if (status === 'scheduled') return 'blue'
   if (status === 'completed') return 'green'
   return 'gray'
+}
+
+async function downloadConsultationSummary () {
+  if (!consultation.value?.id) return
+  downloadingSummary.value = true
+  try {
+    const url = `${config.public.apiBase}/consultations/${consultation.value.id}/summary/download`
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${tokenCookie.value || ''}` }
+    })
+    if (!res.ok) throw new Error('Download failed')
+    const blob = await res.blob()
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `consultation-${consultation.value.id}-summary.pdf`
+    a.click()
+    URL.revokeObjectURL(a.href)
+    toast.add({ title: 'Download started', color: 'green' })
+  } catch {
+    toast.add({ title: 'Download failed', description: 'Summary may not be available yet.', color: 'red' })
+  } finally {
+    downloadingSummary.value = false
+  }
 }
 
 function onConsentAndJoin () {

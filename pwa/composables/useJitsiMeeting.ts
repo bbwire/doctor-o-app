@@ -10,13 +10,13 @@ declare global {
 }
 
 function loadJitsiScript (domain: string): Promise<typeof window.JitsiMeetExternalAPI> {
-  if (typeof window === 'undefined') {
-    return Promise.reject(new Error('Not in browser'))
-  }
-  if (window.JitsiMeetExternalAPI) {
-    return Promise.resolve(window.JitsiMeetExternalAPI)
-  }
   return new Promise((resolve, reject) => {
+    if (window.JitsiMeetExternalAPI) {
+      resolve(window.JitsiMeetExternalAPI)
+      return
+    }
+    
+    // Use JaaS domain for script loading
     const script = document.createElement('script')
     script.src = `https://${domain}/external_api.js`
     script.async = true
@@ -31,7 +31,9 @@ function loadJitsiScript (domain: string): Promise<typeof window.JitsiMeetExtern
 
 export function useJitsiMeeting () {
   const config = useRuntimeConfig()
-  const jitsiDomain = (config.public.jitsiDomain as string) || 'meet.jit.si'
+  // Override with your JaaS domain directly for now
+  const jitsiDomain = ref('vpaas-magic-cookie-f5cbb02494b64e5da5607f1e625fdc34.8x8.vc') // Your JaaS domain
+  const isJaaS = ref(true) // Force JaaS mode
 
   const isJoined = ref(false)
   const isJoining = ref(false)
@@ -39,21 +41,67 @@ export function useJitsiMeeting () {
   let api: ReturnType<NonNullable<typeof window.JitsiMeetExternalAPI>> | null = null
   let moderatorCheckInterval: ReturnType<typeof setInterval> | null = null
 
+  // Load Jitsi configuration from API
+  async function loadJitsiConfig () {
+    try {
+      const tokenCookie = useCookie('auth_token')
+      const response = await $fetch('/jitsi/config', {
+        baseURL: config.public.apiBase,
+        headers: {
+          Authorization: `Bearer ${tokenCookie.value || ''}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      
+      if (response && (response as any).domain) {
+        const apiDomain = (response as any).domain
+        // Don't overwrite our JaaS domain when API returns meet.jit.si (unconfigured backend)
+        if (apiDomain !== 'meet.jit.si') {
+          jitsiDomain.value = apiDomain
+        }
+        isJaaS.value = (response as any).features?.isJaaS ?? (jitsiDomain.value !== 'meet.jit.si')
+      }
+    } catch (e) {
+      console.warn('Failed to load Jitsi config, using default:', e)
+    }
+  }
+
   // Function to handle moderator detection and bypass
   function handleModeratorCheck () {
     if (!api) return
     
-    // Try to detect if we're stuck in moderator waiting screen
     try {
-      // Execute commands to bypass moderator requirements
-      api.executeCommand('toggleLobby', false)
-      api.executeCommand('toggleRaiseHand')
-      
-      // Check if meeting is ready
-      const participants = api.getNumberOfParticipants()
-      if (participants > 0) {
-        // Meeting seems to be working, clear any moderator prompts
-        api.executeCommand('password', '')
+      // More aggressive moderator bypass for meet.jit.si
+      if (jitsiDomain.value === 'meet.jit.si') {
+        // Execute multiple bypass commands
+        api.executeCommand('toggleLobby', false)
+        api.executeCommand('toggleRaiseHand')
+        
+        // Try to simulate moderator actions
+        try {
+          api.executeCommand('password', '')
+        } catch (e) {
+          // Password command might fail, that's okay
+        }
+        
+        // Check if meeting is ready
+        const participants = api.getNumberOfParticipants()
+        if (participants > 0) {
+          // Meeting seems to be working
+          if (moderatorCheckInterval) {
+            clearInterval(moderatorCheckInterval)
+            moderatorCheckInterval = null
+          }
+        }
+        
+        // Additional bypass attempts
+        try {
+          // Try to enable/disable moderator features
+          api.executeCommand('toggleTileView')
+          setTimeout(() => api.executeCommand('toggleTileView'), 100)
+        } catch (e) {
+          // Ignore errors
+        }
       }
     } catch (e) {
       // Ignore errors during moderator bypass attempts
@@ -82,9 +130,15 @@ export function useJitsiMeeting () {
     error.value = null
     
     try {
-      // Generate JWT token for authentication if doctor
+      // Load Jitsi configuration first
+      await loadJitsiConfig()
+      
+      // For JaaS, we'll use JWT authentication
       let jwtToken = null
-      if (isDoctor && consultationId) {
+      let useCustomDomain = isJaaS.value
+      
+      // Try to get JWT token for JaaS or custom domains
+      if (useCustomDomain && isDoctor && consultationId) {
         try {
           const tokenResponse = await $fetch('/jitsi/generate-token', {
             baseURL: config.public.apiBase,
@@ -100,13 +154,15 @@ export function useJitsiMeeting () {
             }
           })
           jwtToken = (tokenResponse as any)?.token
+          if (!jwtToken) {
+            console.warn('JWT token generation returned null, proceeding without authentication')
+          }
         } catch (tokenError) {
           console.warn('Failed to generate JWT token, proceeding without authentication:', tokenError)
-          // Continue without token - will use fallback configuration
         }
       }
       
-      const JitsiMeetExternalAPI = await loadJitsiScript(jitsiDomain)
+      const JitsiMeetExternalAPI = await loadJitsiScript(jitsiDomain.value)
       
       // Add event listeners for better error handling
       const eventHandlers = {
@@ -140,97 +196,104 @@ export function useJitsiMeeting () {
         }
       }
       
-      api = new JitsiMeetExternalAPI(jitsiDomain, {
+      api = new JitsiMeetExternalAPI(jitsiDomain.value, {
         roomName,
         parentNode,
         width: '100%',
         height: '100%',
         userInfo: { displayName: displayName || 'Participant' },
-        // Add JWT token for authentication if available
-        ...(jwtToken && { jwt: jwtToken }),
+        // Add JWT token only for custom domains
+        ...(jwtToken && useCustomDomain && { jwt: jwtToken }),
         configOverwrite: {
           startWithAudioMuted: false,
           startWithVideoMuted: !video,
           disableThirdPartyRequests: true,
           enableWelcomePage: false,
           prejoinPageEnabled: false,
-          // Enable token-based authentication if JWT is available
-          ...(jwtToken && {
+          // Enable token-based authentication only for custom domains
+          ...(jwtToken && useCustomDomain && {
             enableUserRolesBasedOnToken: true,
             enableFeaturesBasedOnToken: true,
           }),
-          // Disable moderator requirements and lobby for seamless joining
+          // Enhanced moderator bypass for meet.jit.si
           enableLobby: false,
           requireDisplayName: false,
-          // Allow first participant to start meeting without moderator
           startWithMuted: false,
-          // Disable features that require moderation
           disableProfile: true,
           hideConferenceSubject: true,
-          // Bypass moderator requirements on public servers
           skipPrejoin: true,
-          // Ensure meeting can start without moderator
           enableModeratorIndicator: false,
-          // Allow participants to join without waiting
           enableNoAudioDetection: false,
           enableNoisyMicDetection: false,
-          // Additional settings to prevent moderator prompts
           enableClosePage: false,
           disableRemoteMute: false,
-          // Ensure seamless joining experience
           inviteEnabled: false,
-          // Disable features that might trigger moderator requirements
           liveStreamingEnabled: false,
           recordingEnabled: false,
           transcribingEnabled: false,
-          // Audio/video settings
-          audioQuality: {
-            opus: {
-              stereo: false,
-              maxAverageBitrate: 20000
-            }
-          },
-          // Video settings for better performance
-          videoQuality: {
-            preferredCodec: 'VP9',
-            maxBitrates: {
-              VP9: {
-                low: 150000,
-                standard: 500000,
-                high: 1500000
-              },
-              VP8: {
-                low: 150000,
-                standard: 500000,
-                high: 1500000
-              },
-              H264: {
-                low: 150000,
-                standard: 500000,
-                high: 1500000
-              }
-            }
-          },
-          // Disable features that might require authentication
           disableInitialGUM: false,
           doNotStoreRoom: false,
-          // Ensure meeting works without moderator
-          ...(jwtToken ? {} : { enableUserRolesBasedOnToken: false }),
-          // Additional privacy and security settings
+          // Token settings only for custom domains
+          ...(jwtToken && useCustomDomain ? {} : { enableUserRolesBasedOnToken: false }),
           disableTileView: false,
           disableFilmstripOnly: false,
-          // Channel settings
           openBridgeChannel: true,
-          // Specific settings to bypass moderator requirements
           disableModeratorIndicator: true,
           enableInsecureRoomNameWarning: false,
           enableAutomaticUrlCopy: false,
-          // Room settings to prevent moderator prompts
-          requireDisplayName: false,
           displayName: displayName || 'Participant',
-          // Advanced settings to bypass moderator
-          ...(jwtToken ? {} : { enableFeaturesBasedOnToken: false }),
+          ...(jwtToken && useCustomDomain ? {} : { enableFeaturesBasedOnToken: false }),
           disableTileEnlargement: false,
+          // Enhanced settings for meet.jit.si moderator bypass
+          ...(jitsiDomain.value === 'meet.jit.si' && {
+            // Specific settings for public server
+            disableInitialGUM: false,
+            enableSimulcast: true,
+            enableLayerSuspension: true,
+            enableBridgeChannel: true,
+            p2p: {
+              enabled: true,
+              useStunTurn: true
+            },
+            // Additional bypass settings
+            disableSuspendVideo: false,
+            disableSuspendAudio: false,
+            enableMultiview: false,
+            // More aggressive moderator bypass
+            enableInsecureRoomNameWarning: false,
+            enableClosePage: false,
+            enableAutomaticUrlCopy: false,
+            disableReactions: false,
+            disableRemoteMute: false,
+            disableRemoteControl: false,
+            // Audio/video optimizations
+            audioQuality: {
+              opus: {
+                stereo: false,
+                maxAverageBitrate: 20000
+              }
+            },
+            videoQuality: {
+              preferredCodec: 'VP9',
+              maxBitrates: {
+                VP9: {
+                  low: 150000,
+                  standard: 500000,
+                  high: 1500000
+                },
+                VP8: {
+                  low: 150000,
+                  standard: 500000,
+                  high: 1500000
+                },
+                H264: {
+                  low: 150000,
+                  standard: 500000,
+                  high: 1500000
+                }
+              }
+            }
+          })
         },
         interfaceConfigOverwrite: {
           TOOLBAR_BUTTONS: [
@@ -276,10 +339,16 @@ export function useJitsiMeeting () {
         ...eventHandlers
       })
       
-      // Set up periodic moderator check (only if using public server)
-      if (jitsiDomain === 'meet.jit.si') {
-        moderatorCheckInterval = setInterval(handleModeratorCheck, 3000)
-        // Initial check after a short delay
+      // Set up periodic moderator check (more aggressive for public server)
+      if (jitsiDomain.value === 'meet.jit.si') {
+        moderatorCheckInterval = setInterval(handleModeratorCheck, 1500) // Every 1.5 seconds
+        // Initial checks at multiple intervals
+        setTimeout(handleModeratorCheck, 500)
+        setTimeout(handleModeratorCheck, 1500)
+        setTimeout(handleModeratorCheck, 3000)
+      } else if (jwtToken && useCustomDomain) {
+        // Less frequent checks for custom domains with JWT
+        moderatorCheckInterval = setInterval(handleModeratorCheck, 5000)
         setTimeout(handleModeratorCheck, 2000)
       }
       

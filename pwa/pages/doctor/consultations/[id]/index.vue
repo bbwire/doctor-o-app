@@ -134,6 +134,101 @@
       </div>
     </UCard>
 
+    <!-- Clinical notes -->
+    <UCard
+      v-if="consultation && (consultation.status === 'scheduled' || consultation.status === 'completed')"
+      :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }"
+    >
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+          Clinical notes
+        </h3>
+        <UButton
+          size="sm"
+          icon="i-lucide-clipboard-list"
+          @click="showClinicalNotesModal = true"
+        >
+          {{ hasClinicalNotes ? 'Edit clinical notes' : 'Add clinical notes' }}
+        </UButton>
+      </div>
+      <div v-if="hasClinicalNotes" class="space-y-3 text-sm">
+        <div v-if="consultation.clinical_notes?.summary_of_history">
+          <p class="font-medium text-gray-500 dark:text-gray-400">Summary of history</p>
+          <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">
+            {{ consultation.clinical_notes.summary_of_history }}
+          </p>
+        </div>
+        <div v-if="consultation.clinical_notes?.differential_diagnosis">
+          <p class="font-medium text-gray-500 dark:text-gray-400">Differential diagnosis</p>
+          <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">
+            {{ consultation.clinical_notes.differential_diagnosis }}
+          </p>
+        </div>
+        <div v-if="consultation.clinical_notes?.final_diagnosis">
+          <p class="font-medium text-gray-500 dark:text-gray-400">Final diagnosis</p>
+          <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">
+            {{ consultation.clinical_notes.final_diagnosis }}
+          </p>
+        </div>
+        <div v-if="hasStructuredManagementPlan" class="space-y-2">
+          <p class="font-medium text-gray-500 dark:text-gray-400">Management plan</p>
+          <div v-if="mp.treatment" class="pl-2 border-l-2 border-gray-200 dark:border-gray-700">
+            <p class="text-xs text-gray-500 dark:text-gray-400">Treatment</p>
+            <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">{{ mp.treatment }}</p>
+          </div>
+          <div v-if="mp.investigation_radiology || mp.investigation_laboratory || mp.investigation_interventional" class="pl-2 border-l-2 border-gray-200 dark:border-gray-700">
+            <p class="text-xs text-gray-500 dark:text-gray-400">Investigation</p>
+            <p v-if="mp.investigation_radiology" class="text-gray-900 dark:text-gray-100 whitespace-pre-line">Radiology: {{ mp.investigation_radiology }}</p>
+            <p v-if="mp.investigation_laboratory" class="text-gray-900 dark:text-gray-100 whitespace-pre-line">Laboratory: {{ mp.investigation_laboratory }}</p>
+            <p v-if="mp.investigation_interventional" class="text-gray-900 dark:text-gray-100 whitespace-pre-line">Interventional: {{ mp.investigation_interventional }}</p>
+          </div>
+          <div v-if="mp.referrals" class="pl-2 border-l-2 border-gray-200 dark:border-gray-700">
+            <p class="text-xs text-gray-500 dark:text-gray-400">Referrals</p>
+            <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">{{ mp.referrals }}</p>
+          </div>
+          <div v-if="hasInPersonVisitContent" class="pl-2 border-l-2 border-gray-200 dark:border-gray-700">
+            <p class="text-xs text-gray-500 dark:text-gray-400">In-person visit</p>
+            <div v-if="ipv.revisit_history" class="mt-1">
+              <p class="text-xs text-gray-500 dark:text-gray-400">Doctor revisits history</p>
+              <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">{{ ipv.revisit_history }}</p>
+            </div>
+            <div v-if="ipv.general_examination" class="mt-1">
+              <p class="text-xs text-gray-500 dark:text-gray-400">General examination</p>
+              <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">{{ ipv.general_examination }}</p>
+            </div>
+            <div v-if="ipv.system_examination" class="mt-1">
+              <p class="text-xs text-gray-500 dark:text-gray-400">System examination</p>
+              <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">{{ ipv.system_examination }}</p>
+            </div>
+          </div>
+        </div>
+        <div v-else-if="consultation.clinical_notes?.management_plan && typeof consultation.clinical_notes.management_plan === 'string'" class="pl-2 border-l-2 border-gray-200 dark:border-gray-700">
+          <p class="font-medium text-gray-500 dark:text-gray-400">Management plan</p>
+          <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">{{ consultation.clinical_notes.management_plan }}</p>
+        </div>
+      </div>
+      <p v-else class="text-sm text-gray-500 dark:text-gray-400">
+        No clinical notes yet. Add notes during or after the consultation.
+      </p>
+
+      <UModal v-model="showClinicalNotesModal" :ui="{ width: 'max-w-2xl' }">
+        <UCard :ui="{ ring: '', divide: 'divide-y divide-gray-200 dark:divide-gray-800' }">
+          <template #header>
+            <h3 class="text-lg font-semibold">Clinical notes</h3>
+          </template>
+          <div class="min-h-[400px]">
+            <ClinicalNotesForm
+              v-model="clinicalNotesData"
+              :patient-date-of-birth="consultation?.patient?.date_of_birth"
+              :consultation-id="id"
+              :on-save="saveClinicalNotes"
+              @done="showClinicalNotesModal = false; fetchConsultation()"
+            />
+          </div>
+        </UCard>
+      </UModal>
+    </UCard>
+
     <UCard
       v-if="consultation"
       :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }"
@@ -291,6 +386,34 @@ const errorMessage = ref('')
 const consultation = ref<any | null>(null)
 const notesDraft = ref('')
 const showIssuePrescription = ref(false)
+const showClinicalNotesModal = ref(false)
+const clinicalNotesData = ref<Record<string, unknown>>({})
+
+const hasClinicalNotes = computed(() => {
+  const notes = consultation.value?.clinical_notes
+  if (!notes) return false
+  const hasManagementPlan = notes.management_plan && typeof notes.management_plan === 'object'
+    ? Object.values(notes.management_plan).some((v) => v && String(v).trim())
+    : !!notes.management_plan
+  return !!notes.summary_of_history || !!notes.differential_diagnosis || hasManagementPlan || !!notes.final_diagnosis
+})
+
+const mp = computed(() => {
+  const m = consultation.value?.clinical_notes?.management_plan
+  return (typeof m === 'object' && m) ? m : {}
+})
+
+const ipv = computed(() => (typeof mp.value.in_person_visit === 'object' && mp.value.in_person_visit) ? mp.value.in_person_visit : {})
+
+const hasInPersonVisitContent = computed(() =>
+  ipv.value.revisit_history || ipv.value.general_examination || ipv.value.system_examination
+)
+
+const hasStructuredManagementPlan = computed(() => {
+  const m = mp.value
+  if (m.treatment || m.investigation_radiology || m.investigation_laboratory || m.investigation_interventional || m.referrals) return true
+  return hasInPersonVisitContent.value
+})
 
 const formOptions = [
   { label: 'Tablet', value: 'Tablet' },
@@ -340,7 +463,10 @@ onMounted(() => {
 })
 
 watch(consultation, (c) => {
-  if (c) notesDraft.value = c.notes || ''
+  if (c) {
+    notesDraft.value = c.notes || ''
+    if (c.clinical_notes) clinicalNotesData.value = { ...c.clinical_notes }
+  }
 }, { immediate: true })
 
 async function fetchConsultation () {
@@ -403,6 +529,17 @@ async function updateNotes () {
   } finally {
     actionLoading.value = false
   }
+}
+
+async function saveClinicalNotes (data: Record<string, unknown>) {
+  const res = await $fetch<{ data: any }>(`/doctor/consultations/${id}`, {
+    baseURL: config.public.apiBase,
+    method: 'PATCH',
+    body: { clinical_notes: data },
+    headers: getHeaders()
+  })
+  consultation.value = res?.data ?? consultation.value
+  toast.add({ title: 'Clinical notes saved', color: 'green' })
 }
 
 async function submitPrescription () {
