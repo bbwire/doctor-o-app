@@ -100,4 +100,128 @@ class FinanceController extends Controller
             ],
         ]);
     }
+
+    /**
+     * Consultation revenue details with filtering.
+     */
+    public function consultationRevenue(Request $request): JsonResponse
+    {
+        $perPage = max(1, min(50, (int) $request->get('per_page', 15)));
+        $page = (int) $request->get('page', 1);
+        $period = $request->get('period');
+        $type = $request->get('type');
+        $doctorId = $request->get('doctor_id');
+
+        $result = $this->financeService->consultationRevenue($perPage, $page, $period, $type, $doctorId);
+        $data = $result['data']->map(fn ($item) => [
+            'id' => $item->id,
+            'created_at' => $item->created_at?->toISOString(),
+            'consultation_id' => $item->consultation_id,
+            'patient' => $item->patient ? ['id' => $item->patient->id, 'name' => $item->patient->name, 'email' => $item->patient->email] : null,
+            'doctor' => $item->doctor ? ['id' => $item->doctor->id, 'name' => $item->doctor->name] : null,
+            'consultation_type' => $item->consultation_type ?? 'Unknown',
+            'amount_paid' => (float) $item->amount_paid,
+            'platform_fee' => (float) $item->platform_fee,
+            'doctor_earning' => (float) $item->doctor_earning,
+        ])->all();
+
+        return response()->json([
+            'data' => $data,
+            'meta' => [
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'total' => $result['total'],
+            ],
+            'summary' => $result['summary'],
+        ]);
+    }
+
+    /**
+     * Platform revenue details with trends.
+     */
+    public function platformRevenue(Request $request): JsonResponse
+    {
+        $perPage = max(1, min(50, (int) $request->get('per_page', 15)));
+        $page = (int) $request->get('page', 1);
+        $days = max(7, min(90, (int) $request->get('days', 30)));
+
+        $result = $this->financeService->platformRevenue($perPage, $page, $days);
+        $data = $result['data']->map(fn ($item) => [
+            'id' => $item->id,
+            'created_at' => $item->created_at?->toISOString(),
+            'consultation_id' => $item->consultation_id ? '#' . $item->consultation_id : '–',
+            'patient' => $item->patient ? ['id' => $item->patient->id, 'name' => $item->patient->name, 'email' => $item->patient->email] : null,
+            'doctor' => $item->doctor ? ['id' => $item->doctor->id, 'name' => $item->doctor->name] : null,
+            'source' => $item->source ?? 'Consultation Fee',
+            'amount' => (float) $item->amount,
+            'rate' => $item->rate ?? $this->settingsService->getPlatformRevenuePercentage(),
+            'status' => $item->status ?? 'completed',
+        ])->all();
+
+        return response()->json([
+            'data' => $data,
+            'meta' => [
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'total' => $result['total'],
+            ],
+            'summary' => $result['summary'],
+        ]);
+    }
+
+    /**
+     * Doctor earnings details with filtering.
+     */
+    public function doctorEarnings(Request $request): JsonResponse
+    {
+        $perPage = max(1, min(50, (int) $request->get('per_page', 15)));
+        $page = (int) $request->get('page', 1);
+        $period = $request->get('period');
+        $speciality = $request->get('speciality');
+        $doctorId = $request->get('doctor_id');
+
+        $result = $this->financeService->doctorEarnings($perPage, $page, $period, $speciality, $doctorId);
+        $paginator = $result['data'];
+        $data = $paginator->getCollection()->map(fn ($item) => [
+            'id' => $item->id,
+            'created_at' => $item->created_at?->toISOString(),
+            'doctor' => $item->doctor ? ['id' => $item->doctor->id, 'name' => $item->doctor->name, 'speciality' => $item->doctor->speciality] : null,
+            'speciality' => $item->doctor?->speciality ?? 'Unknown',
+            'consultation_count' => 1,
+            'total_earnings' => (float) $item->doctor_earning,
+            'platform_fees' => (float) $item->platform_fees,
+            'net_earnings' => (float) $item->doctor_earning,
+            'payout_status' => 'pending', // Default status since column doesn't exist
+        ])->all();
+
+        return response()->json([
+            'data' => $data,
+            'meta' => [
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'total' => $result['total'],
+            ],
+            'summary' => $result['summary'],
+        ]);
+    }
+
+    /**
+     * Process doctor payouts.
+     */
+    public function processPayouts(Request $request): JsonResponse
+    {
+        try {
+            $this->financeService->processPayouts();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Doctor payouts processed successfully.',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to process payouts: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
 }

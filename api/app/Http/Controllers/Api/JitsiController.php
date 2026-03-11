@@ -32,16 +32,17 @@ class JitsiController extends Controller
             $isModerator = $validated['isModerator'] && $isDoctor;
 
             // Jitsi JWT configuration
-            $appId = env('JITSI_APP_ID', 'vpaas-magic-cookie-1fc542849a0c4b4b8a5b8c8b8c8b8c8b');
-            $apiSecret = env('JITSI_API_SECRET', 'your-secret-key-here');
+            $appId = env('JITSI_APP_ID');
+            $apiSecret = env('JITSI_API_SECRET');
+            // Force the domain for now (shared hosting .env issue)
+            $jitsiDomain = 'vpaas-magic-cookie-f5cbb02494b64e5da5607f1e625fdc34.8x8.vc';
             
-            // For meet.jit.si, we'll use a demo approach
-            // In production, you should use JaaS or self-hosted Jitsi
-            if (empty($apiSecret) || $apiSecret === 'your-secret-key-here') {
-                // Fallback: return a mock token for testing with meet.jit.si
+            // Check if JaaS credentials are properly configured
+            if (empty($appId) || empty($apiSecret) || $appId === 'vpaas-magic-cookie-1fc542849a0c4b4b8a5b8c8b8c8b8c8b') {
                 return response()->json([
                     'token' => null,
-                    'message' => 'Jitsi JWT not configured. Using fallback mode.',
+                    'message' => 'JaaS credentials not configured. Please set JITSI_APP_ID and JITSI_API_SECRET in .env',
+                    'domain' => $jitsiDomain,
                     'isModerator' => $isModerator
                 ]);
             }
@@ -78,7 +79,9 @@ class JitsiController extends Controller
             return response()->json([
                 'token' => $token,
                 'isModerator' => $isModerator,
-                'expiresAt' => date('Y-m-d H:i:s', $exp)
+                'expiresAt' => date('Y-m-d H:i:s', $exp),
+                'domain' => $jitsiDomain,
+                'appId' => $appId
             ]);
 
         } catch (\Exception $e) {
@@ -98,15 +101,20 @@ class JitsiController extends Controller
     {
         $user = auth()->user();
         $isDoctor = $user && $user->role === 'doctor';
+        // Force the domain for now (shared hosting .env issue)
+        $jitsiDomain = 'vpaas-magic-cookie-f5cbb02494b64e5da5607f1e625fdc34.8x8.vc';
+        $appId = env('JITSI_APP_ID');
+        $apiSecret = env('JITSI_API_SECRET');
 
         return response()->json([
-            'domain' => env('JITSI_DOMAIN', 'meet.jit.si'),
-            'appId' => env('JITSI_APP_ID'),
+            'domain' => $jitsiDomain,
+            'appId' => $appId,
             'features' => [
-                'jwtEnabled' => !empty(env('JITSI_API_SECRET')),
+                'jwtEnabled' => !empty($appId) && !empty($apiSecret) && $appId !== 'vpaas-magic-cookie-1fc542849a0c4b4b8a5b8c8b8c8b8c8b',
                 'moderatorAuth' => $isDoctor,
                 'recording' => false,
-                'livestreaming' => false
+                'livestreaming' => false,
+                'isJaaS' => $jitsiDomain !== 'meet.jit.si'
             ]
         ]);
     }

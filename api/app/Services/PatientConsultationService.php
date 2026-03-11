@@ -36,9 +36,18 @@ class PatientConsultationService
     public function createForPatient(User $patient, array $validated): Consultation
     {
         $scheduledAt = Carbon::parse($validated['scheduled_at']);
+        
+        // If no specific doctor is selected, find an available doctor in the category
+        $doctorId = $validated['doctor_id'] ?? $this->findAvailableDoctorInCategory($validated['category'], $scheduledAt);
+        
+        if (!$doctorId) {
+            throw ValidationException::withMessages([
+                'scheduled_at' => ['No available doctors found in the selected category for the chosen time slot. Please try a different time or select a specific doctor.'],
+            ]);
+        }
 
         $isDoctorSlotTaken = Consultation::query()
-            ->where('doctor_id', $validated['doctor_id'])
+            ->where('doctor_id', $doctorId)
             ->where('status', 'scheduled')
             ->where('scheduled_at', $scheduledAt->toDateTimeString())
             ->exists();
@@ -50,7 +59,7 @@ class PatientConsultationService
         }
 
         $doctorProfile = User::query()
-            ->where('id', $validated['doctor_id'])
+            ->where('id', $doctorId)
             ->with('healthcareProfessional')
             ->first()
             ?->healthcareProfessional;
@@ -64,12 +73,16 @@ class PatientConsultationService
 
         $consultation = Consultation::create([
             'patient_id' => $patient->id,
-            'doctor_id' => $validated['doctor_id'],
+            'doctor_id' => $doctorId,
             'scheduled_at' => $scheduledAt->toDateTimeString(),
             'consultation_type' => $validated['consultation_type'],
             'status' => 'scheduled',
             'reason' => $validated['reason'],
             'notes' => $validated['notes'] ?? null,
+            'metadata' => array_merge($consultation->metadata ?? [], [
+                'requested_category' => $validated['category'],
+                'auto_assigned' => !isset($validated['doctor_id']),
+            ]),
         ])->load(['doctor.healthcareProfessional.institution', 'patient']);
 
         if ($amount > 0) {
@@ -85,7 +98,7 @@ class PatientConsultationService
             ['consultation_id' => $consultation->id]
         );
         $notificationService->createForUser(
-            (int) $validated['doctor_id'],
+            $doctorId,
             'consultation_booked',
             'New appointment',
             'A new consultation has been booked for ' . $scheduledAt->format('M j, Y \a\t g:i A') . '.',
@@ -95,7 +108,7 @@ class PatientConsultationService
             'consultation_booked',
             'New consultation booked',
             'A patient has booked a consultation for ' . $scheduledAt->format('M j, Y \a\t g:i A') . '.',
-            ['consultation_id' => $consultation->id, 'patient_id' => $patient->id, 'doctor_id' => (int) $validated['doctor_id']]
+            ['consultation_id' => $consultation->id, 'patient_id' => $patient->id, 'doctor_id' => $doctorId]
         );
 
         return $consultation;
@@ -187,6 +200,138 @@ class PatientConsultationService
                 'scheduled_at' => ['Consultation can only be changed at least '.$this->minimumActionLeadHours().' hours before start time.'],
             ]);
         }
+    }
+
+    /**
+     * Find an available doctor in a specific category for a given time slot
+     */
+    private function findAvailableDoctorInCategory(string $category, Carbon $scheduledAt): ?int
+    {
+        // Find doctors in the specified category who are active and approved
+        $availableDoctors = User::query()
+            ->where('role', 'doctor')
+            ->whereHas('healthcareProfessional', function ($query) use ($category) {
+                $query->where('speciality', $category)
+                      ->where('is_active', true)
+                      ->where('is_approved', true);
+            })
+            ->with('healthcareProfessional')
+            ->get();
+
+        if ($availableDoctors->isEmpty()) {
+            return null;
+        }
+
+        // Check each doctor for availability at the requested time
+        foreach ($availableDoctors as $doctor) {
+            $isWithinWorkingHours = $this->isDoctorAvailableAtTime($doctor, $scheduledAt);
+            $isSlotTaken = Consultation::query()
+                ->where('doctor_id', $doctor->id)
+                ->where('status', 'scheduled')
+                ->where('scheduled_at', $scheduledAt->toDateTimeString())
+                ->exists();
+
+            if ($isWithinWorkingHours && !$isSlotTaken) {
+                return $doctor->id;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Check if a doctor is available at a specific time based on their working hours
+     */
+    private function isDoctorAvailableAtTime(User $doctor, Carbon $scheduledAt): bool
+    {
+        $availabilityStart = $doctor->healthcareProfessional?->availability_start_time;
+        $availabilityEnd = $doctor->healthcareProfessional?->availability_end_time;
+
+        if (!$availabilityStart || !$availabilityEnd) {
+            // If no working hours are set, assume doctor is available
+            return true;
+        }
+
+        $time = $scheduledAt->format('H:i:s');
+        $startTime = $availabilityStart->format('H:i:s');
+        $endTime = $availabilityEnd->format('H:i:s');
+
+        return $time >= $startTime && $time <= $endTime;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function suggestAvailableSlotsForCategory(string $category, ?string $from = null, int $limit = 5): array
+    {
+        $limit = max(1, min($limit, 10));
+        $slotIntervalMinutes = $this->slotIntervalMinutes();
+        $availabilityWindowDays = $this->availabilityWindowDays();
+
+        $start = $from ? Carbon::parse($from) : now();
+        $minimumStart = now()->addMinutes($slotIntervalMinutes);
+        if ($start->lt($minimumStart)) {
+            $start = $minimumStart;
+        }
+
+        $candidate = $this->alignToSlot($start, $slotIntervalMinutes);
+        $windowEnd = $candidate->copy()->addDays($availabilityWindowDays);
+
+        // Get all doctors in the category who are active and approved
+        $doctorsInCategory = User::query()
+            ->where('role', 'doctor')
+            ->whereHas('healthcareProfessional', function ($query) use ($category) {
+                $query->where('speciality', $category)
+                      ->where('is_active', true)
+                      ->where('is_approved', true);
+            })
+            ->with('healthcareProfessional')
+            ->pluck('id')
+            ->toArray();
+
+        if (empty($doctorsInCategory)) {
+            return [];
+        }
+
+        // Get all taken slots for any doctor in this category
+        $taken = Consultation::query()
+            ->whereIn('doctor_id', $doctorsInCategory)
+            ->where('status', 'scheduled')
+            ->whereBetween('scheduled_at', [$candidate->toDateTimeString(), $windowEnd->toDateTimeString()])
+            ->pluck('scheduled_at')
+            ->map(fn ($value) => Carbon::parse($value)->toDateTimeString())
+            ->flip();
+
+        $suggestions = [];
+        $maxIterations = (int) ceil(($availabilityWindowDays * 24 * 60) / $slotIntervalMinutes);
+        $iterations = 0;
+
+        while (count($suggestions) < $limit && $iterations < $maxIterations) {
+            $key = $candidate->toDateTimeString();
+
+            // Check if any doctor in the category is available at this time
+            $isSlotAvailable = false;
+            foreach ($doctorsInCategory as $doctorId) {
+                $doctor = User::query()
+                    ->where('id', $doctorId)
+                    ->with('healthcareProfessional')
+                    ->first();
+
+                if ($doctor && $this->isDoctorAvailableAtTime($doctor, $candidate) && !$taken->has($key)) {
+                    $isSlotAvailable = true;
+                    break;
+                }
+            }
+
+            if ($isSlotAvailable) {
+                $suggestions[] = $candidate->toISOString();
+            }
+
+            $candidate->addMinutes($slotIntervalMinutes);
+            $iterations++;
+        }
+
+        return $suggestions;
     }
 
     /**

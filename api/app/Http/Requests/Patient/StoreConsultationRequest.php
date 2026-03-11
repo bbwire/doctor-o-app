@@ -25,10 +25,25 @@ class StoreConsultationRequest extends FormRequest
     public function rules(): array
     {
         $minTime = Carbon::now()->subMinutes(15);
+        $specialityOptions = [
+            'General Doctor',
+            'Physician',
+            'Surgeon',
+            'Paediatrician',
+            'Nurse',
+            'Pharmacist',
+            'Gynecologist',
+            'Dentist',
+        ];
 
         return [
-            'doctor_id' => [
+            'category' => [
                 'required',
+                'string',
+                Rule::in($specialityOptions),
+            ],
+            'doctor_id' => [
+                'nullable',
                 'integer',
                 Rule::exists('users', 'id')->where(fn (Builder $query) => $query->where('role', 'doctor')),
             ],

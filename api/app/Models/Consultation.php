@@ -20,6 +20,7 @@ class Consultation extends Model
         'reason',
         'notes',
         'metadata',
+        'clinical_notes',
     ];
 
     protected function casts(): array
@@ -27,6 +28,7 @@ class Consultation extends Model
         return [
             'scheduled_at' => 'datetime',
             'metadata' => 'array',
+            'clinical_notes' => 'array',
         ];
     }
 

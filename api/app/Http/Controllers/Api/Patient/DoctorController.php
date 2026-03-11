@@ -51,4 +51,28 @@ class DoctorController extends Controller
             ],
         ]);
     }
+
+    public function categoryAvailability(Request $request): JsonResponse
+    {
+        $request->validate([
+            'category' => ['required', 'string', 'in:General Doctor,Physician,Surgeon,Paediatrician,Nurse,Pharmacist,Gynecologist,Dentist'],
+            'from' => ['nullable', 'date'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:10'],
+        ]);
+
+        $category = $request->query('category');
+        $from = $request->query('from');
+        $limit = (int) ($request->query('limit', 5));
+
+        return response()->json([
+            'data' => [
+                'category' => $category,
+                'available_slots' => $this->patientConsultationService->suggestAvailableSlotsForCategory(
+                    $category,
+                    is_string($from) ? $from : null,
+                    $limit
+                ),
+            ],
+        ]);
+    }
 }

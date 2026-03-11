@@ -100,8 +100,10 @@ Route::prefix('v1')->group(function () {
             Route::get('/dashboard/summary', [PatientDashboardController::class, 'summary']);
             Route::get('/doctors', [PatientDoctorController::class, 'index']);
             Route::get('/doctors/{doctorId}/availability', [PatientDoctorController::class, 'availability']);
+            Route::get('/doctors/availability', [PatientDoctorController::class, 'categoryAvailability']);
             Route::get('/consultations', [PatientConsultationController::class, 'index']);
             Route::post('/consultations/book', [PatientConsultationController::class, 'store']);
+            Route::get('/consultations/{consultationId}/summary/download', [\App\Http\Controllers\Api\Patient\ConsultationSummaryController::class, 'download']);
             Route::get('/consultations/{consultationId}', [PatientConsultationController::class, 'show']);
             Route::get('/consultations/{consultation}/messages', [ConsultationMessageController::class, 'index']);
             Route::post('/consultations/{consultation}/messages', [ConsultationMessageController::class, 'store']);
@@ -175,6 +177,10 @@ Route::prefix('v1')->group(function () {
                 Route::get('finance', [\App\Http\Controllers\Api\Admin\FinanceController::class, 'index']);
                 Route::get('finance/top-ups', [\App\Http\Controllers\Api\Admin\FinanceController::class, 'topUps']);
                 Route::get('finance/settlements', [\App\Http\Controllers\Api\Admin\FinanceController::class, 'settlements']);
+                Route::get('finance/consultation-revenue', [\App\Http\Controllers\Api\Admin\FinanceController::class, 'consultationRevenue']);
+                Route::get('finance/platform-revenue', [\App\Http\Controllers\Api\Admin\FinanceController::class, 'platformRevenue']);
+                Route::get('finance/doctor-earnings', [\App\Http\Controllers\Api\Admin\FinanceController::class, 'doctorEarnings']);
+                Route::post('finance/process-payouts', [\App\Http\Controllers\Api\Admin\FinanceController::class, 'processPayouts']);
             });
         });
     });

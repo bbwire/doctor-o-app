@@ -15,6 +15,9 @@ class ConsultationResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $notes = $this->clinical_notes ?? [];
+        $isPatientView = $request->user() && (int) $request->user()->id === (int) $this->patient_id;
+
         return [
             'id' => $this->id,
             'patient_id' => $this->patient_id,
@@ -25,11 +28,19 @@ class ConsultationResource extends JsonResource
             'reason' => $this->reason,
             'notes' => $this->notes,
             'metadata' => $this->metadata,
+            'clinical_notes' => $isPatientView ? null : $notes,
+            'consultation_summary' => $isPatientView ? [
+                'summary_of_history' => $notes['summary_of_history'] ?? null,
+                'differential_diagnosis' => $notes['differential_diagnosis'] ?? null,
+                'management_plan' => $notes['management_plan'] ?? null,
+                'final_diagnosis' => $notes['final_diagnosis'] ?? null,
+            ] : null,
             'patient' => $this->whenLoaded('patient', fn () => [
                 'id' => $this->patient?->id,
                 'name' => $this->patient?->name,
                 'email' => $this->patient?->email,
                 'role' => $this->patient?->role,
+                'date_of_birth' => $this->patient?->date_of_birth?->format('Y-m-d'),
                 'chronic_conditions' => $this->patient?->chronic_conditions ?? [],
             ]),
             'doctor' => $this->whenLoaded('doctor', fn () => [
