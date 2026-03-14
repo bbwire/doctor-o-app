@@ -60,6 +60,19 @@
               </UBadge>
             </div>
 
+            <div v-if="consultation.consultation_summary" class="flex justify-end gap-1 mt-2">
+              <UButton
+                size="xs"
+                variant="outline"
+                icon="i-lucide-download"
+                :loading="downloadingSummary[consultation.id]"
+                @click="downloadSummary(consultation)"
+                title="Download clinical summary"
+              >
+                Download clinical summary
+              </UButton>
+            </div>
+
             <div class="mt-3 text-sm text-gray-600 dark:text-gray-400">
               <p class="font-medium mb-0.5">Reason:</p>
               <div
@@ -129,6 +142,12 @@ interface ConsultationItem {
   consultation_type: 'text' | 'audio' | 'video'
   status: 'scheduled' | 'completed' | 'cancelled'
   reason?: string
+  consultation_summary?: {
+    summary_of_history?: string
+    differential_diagnosis?: string
+    final_diagnosis?: string
+    management_plan?: string
+  }
   doctor?: {
     name?: string
   }
@@ -143,6 +162,7 @@ const { formatDateTime } = useDateFormat()
 
 const showConsentModal = ref(false)
 const consentConsultation = ref<ConsultationItem | null>(null)
+const downloadingSummary = ref<Record<number, boolean>>({})
 
 const loading = ref(true)
 const errorMessage = ref('')
@@ -215,6 +235,52 @@ function onConsentAndJoin () {
   consentConsultation.value = null
   if (id) {
     router.push(`/consultations/${id}/room`)
+  }
+}
+
+async function downloadSummary (consultation: ConsultationItem) {
+  if (!consultation.consultation_summary) {
+    toast.add({
+      title: 'No clinical summary',
+      description: 'This consultation does not have a clinical summary available.',
+      color: 'amber'
+    })
+    return
+  }
+
+  downloadingSummary.value[consultation.id] = true
+  
+  try {
+    const response = await $fetch(`/consultations/${consultation.id}/summary/download`, {
+      baseURL: config.public.apiBase,
+      headers: {
+        Authorization: `Bearer ${tokenCookie.value || ''}`,
+        Accept: 'application/json'
+      }
+    })
+
+    // Create blob and download
+    const blob = new Blob([response], { type: 'application/pdf' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `consultation-summary-${consultation.id}-${new Date().toISOString().split('T')[0]}.pdf`
+    a.click()
+    URL.revokeObjectURL(url)
+    
+    toast.add({
+      title: 'Download successful',
+      description: 'Clinical summary downloaded successfully.',
+      color: 'green'
+    })
+  } catch (error) {
+    toast.add({
+      title: 'Download failed',
+      description: 'Unable to download clinical summary. Please try again.',
+      color: 'red'
+    })
+  } finally {
+    downloadingSummary.value[consultation.id] = false
   }
 }
 

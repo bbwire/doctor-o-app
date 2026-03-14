@@ -22,7 +22,7 @@
     </div>
 
     <template v-else>
-      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <UCard @click="navigateToTopUps" :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }" class="cursor-pointer hover:shadow-lg transition-shadow">
           <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Patient top-ups</p>
           <p class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">
@@ -45,6 +45,12 @@
           <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Doctor earnings</p>
           <p class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">
             {{ formatMoney(summary.total_doctor_earnings) }}
+          </p>
+        </UCard>
+        <UCard @click="navigateToInstitutionRevenue" :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }" class="cursor-pointer hover:shadow-lg transition-shadow">
+          <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Institution revenue</p>
+          <p class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">
+            {{ formatMoney(summary.total_institution_revenue) }}
           </p>
         </UCard>
       </div>
@@ -74,6 +80,7 @@
               :consultation-revenue="trends.consultation_fees || { dates: [], values: [] }"
               :platform-revenue="trends.platform_revenue || { dates: [], values: [] }"
               :doctor-earnings="trends.doctor_earnings || { dates: [], values: [] }"
+              :institution-revenue="trends.institution_revenue || { dates: [], values: [] }"
             />
             <template #fallback>
               <div class="h-80 flex items-center justify-center text-gray-500 dark:text-gray-400">
@@ -134,13 +141,16 @@ const summary = ref({
   total_patient_top_ups: 0,
   total_consultation_fees: 0,
   total_platform_revenue: 0,
-  total_doctor_earnings: 0
+  total_doctor_earnings: 0,
+  total_institution_revenue: 0
 })
 const platformRevenuePercent = ref(10)
 const trends = ref({
   top_ups: null,
   consultation_fees: null,
-  platform_revenue: null
+  platform_revenue: null,
+  doctor_earnings: null,
+  institution_revenue: null
 })
 const trendDays = ref(30)
 const topUps = ref([])
@@ -185,6 +195,10 @@ function navigateToDoctorEarnings () {
   router.push('/finance/doctor-earnings')
 }
 
+function navigateToInstitutionRevenue () {
+  router.push('/finance/institution-revenue')
+}
+
 async function fetchFinance () {
   loading.value = true
   errorMessage.value = ''
@@ -193,7 +207,7 @@ async function fetchFinance () {
     const data = res?.data ?? {}
     summary.value = data.summary ?? summary.value
     platformRevenuePercent.value = data.platform_revenue_percentage ?? 10
-    trends.value = data.trends ?? { top_ups: null, consultation_fees: null, platform_revenue: null, doctor_earnings: null }
+    trends.value = data.trends ?? { top_ups: null, consultation_fees: null, platform_revenue: null, doctor_earnings: null, institution_revenue: null }
   } catch (e) {
     errorMessage.value = e?.data?.message || 'Failed to load finance data.'
   } finally {

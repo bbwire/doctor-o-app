@@ -206,6 +206,50 @@ class FinanceController extends Controller
     }
 
     /**
+     * Institution revenue details with trends.
+     */
+    public function institutionRevenue(Request $request): JsonResponse
+    {
+        $perPage = max(1, min(50, (int) $request->get('per_page', 15)));
+        $page = (int) $request->get('page', 1);
+        $days = max(7, min(90, (int) $request->get('days', 30)));
+        $from = $request->get('from') ?: null;
+        $to = $request->get('to') ?: null;
+
+        $paginator = $this->financeService->institutionPaymentsList($perPage, $from, $to);
+        $data = $paginator->getCollection()->map(fn ($item) => [
+            'id' => $item->id,
+            'created_at' => $item->created_at?->toISOString(),
+            'institution' => $item->institution ? ['id' => $item->institution->id, 'name' => $item->institution->name] : null,
+            'amount' => (float) $item->amount,
+            'type' => $item->type ?? 'subscription',
+            'description' => $item->description,
+        ])->all();
+
+        $summary = $this->financeService->summary($from, $to);
+        $trends = $this->financeService->trends($days);
+        $thisMonth = $this->financeService->summary(
+            now()->startOfMonth()->toDateTimeString(),
+            now()->endOfMonth()->toDateTimeString()
+        );
+
+        return response()->json([
+            'data' => $data,
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ],
+            'summary' => [
+                'total_revenue' => $summary['total_institution_revenue'],
+                'this_month' => $thisMonth['total_institution_revenue'],
+            ],
+            'trends' => $trends['institution_revenue'] ?? ['dates' => [], 'values' => []],
+        ]);
+    }
+
+    /**
      * Process doctor payouts.
      */
     public function processPayouts(Request $request): JsonResponse

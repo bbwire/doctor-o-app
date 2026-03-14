@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\ConsultationSettlement;
+use App\Models\InstitutionPayment;
 use App\Models\WalletTransaction;
 use Illuminate\Support\Facades\DB;
 
@@ -16,28 +17,33 @@ class AdminFinanceService
         $topUpQuery = WalletTransaction::query()->where('type', 'top_up');
         $chargeQuery = WalletTransaction::query()->where('type', 'consultation_charge');
         $settlementQuery = ConsultationSettlement::query();
+        $institutionQuery = InstitutionPayment::query();
 
         if ($from) {
             $topUpQuery->where('created_at', '>=', $from);
             $chargeQuery->where('created_at', '>=', $from);
             $settlementQuery->where('created_at', '>=', $from);
+            $institutionQuery->where('created_at', '>=', $from);
         }
         if ($to) {
             $topUpQuery->where('created_at', '<=', $to);
             $chargeQuery->where('created_at', '<=', $to);
             $settlementQuery->where('created_at', '<=', $to);
+            $institutionQuery->where('created_at', '<=', $to);
         }
 
         $totalTopUps = (float) $topUpQuery->sum('amount');
         $totalConsultationCharges = (float) abs($chargeQuery->sum('amount'));
         $totalPlatformRevenue = (float) $settlementQuery->sum('platform_fee');
         $totalDoctorEarnings = (float) $settlementQuery->sum('doctor_earning');
+        $totalInstitutionRevenue = (float) $institutionQuery->sum('amount');
 
         return [
             'total_patient_top_ups' => round($totalTopUps, 2),
             'total_consultation_fees' => round($totalConsultationCharges, 2),
             'total_platform_revenue' => round($totalPlatformRevenue, 2),
             'total_doctor_earnings' => round($totalDoctorEarnings, 2),
+            'total_institution_revenue' => round($totalInstitutionRevenue, 2),
         ];
     }
 
@@ -85,6 +91,14 @@ class AdminFinanceService
             ->pluck('total', 'date')
             ->all();
 
+        $institutionByDay = InstitutionPayment::query()
+            ->whereBetween('created_at', [$start, $end])
+            ->select(DB::raw('DATE(created_at) as date'), DB::raw('SUM(amount) as total'))
+            ->groupBy('date')
+            ->orderBy('date')
+            ->pluck('total', 'date')
+            ->all();
+
         $allDates = [];
         for ($d = now()->subDays($days); $d->lte(now()); $d->addDay()) {
             $allDates[] = $d->format('Y-m-d');
@@ -103,7 +117,27 @@ class AdminFinanceService
             'consultation_fees' => ['dates' => $allDates, 'values' => $fill($chargesByDay)],
             'platform_revenue' => ['dates' => $allDates, 'values' => $fill($platformByDay)],
             'doctor_earnings' => ['dates' => $allDates, 'values' => $fill($doctorByDay)],
+            'institution_revenue' => ['dates' => $allDates, 'values' => $fill($institutionByDay)],
         ];
+    }
+
+    /**
+     * Paginated list of institution payments.
+     */
+    public function institutionPaymentsList(int $perPage = 15, ?string $from = null, ?string $to = null)
+    {
+        $query = InstitutionPayment::query()
+            ->with('institution:id,name')
+            ->orderByDesc('created_at');
+
+        if ($from) {
+            $query->where('created_at', '>=', $from);
+        }
+        if ($to) {
+            $query->where('created_at', '<=', $to);
+        }
+
+        return $query->paginate($perPage);
     }
 
     /**

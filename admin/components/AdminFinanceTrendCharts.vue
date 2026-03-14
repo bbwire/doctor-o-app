@@ -12,6 +12,9 @@
     <div v-if="doctorEarnings?.dates?.length" class="w-full">
       <div ref="chartDoctorRef" class="h-80 w-full" />
     </div>
+    <div v-if="institutionRevenue?.dates?.length" class="w-full">
+      <div ref="chartInstitutionRef" class="h-80 w-full" />
+    </div>
   </div>
   <p v-else class="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
     No trend data yet. Data will appear as transactions are recorded.
@@ -25,21 +28,25 @@ const props = defineProps({
   topUps: { type: Object, default: () => ({ dates: [], values: [] }) },
   consultationRevenue: { type: Object, default: () => ({ dates: [], values: [] }) },
   platformRevenue: { type: Object, default: () => ({ dates: [], values: [] }) },
-  doctorEarnings: { type: Object, default: () => ({ dates: [], values: [] }) }
+  doctorEarnings: { type: Object, default: () => ({ dates: [], values: [] }) },
+  institutionRevenue: { type: Object, default: () => ({ dates: [], values: [] }) }
 })
 
 const chartTopUpsRef = ref(null)
 const chartFeesRef = ref(null)
 const chartPlatformRef = ref(null)
 const chartDoctorRef = ref(null)
+const chartInstitutionRef = ref(null)
 let chartTopUps = null
 let chartFees = null
 let chartPlatform = null
 let chartDoctor = null
+let chartInstitution = null
 
 const hasAnyData = computed(() =>
   (props.topUps?.dates?.length) || (props.consultationRevenue?.dates?.length) ||
-  (props.platformRevenue?.dates?.length) || (props.doctorEarnings?.dates?.length)
+  (props.platformRevenue?.dates?.length) || (props.doctorEarnings?.dates?.length) ||
+  (props.institutionRevenue?.dates?.length)
 )
 
 function renderCharts () {
@@ -62,7 +69,11 @@ function renderCharts () {
     chartDoctor.dispose()
     chartDoctor = null
   }
-  
+  if (chartInstitution) {
+    chartInstitution.dispose()
+    chartInstitution = null
+  }
+
   const dates = props.topUps?.dates ?? []
   const shortDates = dates.map((d) => (d && d.length >= 10 ? d.slice(5, 10) : d))
 
@@ -246,13 +257,58 @@ function renderCharts () {
       }]
     })
   }
+  if (chartInstitutionRef.value && props.institutionRevenue?.dates?.length) {
+    chartInstitution = echarts.init(chartInstitutionRef.value)
+    chartInstitution.setOption({
+      backgroundColor: 'transparent',
+      title: { text: 'Institution Revenue', left: 0, textStyle: { fontSize: 14, color: '#6b7280' } },
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: '#1f2937',
+        borderColor: '#374151',
+        textStyle: { color: '#f3f4f6' }
+      },
+      xAxis: {
+        type: 'category',
+        data: shortDates,
+        boundaryGap: false,
+        axisLine: { lineStyle: { color: '#374151' } },
+        axisLabel: { color: '#9ca3af' }
+      },
+      yAxis: {
+        type: 'value',
+        name: 'Amount',
+        axisLine: { lineStyle: { color: '#374151' } },
+        axisLabel: { color: '#9ca3af' },
+        nameTextStyle: { color: '#9ca3af' }
+      },
+      series: [{
+        name: 'Institution Revenue',
+        type: 'line',
+        smooth: true,
+        data: props.institutionRevenue?.values ?? [],
+        areaStyle: {
+          color: {
+            type: 'linear',
+            x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: 'rgba(34, 197, 94, 0.3)' },
+              { offset: 1, color: 'rgba(34, 197, 94, 0.1)' }
+            ]
+          }
+        },
+        itemStyle: { color: '#22c55e' },
+        lineStyle: { color: '#22c55e' }
+      }]
+    })
+  }
 }
 
 onMounted(() => {
   nextTick(() => renderCharts())
 })
 
-watch(() => [props.topUps, props.consultationRevenue, props.platformRevenue, props.doctorEarnings], () => {
+watch(() => [props.topUps, props.consultationRevenue, props.platformRevenue, props.doctorEarnings, props.institutionRevenue], () => {
   nextTick(() => {
     const isDark = document.documentElement.classList.contains('dark')
     const textColor = isDark ? '#f3f4f6' : '#374151'
@@ -291,6 +347,12 @@ watch(() => [props.topUps, props.consultationRevenue, props.platformRevenue, pro
         tooltip: { backgroundColor: '#1f2937', borderColor: '#374151', textStyle: { color: '#f3f4f6' } }
       })
     }
+    if (chartInstitution && props.institutionRevenue?.dates) {
+      chartInstitution.setOption({
+        xAxis: { data: props.institutionRevenue.dates.map((d) => (d && d.length >= 10 ? d.slice(5, 10) : d)) },
+        series: [{ data: props.institutionRevenue.values }]
+      })
+    }
   })
 }, { deep: true })
 
@@ -299,5 +361,6 @@ onBeforeUnmount(() => {
   chartFees?.dispose()
   chartPlatform?.dispose()
   chartDoctor?.dispose()
+  chartInstitution?.dispose()
 })
 </script>

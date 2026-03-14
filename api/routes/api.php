@@ -180,6 +180,7 @@ Route::prefix('v1')->group(function () {
                 Route::get('finance/consultation-revenue', [\App\Http\Controllers\Api\Admin\FinanceController::class, 'consultationRevenue']);
                 Route::get('finance/platform-revenue', [\App\Http\Controllers\Api\Admin\FinanceController::class, 'platformRevenue']);
                 Route::get('finance/doctor-earnings', [\App\Http\Controllers\Api\Admin\FinanceController::class, 'doctorEarnings']);
+                Route::get('finance/institution-revenue', [\App\Http\Controllers\Api\Admin\FinanceController::class, 'institutionRevenue']);
                 Route::post('finance/process-payouts', [\App\Http\Controllers\Api\Admin\FinanceController::class, 'processPayouts']);
             });
         });

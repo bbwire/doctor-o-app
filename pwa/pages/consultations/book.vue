@@ -138,6 +138,21 @@
               </div>
             </UFormGroup>
 
+            <UFormGroup name="consent" label="">
+              <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-4">
+                <p class="text-sm text-gray-600 dark:text-gray-300 mb-3">
+                  By booking a consultation, you consent to the collection and use of your health information for the purpose of this consultation, in accordance with our
+                  <NuxtLink to="/privacy" class="text-primary-600 dark:text-primary-400 hover:underline">Privacy Policy</NuxtLink>.
+                  You understand that consultation content may be used for clinical documentation and that your data will be shared with the healthcare professional assigned to your consultation.
+                </p>
+                <UCheckbox v-model="consent" :ui="{ label: 'text-sm text-gray-700 dark:text-gray-300' }">
+                  <template #label>
+                    I have read and agree to the consultation terms above
+                  </template>
+                </UCheckbox>
+              </div>
+            </UFormGroup>
+
             <UButton
               type="submit"
               icon="i-lucide-calendar-plus"
@@ -184,6 +199,7 @@ const state = reactive({
   consultation_type: 'video',
   reason: ''
 })
+const consent = ref(false)
 
 const categoryOptions = ref([
   { label: 'General Doctor', value: 'General Doctor' },
@@ -208,8 +224,14 @@ const reasonEditor = ref<HTMLElement | null>(null)
 const reasonImageInput = ref<HTMLInputElement | null>(null)
 const uploadingReasonImage = ref(false)
 
+const hasReason = computed(() => {
+  const html = state.reason || ''
+  const text = html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim()
+  return text.length > 0
+})
+
 const canSubmit = computed(() => {
-  if (!state.category || !state.scheduled_at || !state.reason.trim()) {
+  if (!state.category || !state.scheduled_at || !hasReason.value || !consent.value) {
     return false
   }
 

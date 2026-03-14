@@ -37,4 +37,12 @@ class Institution extends Model
     {
         return $this->hasMany(HealthcareProfessional::class);
     }
+
+    /**
+     * Get the payments made by this institution to the platform
+     */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(InstitutionPayment::class);
+    }
 }
