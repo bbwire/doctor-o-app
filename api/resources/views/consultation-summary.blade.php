@@ -82,7 +82,25 @@
                 @endif
                 @if(!empty($ipv['general_examination'] ?? null))
                     <p><strong>General examination:</strong></p>
-                    <div class="section-content">{{ $ipv['general_examination'] }}</div>
+                    @php
+                        $ge = $ipv['general_examination'] ?? null;
+                    @endphp
+                    @if(is_array($ge))
+                        @php
+                            $geLines = [];
+                            if(!empty($ge['appearance'] ?? null)) $geLines[] = 'General appearance: ' . $ge['appearance'];
+                            if(!empty($ge['jaundice'] ?? null)) $geLines[] = 'Jaundice: ' . $ge['jaundice'];
+                            if(!empty($ge['anemia'] ?? null)) $geLines[] = 'Anemia: ' . $ge['anemia'];
+                            if(!empty($ge['cyanosis'] ?? null)) $geLines[] = 'Cyanosis: ' . $ge['cyanosis'];
+                            if(!empty($ge['clubbing'] ?? null)) $geLines[] = 'Clubbing: ' . $ge['clubbing'];
+                            if(!empty($ge['oedema'] ?? null)) $geLines[] = 'Oedema: ' . $ge['oedema'];
+                            if(!empty($ge['lymphadenopathy'] ?? null)) $geLines[] = 'Lymphadenopathy: ' . $ge['lymphadenopathy'];
+                            if(!empty($ge['dehydration'] ?? null)) $geLines[] = 'Dehydration: ' . $ge['dehydration'];
+                        @endphp
+                        <div class="section-content">{{ implode("\n", $geLines) }}</div>
+                    @else
+                        <div class="section-content">{{ $ge }}</div>
+                    @endif
                 @endif
                 @if(!empty($ipv['system_examination'] ?? null))
                     <p><strong>System examination:</strong></p>

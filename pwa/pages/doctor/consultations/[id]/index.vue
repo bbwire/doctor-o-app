@@ -192,9 +192,9 @@
               <p class="text-xs text-gray-500 dark:text-gray-400">Doctor revisits history</p>
               <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">{{ ipv.revisit_history }}</p>
             </div>
-            <div v-if="ipv.general_examination" class="mt-1">
+            <div v-if="hasGeneralExaminationContent(ipv.general_examination)" class="mt-1">
               <p class="text-xs text-gray-500 dark:text-gray-400">General examination</p>
-              <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">{{ ipv.general_examination }}</p>
+              <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">{{ formatGeneralExamination(ipv.general_examination) }}</p>
             </div>
             <div v-if="ipv.system_examination" class="mt-1">
               <p class="text-xs text-gray-500 dark:text-gray-400">System examination</p>
@@ -405,8 +405,39 @@ const mp = computed(() => {
 
 const ipv = computed(() => (typeof mp.value.in_person_visit === 'object' && mp.value.in_person_visit) ? mp.value.in_person_visit : {})
 
+function hasGeneralExaminationContent (ge: unknown): boolean {
+  if (!ge) return false
+  if (typeof ge === 'string') return ge.trim().length > 0
+  if (typeof ge !== 'object' || Array.isArray(ge)) return false
+  return Object.values(ge as Record<string, unknown>).some((v) => typeof v === 'string' && v.trim().length > 0)
+}
+
+function formatGeneralExamination (ge: unknown): string {
+  if (!ge) return ''
+  if (typeof ge === 'string') return ge
+  if (typeof ge !== 'object' || Array.isArray(ge)) return ''
+
+  const g = ge as Record<string, unknown>
+  const lines: string[] = []
+  const maybePush = (key: string, label: string) => {
+    const v = g[key]
+    if (typeof v === 'string' && v.trim().length > 0) lines.push(`${label}: ${v}`)
+  }
+
+  maybePush('appearance', 'General appearance')
+  maybePush('jaundice', 'Jaundice')
+  maybePush('anemia', 'Anemia')
+  maybePush('cyanosis', 'Cyanosis')
+  maybePush('clubbing', 'Clubbing')
+  maybePush('oedema', 'Oedema')
+  maybePush('lymphadenopathy', 'Lymphadenopathy')
+  maybePush('dehydration', 'Dehydration')
+
+  return lines.join('\n')
+}
+
 const hasInPersonVisitContent = computed(() =>
-  ipv.value.revisit_history || ipv.value.general_examination || ipv.value.system_examination
+  Boolean(ipv.value.revisit_history || hasGeneralExaminationContent(ipv.value.general_examination) || ipv.value.system_examination)
 )
 
 const hasStructuredManagementPlan = computed(() => {

@@ -8,7 +8,7 @@ use Illuminate\Support\Arr;
 class SettingsService
 {
     private const CONSULTATION_KEYS = [
-        'slot_interval_days' => 'consultations.slot_interval_days',
+        'slot_interval_minutes' => 'consultations.slot_interval_minutes',
         'availability_window_days' => 'consultations.availability_window_days',
         'minimum_action_lead_hours' => 'consultations.minimum_action_lead_hours',
         'pricing.text' => 'consultations.pricing.text',
@@ -48,21 +48,24 @@ class SettingsService
         return (string) $this->get('app.timezone');
     }
 
-    public function getConsultationSlotIntervalDays(): int
+    public function getConsultationSlotIntervalMinutes(): int
     {
-        $v = (int) $this->get('consultations.slot_interval_days');
-        return max(1, min($v ?: 1, 30));
+        $v = (int) $this->get('consultations.slot_interval_minutes');
+
+        return max(15, min($v ?: 60, 120));
     }
 
     public function getConsultationAvailabilityWindowDays(): int
     {
         $v = (int) $this->get('consultations.availability_window_days');
+
         return max(1, min($v ?: 14, 30));
     }
 
     public function getConsultationMinimumActionLeadHours(): int
     {
         $v = (int) $this->get('consultations.minimum_action_lead_hours');
+
         return max(1, min($v ?: 2, 72));
     }
 
@@ -137,7 +140,7 @@ class SettingsService
                 'timezone' => $this->getAppTimezone(),
             ],
             'consultations' => [
-                'slot_interval_days' => $this->getConsultationSlotIntervalDays(),
+                'slot_interval_minutes' => $this->getConsultationSlotIntervalMinutes(),
                 'availability_window_days' => $this->getConsultationAvailabilityWindowDays(),
                 'minimum_action_lead_hours' => $this->getConsultationMinimumActionLeadHours(),
                 'pricing' => $this->getConsultationPricing(),
@@ -178,7 +181,7 @@ class SettingsService
         $updates = [
             'app.name' => fn () => (string) Arr::get($payload, 'app.name', ''),
             'app.timezone' => fn () => (string) Arr::get($payload, 'app.timezone', ''),
-            'consultations.slot_interval_days' => fn () => max(1, min((int) Arr::get($payload, 'consultations.slot_interval_days', 1), 30)),
+            'consultations.slot_interval_minutes' => fn () => max(15, min((int) Arr::get($payload, 'consultations.slot_interval_minutes', 60), 120)),
             'consultations.availability_window_days' => fn () => max(1, min((int) Arr::get($payload, 'consultations.availability_window_days', 14), 30)),
             'consultations.minimum_action_lead_hours' => fn () => max(1, min((int) Arr::get($payload, 'consultations.minimum_action_lead_hours', 2), 72)),
             'consultations.pricing.text' => fn () => (float) Arr::get($payload, 'consultations.pricing.text', 0),

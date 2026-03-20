@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\Patient\WalletController as PatientWalletController
 use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Http\Controllers\Api\Doctor\ProfileController as DoctorProfileController;
 use App\Http\Controllers\Api\Doctor\AcademicDocumentController as DoctorAcademicDocumentController;
+use App\Http\Controllers\Api\Doctor\Icd11Controller;
 use App\Http\Controllers\Api\JitsiController;
 use App\Http\Controllers\Api\InstitutionController;
 use Illuminate\Support\Facades\Route;
@@ -129,6 +130,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/consultations', [\App\Http\Controllers\Api\Doctor\ConsultationController::class, 'index']);
             Route::get('/consultations/{consultation}', [\App\Http\Controllers\Api\Doctor\ConsultationController::class, 'show']);
             Route::patch('/consultations/{consultation}', [\App\Http\Controllers\Api\Doctor\ConsultationController::class, 'update']);
+            Route::get('/icd11/search', [Icd11Controller::class, 'search']);
             Route::get('/consultations/{consultation}/messages', [ConsultationMessageController::class, 'index']);
             Route::post('/consultations/{consultation}/messages', [ConsultationMessageController::class, 'store']);
             Route::get('/consultations/{consultation}/webrtc-signals', [ConsultationWebrtcSignalController::class, 'index']);

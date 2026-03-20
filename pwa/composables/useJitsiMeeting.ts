@@ -31,9 +31,10 @@ function loadJitsiScript (domain: string): Promise<typeof window.JitsiMeetExtern
 
 export function useJitsiMeeting () {
   const config = useRuntimeConfig()
-  // Override with your JaaS domain directly for now
-  const jitsiDomain = ref('vpaas-magic-cookie-f5cbb02494b64e5da5607f1e625fdc34.8x8.vc') // Your JaaS domain
-  const isJaaS = ref(true) // Force JaaS mode
+  const jitsiDomain = ref(String(config.public.jitsiDomain || 'meet.jit.si'))
+  const isJaaS = ref(false)
+  const jwtEnabled = ref(false)
+  const lastJitsiConfig = ref<any | null>(null)
 
   const isJoined = ref(false)
   const isJoining = ref(false)
@@ -54,12 +55,10 @@ export function useJitsiMeeting () {
       })
       
       if (response && (response as any).domain) {
-        const apiDomain = (response as any).domain
-        // Don't overwrite our JaaS domain when API returns meet.jit.si (unconfigured backend)
-        if (apiDomain !== 'meet.jit.si') {
-          jitsiDomain.value = apiDomain
-        }
-        isJaaS.value = (response as any).features?.isJaaS ?? (jitsiDomain.value !== 'meet.jit.si')
+        jitsiDomain.value = String((response as any).domain || jitsiDomain.value)
+        isJaaS.value = Boolean((response as any).features?.isJaaS)
+        jwtEnabled.value = Boolean((response as any).features?.jwtEnabled)
+        lastJitsiConfig.value = response
       }
     } catch (e) {
       console.warn('Failed to load Jitsi config, using default:', e)
@@ -133,12 +132,21 @@ export function useJitsiMeeting () {
       // Load Jitsi configuration first
       await loadJitsiConfig()
       
-      // For JaaS, we'll use JWT authentication
       let jwtToken = null
-      let useCustomDomain = isJaaS.value
+      const useCustomDomain = isJaaS.value
       
-      // Try to get JWT token for JaaS or custom domains
-      if (useCustomDomain && isDoctor && consultationId) {
+      // For JaaS, JWT signing must be enabled on the backend.
+      if (useCustomDomain && consultationId && !jwtEnabled.value) {
+        throw new Error(
+          'JaaS is configured (custom domain), but JWT signing is not enabled on the backend. ' +
+          `Backend returned jwtEnabled=${jwtEnabled.value} for domain=${jitsiDomain.value}. ` +
+          'Verify JITSI_APP_ID, JITSI_KEY_ID, and JITSI_PRIVATE_KEY/PATH in `api` env and restart Laravel.'
+        )
+      }
+
+      // When JWT is enabled, request a token for both doctor and patient.
+      // (Doctor gets moderator privileges via the token payload.)
+      if (useCustomDomain && consultationId && jwtEnabled.value) {
         try {
           const tokenResponse = await $fetch('/jitsi/generate-token', {
             baseURL: config.public.apiBase,
@@ -149,16 +157,18 @@ export function useJitsiMeeting () {
             },
             body: {
               roomName,
-              isModerator: true,
+              isModerator: Boolean(isDoctor),
               consultationId
             }
           })
           jwtToken = (tokenResponse as any)?.token
           if (!jwtToken) {
-            console.warn('JWT token generation returned null, proceeding without authentication')
+            const msg = (tokenResponse as any)?.message
+            throw new Error(msg || 'JaaS authentication not configured. Add JITSI_PRIVATE_KEY to your API .env. See docs/jaas-setup-guide.md')
           }
-        } catch (tokenError) {
-          console.warn('Failed to generate JWT token, proceeding without authentication:', tokenError)
+        } catch (tokenError: any) {
+          const msg = tokenError?.data?.message ?? tokenError?.message ?? 'JWT token could not be generated'
+          throw new Error(`Cannot start video call: ${msg}`)
         }
       }
       

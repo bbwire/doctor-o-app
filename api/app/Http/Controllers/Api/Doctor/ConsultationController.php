@@ -74,10 +74,32 @@ class ConsultationController extends Controller
             'clinical_notes.management_plan.referrals' => ['nullable', 'string', 'max:65535'],
             'clinical_notes.management_plan.in_person_visit' => ['nullable', 'array'],
             'clinical_notes.management_plan.in_person_visit.revisit_history' => ['nullable', 'string', 'max:65535'],
-            'clinical_notes.management_plan.in_person_visit.general_examination' => ['nullable', 'string', 'max:65535'],
+            'clinical_notes.management_plan.in_person_visit.general_examination' => [
+                'nullable',
+                function ($attribute, $value, $fail) {
+                    if ($value === null) return;
+                    if (!is_string($value) && !is_array($value)) {
+                        $fail('The ' . $attribute . ' must be a string or an object.');
+                    }
+                }
+            ],
+            'clinical_notes.management_plan.in_person_visit.general_examination.appearance' => ['nullable', 'string', 'in:Good,Sick,Very sick'],
+            'clinical_notes.management_plan.in_person_visit.general_examination.jaundice' => ['nullable', 'string', 'in:Nil,Mild,Severe'],
+            'clinical_notes.management_plan.in_person_visit.general_examination.anemia' => ['nullable', 'string', 'in:Present,Absent'],
+            'clinical_notes.management_plan.in_person_visit.general_examination.cyanosis' => ['nullable', 'string', 'in:Present,Absent'],
+            'clinical_notes.management_plan.in_person_visit.general_examination.clubbing' => ['nullable', 'string', 'in:Present,Absent'],
+            'clinical_notes.management_plan.in_person_visit.general_examination.oedema' => ['nullable', 'string', 'in:Grade I,Grade II,Grade III,Grade IV'],
+            'clinical_notes.management_plan.in_person_visit.general_examination.lymphadenopathy' => ['nullable', 'string', 'in:Nil,Present'],
+            'clinical_notes.management_plan.in_person_visit.general_examination.dehydration' => ['nullable', 'string', 'in:Nil,Some,Severe'],
             'clinical_notes.management_plan.in_person_visit.system_examination' => ['nullable', 'string', 'max:65535'],
             'clinical_notes.management_plan.selected_categories' => ['nullable', 'array'],
             'clinical_notes.management_plan.selected_categories.*' => ['string', 'in:treatment,investigation_radiology,investigation_laboratory,investigation_interventional,referrals,in_person_visit'],
+            'clinical_notes.final_diagnosis_icd11' => ['nullable', 'array'],
+            'clinical_notes.final_diagnosis_icd11.code' => ['nullable', 'string', 'max:64'],
+            'clinical_notes.final_diagnosis_icd11.title' => ['nullable', 'string', 'max:65535'],
+            'clinical_notes.differential_diagnoses_icd11' => ['nullable', 'array'],
+            'clinical_notes.differential_diagnoses_icd11.*.code' => ['nullable', 'string', 'max:64'],
+            'clinical_notes.differential_diagnoses_icd11.*.title' => ['nullable', 'string', 'max:65535'],
             'clinical_notes.final_diagnosis' => ['nullable', 'string', 'max:65535'],
         ]);
 

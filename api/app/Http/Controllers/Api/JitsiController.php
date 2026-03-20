@@ -6,12 +6,63 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Firebase\JWT\JWT;
-use Firebase\JWT\Key;
 
 class JitsiController extends Controller
 {
     /**
-     * Generate JWT token for Jitsi authentication
+     * Get the RSA private key for 8x8 JaaS JWT signing.
+     * 8x8 JaaS requires RS256 (RSA) - not HS256. You must upload your public key
+     * to the JaaS console and use the private key to sign tokens.
+     */
+    private function getPrivateKey(): ?string
+    {
+        $keyPath = env('JITSI_PRIVATE_KEY_PATH');
+        if (! $keyPath) {
+            return null;
+        }
+
+        // If a relative path is provided, resolve it relative to the Laravel base path.
+        $resolvedPath = $keyPath;
+        // Windows absolute path heuristic: "C:\..." or "\..." or "/"-prefixed
+        $isAbsolute =
+            preg_match('/^[A-Za-z]:[\\\\\\/]/', (string) $keyPath) === 1 ||
+            str_starts_with((string) $keyPath, '\\\\') ||
+            str_starts_with((string) $keyPath, '/') ||
+            str_starts_with((string) $keyPath, '\\');
+
+        if (! $isAbsolute) {
+            $resolvedPath = base_path($keyPath);
+        }
+
+        // Normalize separators to improve Windows path handling.
+        $resolvedPath = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, (string) $resolvedPath);
+        // If realpath fails (e.g. permissions), keep original resolvedPath.
+        $real = realpath($resolvedPath);
+        if ($real !== false) {
+            $resolvedPath = $real;
+        }
+
+        if (file_exists($resolvedPath)) {
+            $content = @file_get_contents($resolvedPath);
+            if ($content === false) {
+                Log::warning('Jitsi private key could not be read', [
+                    'resolvedPath' => $resolvedPath,
+                ]);
+                return null;
+            }
+            return $content;
+        }
+
+        Log::warning('Jitsi private key file not found', [
+            'inputPath' => $keyPath,
+            'resolvedPath' => $resolvedPath,
+        ]);
+        return null;
+    }
+
+    /**
+     * Generate JWT token for 8x8 JaaS authentication.
+     * 8x8 JaaS requires: RS256 algorithm, kid in header, aud="jitsi", iss="chat", sub=AppID.
      */
     public function generateToken(Request $request)
     {
@@ -27,66 +78,85 @@ class JitsiController extends Controller
                 return response()->json(['error' => 'Unauthorized'], 401);
             }
 
-            // Check if user is a doctor for moderator privileges
             $isDoctor = $user->role === 'doctor';
             $isModerator = $validated['isModerator'] && $isDoctor;
 
-            // Jitsi JWT configuration
             $appId = env('JITSI_APP_ID');
-            $apiSecret = env('JITSI_API_SECRET');
-            // Force the domain for now (shared hosting .env issue)
-            $jitsiDomain = 'vpaas-magic-cookie-f5cbb02494b64e5da5607f1e625fdc34.8x8.vc';
-            
-            // Check if JaaS credentials are properly configured
-            if (empty($appId) || empty($apiSecret) || $appId === 'vpaas-magic-cookie-1fc542849a0c4b4b8a5b8c8b8c8b8c8b') {
+            $keyId = env('JITSI_KEY_ID') ?: env('JITSI_API_SECRET');
+            $privateKey = $this->getPrivateKey();
+            $jitsiDomain = env('JITSI_DOMAIN', 'meet.jit.si');
+
+            if (empty($appId) || empty($keyId) || empty($privateKey)) {
                 return response()->json([
                     'token' => null,
-                    'message' => 'JaaS credentials not configured. Please set JITSI_APP_ID and JITSI_API_SECRET in .env',
+                    'message' => 'JaaS requires JITSI_APP_ID, JITSI_KEY_ID (or JITSI_API_SECRET), and JITSI_PRIVATE_KEY_PATH pointing to a valid PEM RSA private key. See docs/jaas-setup-guide.md',
                     'domain' => $jitsiDomain,
                     'isModerator' => $isModerator
                 ]);
             }
 
             $now = time();
-            $exp = $now + 3600; // Token valid for 1 hour
+            $exp = $now + 7200; // 2 hours (8x8 recommendation)
+            $nbf = $now - 10;  // 10 seconds clock skew allowance
 
+            // 8x8 JaaS JWT payload - aud and iss are fixed, sub is AppID
             $payload = [
-                'iss' => $appId,          // Issuer
-                'aud' => $appId,          // Audience
-                'exp' => $exp,           // Expiration time
-                'iat' => $now,           // Issued at
-                'sub' => (string) $user->id, // Subject (user ID)
+                'aud' => 'jitsi',
+                'iss' => 'chat',
+                'sub' => $appId,
+                'exp' => $exp,
+                'nbf' => $nbf,
+                'room' => $validated['roomName'],
                 'context' => [
                     'user' => [
                         'id' => (string) $user->id,
                         'name' => $user->name,
-                        'email' => $user->email,
+                        'email' => $user->email ?? '',
                         'avatar' => $user->avatar ?? null,
-                        'moderator' => $isModerator
+                        // 8x8 JaaS expects "moderator" as a string ("true"/"false"), not a JSON boolean.
+                        'moderator' => $isModerator ? 'true' : 'false',
                     ],
                     'features' => [
                         'livestreaming' => false,
                         'recording' => false,
                         'transcription' => false,
-                        'outbound-call' => true
-                    ]
+                        'outbound-call' => true,
+                    ],
                 ],
-                'room' => $validated['roomName']
             ];
 
-            $token = JWT::encode($payload, $apiSecret, 'HS256');
+            $token = JWT::encode($payload, $privateKey, 'RS256', $keyId);
+
+            $debug = [];
+            if (env('APP_DEBUG') === true || env('APP_DEBUG') === 'true') {
+                $debug = [
+                    'jitsiDomain' => $jitsiDomain,
+                    'appId' => $appId,
+                    'kid' => $keyId,
+                    'room' => $validated['roomName'],
+                    'aud' => $payload['aud'],
+                    'iss' => $payload['iss'],
+                    'sub' => $payload['sub'],
+                    'isModerator' => $isModerator,
+                    'contextUserModerator' => $payload['context']['user']['moderator'] ?? null,
+                    'contextUserModeratorType' => isset($payload['context']['user']['moderator']) ? gettype($payload['context']['user']['moderator']) : null,
+                    'exp' => $exp,
+                    'nbf' => $nbf,
+                ];
+            }
 
             return response()->json([
                 'token' => $token,
                 'isModerator' => $isModerator,
                 'expiresAt' => date('Y-m-d H:i:s', $exp),
                 'domain' => $jitsiDomain,
-                'appId' => $appId
+                'appId' => $appId,
+                'debug' => $debug,
             ]);
 
         } catch (\Exception $e) {
             Log::error('Jitsi token generation failed: ' . $e->getMessage());
-            
+
             return response()->json([
                 'error' => 'Failed to generate token',
                 'message' => $e->getMessage()
@@ -101,16 +171,16 @@ class JitsiController extends Controller
     {
         $user = auth()->user();
         $isDoctor = $user && $user->role === 'doctor';
-        // Force the domain for now (shared hosting .env issue)
-        $jitsiDomain = 'vpaas-magic-cookie-f5cbb02494b64e5da5607f1e625fdc34.8x8.vc';
+        $jitsiDomain = env('JITSI_DOMAIN', 'meet.jit.si');
         $appId = env('JITSI_APP_ID');
-        $apiSecret = env('JITSI_API_SECRET');
+        $keyId = env('JITSI_KEY_ID') ?: env('JITSI_API_SECRET');
+        $privateKey = $this->getPrivateKey();
 
         return response()->json([
             'domain' => $jitsiDomain,
             'appId' => $appId,
             'features' => [
-                'jwtEnabled' => !empty($appId) && !empty($apiSecret) && $appId !== 'vpaas-magic-cookie-1fc542849a0c4b4b8a5b8c8b8c8b8c8b',
+                'jwtEnabled' => !empty($appId) && !empty($keyId) && !empty($privateKey),
                 'moderatorAuth' => $isDoctor,
                 'recording' => false,
                 'livestreaming' => false,

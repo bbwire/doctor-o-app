@@ -199,9 +199,9 @@
                 <p class="text-xs text-gray-500 dark:text-gray-400">Doctor revisits history</p>
                 <p class="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-line">{{ patientIpv.revisit_history }}</p>
               </div>
-              <div v-if="patientIpv.general_examination" class="mt-1">
+              <div v-if="hasGeneralExaminationContent(patientIpv.general_examination)" class="mt-1">
                 <p class="text-xs text-gray-500 dark:text-gray-400">General examination</p>
-                <p class="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-line">{{ patientIpv.general_examination }}</p>
+                <p class="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-line">{{ formatGeneralExamination(patientIpv.general_examination) }}</p>
               </div>
               <div v-if="patientIpv.system_examination" class="mt-1">
                 <p class="text-xs text-gray-500 dark:text-gray-400">System examination</p>
@@ -259,7 +259,7 @@ definePageMeta({
 
 interface InPersonVisitSummary {
   revisit_history?: string | null
-  general_examination?: string | null
+  general_examination?: Record<string, unknown> | string | null
   system_examination?: string | null
 }
 
@@ -341,8 +341,41 @@ const patientIpv = computed(() =>
     : {}
 )
 
+function hasGeneralExaminationContent (ge: unknown): boolean {
+  if (!ge) return false
+  if (typeof ge === 'string') return ge.trim().length > 0
+  if (typeof ge !== 'object' || Array.isArray(ge)) return false
+  return Object.values(ge as Record<string, unknown>).some((v) => typeof v === 'string' && v.trim().length > 0)
+}
+
+function formatGeneralExamination (ge: unknown): string {
+  if (!ge) return ''
+  if (typeof ge === 'string') return ge
+  if (typeof ge !== 'object' || Array.isArray(ge)) return ''
+
+  const g = ge as Record<string, unknown>
+  const lines: string[] = []
+  const maybePush = (key: string, label: string) => {
+    const v = g[key]
+    if (typeof v === 'string' && v.trim().length > 0) {
+      lines.push(`${label}: ${v}`)
+    }
+  }
+
+  maybePush('appearance', 'General appearance')
+  maybePush('jaundice', 'Jaundice')
+  maybePush('anemia', 'Anemia')
+  maybePush('cyanosis', 'Cyanosis')
+  maybePush('clubbing', 'Clubbing')
+  maybePush('oedema', 'Oedema')
+  maybePush('lymphadenopathy', 'Lymphadenopathy')
+  maybePush('dehydration', 'Dehydration')
+
+  return lines.join('\n')
+}
+
 const hasStructuredPatientIpv = computed(() =>
-  !!(patientIpv.value.revisit_history || patientIpv.value.general_examination || patientIpv.value.system_examination)
+  !!(patientIpv.value.revisit_history || hasGeneralExaminationContent(patientIpv.value.general_examination) || patientIpv.value.system_examination)
 )
 
 const hasStructuredPatientMp = computed(() => {

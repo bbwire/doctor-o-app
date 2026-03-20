@@ -2,46 +2,76 @@
 
 ## Overview
 
-This guide walks you through setting up JaaS for the Doctor O application to resolve the "no moderators have yet arrived" issue with proper JWT authentication.
+This guide walks you through setting up 8x8 JaaS for the Doctor O application. **8x8 JaaS uses RS256 (RSA) JWT signing**, not simple API secrets. You must generate an RSA key pair, upload the public key to 8x8, and use the private key to sign tokens.
 
 ## Prerequisites
 
 - JaaS account from [8x8 JaaS](https://jaas.8x8.vc/)
-- Your JaaS API credentials (App ID and API Secret)
 - Firebase JWT package installed (`composer install`)
 
-## Step 1: Get JaaS Credentials
+## Step 1: Generate RSA Key Pair
 
-1. Sign up at [8x8 JaaS](https://jaas.8x8.vc/)
-2. Create a new app or use existing one
-3. Note your:
-   - **App ID** (e.g., `vpaas-magic-cookie-abcdef123456`)
-   - **API Secret** (long string)
-   - **JaaS Domain** (e.g., `your-org.jaas.8x8.vc`)
-
-## Step 2: Configure Backend
-
-Update your `.env` file in the `api` directory:
+8x8 JaaS requires a 4096-bit RSA key pair. Generate it:
 
 ```bash
-# Jitsi JaaS Configuration
-JITSI_DOMAIN=your-org.jaas.8x8.vc
-JITSI_APP_ID=vpaas-magic-cookie-abcdef123456
-JITSI_API_SECRET=your-very-long-api-secret-key-here
+# Generate private key (keep this secure - never commit it!)
+ssh-keygen -t rsa -b 4096 -m PEM -f jaasauth.key -N ""
+
+# Extract public key in PEM format for upload to 8x8
+openssl rsa -in jaasauth.key -pubout -outform PEM -out jaasauth.key.pub
 ```
 
-**Important**: Replace the values with your actual JaaS credentials.
+## Step 2: Upload Public Key to 8x8 JaaS
 
-## Step 3: Configure Frontend
+1. Go to [8x8 JaaS Console](https://jaas.8x8.vc/) → Your App → API Keys
+2. Click "Add API Key" or "Upload Key"
+3. Paste the contents of `jaasauth.key.pub` (the public key)
+4. 8x8 will generate a **Key ID (kid)** in format `vpaas-magic-cookie-<appid>/<suffix>`
+5. **Download/save the Key ID** – you need it for the `kid` JWT header
 
-Update your `.env` file in the `pwa` directory:
+## Step 3: Configure Backend
+
+Store the **private key** securely. Two options:
+
+**Option A: File path** (recommended for production)
+```bash
+# Move private key to a secure location (e.g. api/storage/app/private/)
+mv jaasauth.key api/storage/app/private/jaas-private.key
+chmod 600 api/storage/app/private/jaas-private.key
+```
+
+**Option B: Inline in .env** (for development)
+```bash
+# Use \n for newlines in the key
+JITSI_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\nMIIE...\n-----END RSA PRIVATE KEY-----"
+```
+
+Update your `api/.env`:
 
 ```bash
-# Jitsi domain
-NUXT_PUBLIC_JITSI_DOMAIN=your-org.jaas.8x8.vc
+# Jitsi 8x8 JaaS Configuration
+JITSI_DOMAIN=vpaas-magic-cookie-<your-appid>.8x8.vc
+JITSI_APP_ID=vpaas-magic-cookie-<your-appid>
+JITSI_KEY_ID=vpaas-magic-cookie-<your-appid>/<key-suffix>
+
+# Private key - choose one:
+JITSI_PRIVATE_KEY_PATH=storage/app/private/jaas-private.key
+# OR for inline (escape newlines as \n):
+# JITSI_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
 ```
 
-## Step 4: Install Dependencies
+**Important**: Your domain is `vpaas-magic-cookie-<appid>.8x8.vc` – the same App ID appears in domain, JITSI_APP_ID, and JITSI_KEY_ID.
+
+## Step 4: Configure Frontend (Optional)
+
+If the API returns your JaaS domain, the frontend will use it automatically. Otherwise:
+
+```bash
+# In pwa/.env
+NUXT_PUBLIC_JITSI_DOMAIN=vpaas-magic-cookie-<your-appid>.8x8.vc
+```
+
+## Step 5: Install Dependencies
 
 ```bash
 # In the api directory
@@ -51,7 +81,7 @@ composer install
 npm install
 ```
 
-## Step 5: Test Configuration
+## Step 6: Test Configuration
 
 ### Backend Test
 ```bash
@@ -100,7 +130,7 @@ Expected response:
 }
 ```
 
-## Step 6: Restart Services
+## Step 7: Restart Services
 
 ```bash
 # Restart Laravel backend
@@ -113,7 +143,7 @@ cd ../pwa
 npm run dev
 ```
 
-## Step 7: Test Full Integration
+## Step 8: Test Full Integration
 
 1. Login as a doctor
 2. Navigate to a consultation room
@@ -127,12 +157,14 @@ npm run dev
 **Problem**: `jwtEnabled: false` in config response
 **Solution**: Check your `.env` file for correct JaaS credentials
 
-### Token Generation Fails
-**Problem**: 500 error when generating token
+### Token Generation Fails / Authentication Failed
+**Problem**: 500 error or "authentication failed" when joining meeting
 **Solution**: 
+- 8x8 JaaS uses **RS256**, not HS256. You must use an RSA private key.
+- Verify you uploaded the **public** key to 8x8 and are using the **private** key to sign
+- Check `JITSI_KEY_ID` matches the Key ID from 8x8 (format: `vpaas-magic-cookie-xxx/yyy`)
+- Ensure `JITSI_PRIVATE_KEY` or `JITSI_PRIVATE_KEY_PATH` points to a valid PEM private key
 - Check Laravel logs: `php artisan log:tail`
-- Verify App ID and API Secret are correct
-- Ensure `firebase/php-jwt` is installed
 
 ### Moderator Prompt Still Shows
 **Problem**: Still seeing "no moderators have yet arrived"
@@ -148,17 +180,21 @@ npm run dev
 - Check if your JaaS subscription is active
 - Ensure no firewall blocks the connection
 
-## JWT Token Structure
+## JWT Token Structure (8x8 JaaS)
 
-The generated JWT tokens include:
+8x8 JaaS requires specific claim values. The generated JWT uses:
+
+- **Header**: `alg: RS256`, `kid: <your Key ID>`
+- **Payload**: `aud: "jitsi"`, `iss: "chat"`, `sub: <App ID>`, `room`, `context`, `exp`, `nbf`
 
 ```json
 {
-  "iss": "vpaas-magic-cookie-abcdef123456",
-  "aud": "vpaas-magic-cookie-abcdef123456",
+  "aud": "jitsi",
+  "iss": "chat",
+  "sub": "vpaas-magic-cookie-abcdef123456",
   "exp": 1736409600,
-  "iat": 1736406000,
-  "sub": "user-id",
+  "nbf": 1736402390,
+  "room": "doctoro-consult-123",
   "context": {
     "user": {
       "id": "user-id",
@@ -172,15 +208,14 @@ The generated JWT tokens include:
       "transcription": false,
       "outbound-call": true
     }
-  },
-  "room": "doctoro-consult-123"
+  }
 }
 ```
 
 ## Security Considerations
 
-- **Keep API Secret secure**: Never commit to version control
-- **Token expiration**: Tokens expire in 1 hour
+- **Keep the private key secure**: Never commit it to version control. Add `*.key` and `jaas-private.key` to `.gitignore`
+- **Token expiration**: Tokens expire in 2 hours (8x8 recommendation)
 - **Room-specific**: Tokens are tied to specific consultation rooms
 - **Role-based**: Only doctors get moderator privileges
 
