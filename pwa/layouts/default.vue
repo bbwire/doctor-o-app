@@ -198,6 +198,7 @@
         <span class="hidden sm:inline">·</span>
         <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
           <NuxtLink to="/about" class="hover:text-primary-600 dark:hover:text-primary-400 transition-colors">About Us</NuxtLink>
+          <NuxtLink to="/terms" class="hover:text-primary-600 dark:hover:text-primary-400 transition-colors">Terms</NuxtLink>
           <NuxtLink to="/privacy" class="hover:text-primary-600 dark:hover:text-primary-400 transition-colors">Privacy Policy</NuxtLink>
           <NuxtLink to="/contact" class="hover:text-primary-600 dark:hover:text-primary-400 transition-colors">Contact Us</NuxtLink>
         </div>
