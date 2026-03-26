@@ -2,9 +2,9 @@
 
 namespace App\Http\Resources;
 
+use App\Support\PublicStorageUrl;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Storage;
 
 /** @mixin \App\Models\Institution */
 class InstitutionResource extends JsonResource
@@ -21,13 +21,14 @@ class InstitutionResource extends JsonResource
             'name' => $this->name,
             'type' => $this->type,
             'services' => $this->services,
+            'institution_number' => $this->institution_number,
             'address' => $this->address,
             'location' => $this->location,
             'phone' => $this->phone,
             'email' => $this->email,
             'is_active' => $this->is_active,
             'practicing_certificate_url' => $this->practicing_certificate_path
-                ? Storage::disk('public')->url($this->practicing_certificate_path)
+                ? PublicStorageUrl::url($request, $this->practicing_certificate_path)
                 : null,
         ];
     }

@@ -5,6 +5,21 @@
       <p class="text-gray-600 dark:text-gray-300">Welcome back, {{ user?.name || 'there' }}</p>
     </div>
 
+    <div
+      v-if="displayPatientNumber"
+      class="rounded-xl border-2 border-primary-200 bg-primary-50/90 p-4 dark:border-primary-700 dark:bg-primary-950/40"
+    >
+      <p class="text-xs font-semibold uppercase tracking-wide text-primary-800 dark:text-primary-200">
+        Your patient number
+      </p>
+      <p class="mt-1 text-2xl font-bold font-mono tracking-tight text-primary-900 dark:text-primary-50">
+        {{ displayPatientNumber }}
+      </p>
+      <p class="mt-2 text-sm text-primary-800/80 dark:text-primary-200/90">
+        Use this number when speaking with clinic staff or support so they can find your record quickly.
+      </p>
+    </div>
+
     <section>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <UCard :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }">
@@ -126,11 +141,14 @@ const errorMessage = ref('')
 const retryWhenOnline = ref(false)
 const reconnectRetryInProgress = ref(false)
 const summary = reactive({
+  patient_number: null,
   upcoming_consultations: 0,
   prescriptions: 0,
   completed_consultations: 0,
   next_consultation: null
 })
+
+const displayPatientNumber = computed(() => summary.patient_number || user.value?.patient_number || null)
 
 const fetchDashboardSummary = async () => {
   loading.value = true
@@ -146,6 +164,7 @@ const fetchDashboardSummary = async () => {
     })
 
     const data = response?.data || {}
+    summary.patient_number = data.patient_number ?? null
     summary.upcoming_consultations = Number(data.upcoming_consultations || 0)
     summary.prescriptions = Number(data.prescriptions || 0)
     summary.completed_consultations = Number(data.completed_consultations || 0)

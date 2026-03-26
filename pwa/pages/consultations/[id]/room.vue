@@ -10,11 +10,16 @@
       >
         Exit
       </UButton>
-      <div v-if="consultation" class="flex items-center gap-3">
-        <span class="text-sm font-medium text-gray-300">
+      <div v-if="consultation" class="flex min-w-0 flex-1 flex-wrap items-center justify-center gap-2 px-2 sm:gap-3">
+        <HumanIdBadge
+          v-if="consultation.consultation_number"
+          :value="consultation.consultation_number"
+        />
+        <span class="hidden h-4 w-px shrink-0 bg-gray-700 sm:block" aria-hidden="true" />
+        <span class="max-w-[40vw] truncate text-sm font-medium text-gray-300 sm:max-w-none">
           Dr. {{ consultation.doctor?.name || `Doctor #${consultation.doctor_id}` }}
         </span>
-        <UBadge color="primary" variant="soft" size="xs" class="capitalize">
+        <UBadge color="primary" variant="soft" size="xs" class="capitalize shrink-0">
           {{ consultation.consultation_type }}
         </UBadge>
       </div>
@@ -154,7 +159,7 @@
               >
                 <img
                   v-if="msg.attachment_url"
-                  :src="msg.attachment_url"
+                  :src="chatAttachmentSrc(msg.attachment_url)"
                   alt="Shared image"
                   class="rounded-lg max-w-full max-h-48 object-contain mb-1.5"
                 />
@@ -254,7 +259,7 @@
             >
               <img
                 v-if="msg.attachment_url"
-                :src="msg.attachment_url"
+                :src="chatAttachmentSrc(msg.attachment_url)"
                 alt="Shared image"
                 class="rounded-lg max-w-full max-h-64 object-contain mb-2"
               />
@@ -384,6 +389,12 @@ const config = useRuntimeConfig()
 const toast = useToast()
 const tokenCookie = useCookie('auth_token')
 const { user } = useAuth()
+const { resolvePublicFileUrl } = useResolvePublicFileUrl()
+
+function chatAttachmentSrc (url: string | null | undefined) {
+  if (!url) return undefined
+  return resolvePublicFileUrl(url) || undefined
+}
 
 const id = route.params.id as string
 

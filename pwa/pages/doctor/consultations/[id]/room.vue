@@ -1,7 +1,7 @@
 <template>
   <div class="h-dvh h-screen flex flex-col overflow-hidden bg-gray-950 text-gray-100">
     <!-- Minimal room header - fixed at top -->
-    <header class="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-2 bg-gray-900/95 border-b border-gray-800 safe-area-top">
+    <header class="sticky top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-2 bg-gray-900/95 border-b border-gray-800 safe-area-top">
       <UButton
         variant="ghost"
         size="sm"
@@ -11,19 +11,35 @@
       >
         Exit
       </UButton>
-      <div v-if="consultation" class="flex items-center gap-3">
-        <span class="text-sm font-medium text-gray-300">
+      <div v-if="consultation" class="flex min-w-0 flex-1 flex-col items-center gap-1 px-2 sm:flex-row sm:justify-center sm:gap-3">
+        <div class="flex items-center gap-2 shrink-0">
+          <span class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Patient no.</span>
+          <PatientNumberBadge
+            v-if="consultation.patient?.patient_number"
+            size="lg"
+            :patient-number="consultation.patient.patient_number"
+          />
+          <span v-else class="rounded-md border border-gray-700 bg-gray-800/80 px-2 py-0.5 font-mono text-sm font-bold text-gray-400">
+            —
+          </span>
+        </div>
+        <span class="hidden h-4 w-px shrink-0 bg-gray-700 sm:block" aria-hidden="true" />
+        <div v-if="consultation.consultation_number" class="flex items-center gap-1.5 shrink-0">
+          <span class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">CN</span>
+          <HumanIdBadge :value="consultation.consultation_number" />
+        </div>
+        <span class="hidden h-4 w-px shrink-0 bg-gray-700 sm:block" aria-hidden="true" />
+        <span class="max-w-[min(50vw,14rem)] truncate text-center text-sm font-medium text-gray-200 sm:max-w-none sm:text-left">
           {{ consultation.patient?.name || `Patient #${consultation.patient_id}` }}
         </span>
-        <UBadge color="primary" variant="soft" size="xs" class="capitalize">
+        <UBadge color="primary" variant="soft" size="xs" class="capitalize shrink-0">
           {{ consultation.consultation_type }}
         </UBadge>
       </div>
       <div class="w-20" />
     </header>
 
-    <!-- Spacer for fixed header -->
-    <div class="h-12 shrink-0" aria-hidden="true" />
+    <!-- Header is sticky, so no extra spacer is needed -->
 
     <!-- Loading -->
     <div v-if="loading" class="flex-1 flex items-center justify-center min-h-0">
@@ -60,11 +76,15 @@
               class="w-10 h-10 sm:w-12 sm:h-12 text-gray-400"
             />
           </div>
-          <div class="text-center mb-8">
+          <div class="text-center mb-8 space-y-2">
             <p class="text-lg sm:text-xl font-semibold text-gray-100">
               {{ consultation?.consultation_type === 'video' ? 'Video' : 'Audio' }} consultation
             </p>
-            <p class="text-sm text-gray-500 mt-1">Room {{ id }}</p>
+            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Patient no.</p>
+            <p class="text-base sm:text-lg font-mono font-bold text-primary-400">
+              {{ consultation?.patient?.patient_number || '—' }}
+            </p>
+            <p class="text-sm text-gray-500">Room {{ id }}</p>
           </div>
           <UAlert
             v-if="jitsiErrorText"
@@ -87,7 +107,11 @@
       </div>
 
       <!-- In-call: Jitsi container + controls -->
-      <div v-else class="flex-1 flex flex-col min-h-0 relative">
+      <div
+        v-else
+        class="flex-1 flex flex-col min-h-0 relative transition-[padding] duration-200"
+        :class="showClinicalNotes ? 'md:pr-[28rem]' : ''"
+      >
         <div class="flex-1 min-h-0 relative">
           <div
             v-if="jitsi.isJoining.value"
@@ -136,16 +160,18 @@
         <!-- Clinical notes slide-out panel -->
         <div
           v-if="showClinicalNotes"
-          class="absolute inset-y-0 right-0 z-20 w-full max-w-md bg-gray-900 border-l border-gray-800 shadow-xl flex flex-col"
+          class="absolute inset-y-0 right-0 z-20 w-full max-w-md bg-gray-900 border-l border-gray-800 shadow-xl flex flex-col min-h-0"
         >
           <div class="shrink-0 flex items-center justify-between px-4 py-2 border-b border-gray-800">
             <span class="text-sm font-medium text-gray-200">Clinical notes</span>
             <UButton variant="ghost" size="xs" icon="i-lucide-x" @click="showClinicalNotes = false" />
           </div>
           <ClinicalNotesForm
+            class="flex-1 min-h-0 min-w-0"
             v-model="clinicalNotesData"
             :patient-date-of-birth="consultation?.patient?.date_of_birth"
             :consultation-id="id"
+            :patient-investigation-uploads="patientInvestigationUploads"
             :on-save="saveClinicalNotes"
             @done="showClinicalNotes = false"
           />
@@ -174,7 +200,7 @@
               >
                 <img
                   v-if="msg.attachment_url"
-                  :src="msg.attachment_url"
+                  :src="chatAttachmentSrc(msg.attachment_url)"
                   alt="Shared image"
                   class="rounded-lg max-w-full max-h-48 object-contain mb-1.5"
                 />
@@ -252,7 +278,8 @@
     <!-- Text room - full-height chat -->
     <div
       v-else-if="consultation?.consultation_type === 'text'"
-      class="flex-1 flex flex-col min-h-0 overflow-hidden relative"
+      class="flex-1 flex flex-col min-h-0 overflow-hidden relative transition-[padding] duration-200"
+      :class="showClinicalNotes ? 'md:pr-[28rem]' : ''"
     >
       <div class="absolute top-14 right-4 z-10 flex gap-2">
         <UButton
@@ -267,16 +294,18 @@
       </div>
       <div
         v-if="showClinicalNotes"
-        class="absolute inset-y-0 right-0 z-20 w-full max-w-md bg-gray-900 border-l border-gray-800 shadow-xl flex flex-col"
+        class="absolute top-0 bottom-24 right-0 z-60 w-full max-w-md bg-gray-900 border-l border-gray-800 shadow-xl flex flex-col min-h-0 md:bottom-0"
       >
         <div class="shrink-0 flex items-center justify-between px-4 py-2 border-b border-gray-800">
           <span class="text-sm font-medium text-gray-200">Clinical notes</span>
           <UButton variant="ghost" size="xs" icon="i-lucide-x" @click="showClinicalNotes = false" />
         </div>
         <ClinicalNotesForm
+          class="flex-1 min-h-0 min-w-0"
           v-model="clinicalNotesData"
           :patient-date-of-birth="consultation?.patient?.date_of_birth"
           :consultation-id="id"
+          :patient-investigation-uploads="patientInvestigationUploads"
           :on-save="saveClinicalNotes"
           @done="showClinicalNotes = false"
         />
@@ -300,7 +329,7 @@
             >
               <img
                 v-if="msg.attachment_url"
-                :src="msg.attachment_url"
+                :src="chatAttachmentSrc(msg.attachment_url)"
                 alt="Shared image"
                 class="rounded-lg max-w-full max-h-64 object-contain mb-2"
               />
@@ -322,6 +351,7 @@
           ref="chatFormRef"
           class="fixed left-0 right-0 z-50 flex flex-col border-t border-gray-800 bg-gray-900/95 safe-area-bottom transition-[bottom] duration-150"
           :style="chatFormStyle"
+          :class="showClinicalNotes ? 'md:right-[28rem] md:w-[calc(100%-28rem)]' : ''"
           @submit.prevent="sendMessage"
         >
           <div v-if="imagePreview" class="shrink-0 px-4 pt-2">
@@ -426,6 +456,13 @@ const route = useRoute()
 const router = useRouter()
 const config = useRuntimeConfig()
 const { token, user } = useAuth()
+const { resolvePublicFileUrl } = useResolvePublicFileUrl()
+
+function chatAttachmentSrc (url: string | null | undefined) {
+  if (!url) return undefined
+  return resolvePublicFileUrl(url) || undefined
+}
+
 const toast = useToast()
 const tokenCookie = useCookie('auth_token')
 
@@ -461,6 +498,16 @@ let pollInterval: ReturnType<typeof setInterval> | null = null
 const showCallChat = ref(false)
 const showClinicalNotes = ref(false)
 const clinicalNotesData = ref<Record<string, unknown>>({})
+
+const patientInvestigationUploads = computed(() => {
+  const meta = consultation.value?.metadata
+  if (!meta || typeof meta !== 'object') return []
+  const raw = (meta as Record<string, unknown>).patient_investigation_uploads
+  if (!Array.isArray(raw)) return []
+  return raw.filter((u): u is { id: string; category: 'radiology' | 'laboratory'; file_url: string; original_filename?: string | null; label?: string | null; uploaded_at?: string | null } =>
+    u != null && typeof u === 'object' && typeof (u as any).id === 'string' && typeof (u as any).file_url === 'string'
+  )
+})
 
 const jitsi = useJitsiMeeting()
 const jitsiContainerRef = ref<HTMLElement | null>(null)

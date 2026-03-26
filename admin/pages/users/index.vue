@@ -29,7 +29,7 @@
       <div class="mb-4 flex items-center justify-between gap-4">
         <UInput
           v-model="search"
-          placeholder="Search users..."
+          placeholder="Search by name, email, or patient no...."
           icon="i-lucide-search"
           class="max-w-xs"
         />
@@ -55,6 +55,10 @@
         :columns="columns"
         :loading="loading"
       >
+        <template #patient_number-data="{ row }">
+          <AdminPatientNumber v-if="row.role === 'patient'" :patient-number="row.patient_number" />
+          <span v-else class="text-gray-400">—</span>
+        </template>
         <template #role-data="{ row }">
           <UBadge :color="getRoleColor(row.role)">
             {{ row.role }}
@@ -116,6 +120,7 @@ const roleOptions = [
 
 const columns = [
   { key: 'id', label: 'ID' },
+  { key: 'patient_number', label: 'Patient no.' },
   { key: 'name', label: 'Name' },
   { key: 'email', label: 'Email' },
   { key: 'role', label: 'Role' },
@@ -212,7 +217,7 @@ async function exportCsv () {
       hasMore = all.length < totalCount
       pageNum += 1
     }
-    const headers = ['id', 'name', 'email', 'role', 'phone', 'date_of_birth']
+    const headers = ['id', 'patient_number', 'name', 'email', 'role', 'phone', 'date_of_birth']
     const rows = [headers.join(',')]
     for (const u of all) {
       rows.push(headers.map(h => escapeCsv(u[h])).join(','))

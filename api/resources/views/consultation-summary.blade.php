@@ -49,14 +49,38 @@
         @php
             $mp = $summary['management_plan'] ?? null;
             $isStructured = is_array($mp);
-            $ipv = $mp['in_person_visit'] ?? null;
+            $ipv = $isStructured ? ($mp['in_person_visit'] ?? null) : null;
             $hasIpv = is_array($ipv) && (!empty($ipv['revisit_history'] ?? null) || !empty($ipv['general_examination'] ?? null) || !empty($ipv['system_examination'] ?? null));
-            $hasMpContent = $isStructured && (!empty($mp['treatment'] ?? null) || !empty($mp['investigation_radiology'] ?? null) || !empty($mp['investigation_laboratory'] ?? null) || !empty($mp['investigation_interventional'] ?? null) || !empty($mp['referrals'] ?? null) || $hasIpv);
+            $rx = $isStructured ? ($mp['prescription'] ?? null) : null;
+            $hasRx = is_array($rx) && !empty($rx['medications'] ?? null);
+            $hasMpContent = $isStructured && (!empty($mp['treatment'] ?? null) || !empty($mp['investigation_radiology'] ?? null) || !empty($mp['investigation_laboratory'] ?? null) || !empty($mp['investigation_interventional'] ?? null) || !empty($mp['referrals'] ?? null) || $hasIpv || $hasRx);
         @endphp
         @if ($hasMpContent)
             @if(!empty($mp['treatment'] ?? null))
                 <p style="font-weight: bold; margin-top: 8px;">Treatment</p>
                 <div class="section-content">{{ $mp['treatment'] }}</div>
+            @endif
+            @if($hasRx)
+                <p style="font-weight: bold; margin-top: 8px;">Prescription</p>
+                <ul style="margin: 4px 0 0 16px;">
+                    @foreach(($rx['medications'] ?? []) as $med)
+                        @if(is_array($med) && !empty(trim($med['name'] ?? '')))
+                            <li>
+                                {{ $med['name'] }}
+                                @if(!empty($med['form'] ?? null)) ({{ $med['form'] }}) @endif
+                                @if(!empty($med['dosage'] ?? null)) — {{ $med['dosage'] }} @endif
+                                @if(!empty($med['frequency'] ?? null)), {{ $med['frequency'] }} @endif
+                                @if(!empty($med['duration'] ?? null)) ({{ $med['duration'] }}) @endif
+                                @if(!empty($med['instructions'] ?? null))
+                                    <br><span style="font-size: 9px; color: #555;">{{ $med['instructions'] }}</span>
+                                @endif
+                            </li>
+                        @endif
+                    @endforeach
+                </ul>
+                @if(!empty($rx['instructions'] ?? null))
+                    <div class="section-content" style="margin-top: 4px;">{{ $rx['instructions'] }}</div>
+                @endif
             @endif
             @if(!empty($mp['investigation_radiology'] ?? null) || !empty($mp['investigation_laboratory'] ?? null) || !empty($mp['investigation_interventional'] ?? null))
                 <p style="font-weight: bold; margin-top: 8px;">Investigation</p>

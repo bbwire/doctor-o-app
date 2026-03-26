@@ -1,6 +1,6 @@
 <template>
   <div class="space-y-6">
-    <AdminBreadcrumbs :items="[{ label: 'Prescriptions', to: '/prescriptions' }, { label: prescription ? `#${prescription.id}` : 'Prescription' }]" />
+    <AdminBreadcrumbs :items="[{ label: 'Prescriptions', to: '/prescriptions' }, { label: prescription ? (prescription.prescription_number || `#${prescription.id}`) : 'Prescription' }]" />
     <div class="flex items-center gap-3">
       <UButton to="/prescriptions" variant="ghost" icon="i-lucide-arrow-left" size="sm">
         Back
@@ -38,9 +38,25 @@
           </div>
         </div>
         <dl class="mt-6 grid gap-3 sm:grid-cols-2">
-          <div>
+          <div v-if="prescription.prescription_number" class="sm:col-span-2">
+            <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Prescription no.</dt>
+            <dd class="mt-1">
+              <AdminHumanId variant="lg" :value="prescription.prescription_number" :show-dash="false" />
+            </dd>
+          </div>
+          <div class="sm:col-span-2">
             <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Patient</dt>
-            <dd class="mt-0.5 text-gray-900 dark:text-white">{{ prescription.patient?.name || '—' }} ({{ prescription.patient?.email || '—' }})</dd>
+            <dd class="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+              <AdminPatientNumber :patient-number="prescription.patient?.patient_number" />
+              <div class="min-w-0">
+                <p class="font-semibold text-gray-900 dark:text-white">
+                  {{ prescription.patient?.name || '—' }}
+                </p>
+                <p class="text-sm text-gray-600 dark:text-gray-400">
+                  {{ prescription.patient?.email || '—' }}
+                </p>
+              </div>
+            </dd>
           </div>
           <div>
             <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Doctor</dt>
@@ -50,7 +66,8 @@
             <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Consultation</dt>
             <dd class="mt-0.5 text-gray-900 dark:text-white">
               <NuxtLink v-if="prescription.consultation" :to="`/consultations/${prescription.consultation.id}`" class="text-primary-600 hover:underline dark:text-primary-400">
-                #{{ prescription.consultation.id }}
+                <template v-if="prescription.consultation.consultation_number">{{ prescription.consultation.consultation_number }}</template>
+                <template v-else>#{{ prescription.consultation.id }}</template>
               </NuxtLink>
               <span v-else>—</span>
             </dd>

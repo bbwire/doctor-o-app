@@ -50,7 +50,7 @@ class FinanceController extends Controller
         $data = $paginator->getCollection()->map(fn ($t) => [
             'id' => $t->id,
             'user_id' => $t->user_id,
-            'user' => $t->user ? ['id' => $t->user->id, 'name' => $t->user->name, 'email' => $t->user->email] : null,
+            'user' => $t->user ? ['id' => $t->user->id, 'name' => $t->user->name, 'email' => $t->user->email, 'patient_number' => $t->user->patient_number] : null,
             'amount' => (float) $t->amount,
             'created_at' => $t->created_at->toISOString(),
         ])->all();
@@ -78,10 +78,12 @@ class FinanceController extends Controller
         $paginator = $this->financeService->settlementsList($perPage, $from, $to);
         $data = $paginator->getCollection()->map(fn ($s) => [
             'id' => $s->id,
+            'invoice_number' => $s->invoice_number,
             'consultation_id' => $s->consultation_id,
+            'consultation_number' => $s->consultation?->consultation_number,
             'consultation_type' => $s->consultation?->consultation_type,
             'scheduled_at' => $s->consultation?->scheduled_at?->toISOString(),
-            'patient' => $s->patient ? ['id' => $s->patient->id, 'name' => $s->patient->name, 'email' => $s->patient->email] : null,
+            'patient' => $s->patient ? ['id' => $s->patient->id, 'name' => $s->patient->name, 'email' => $s->patient->email, 'patient_number' => $s->patient->patient_number] : null,
             'doctor' => $s->doctor ? ['id' => $s->doctor->id, 'name' => $s->doctor->name, 'email' => $s->doctor->email] : null,
             'amount_paid' => (float) $s->amount_paid,
             'platform_fee_percentage' => (float) $s->platform_fee_percentage,
@@ -116,10 +118,13 @@ class FinanceController extends Controller
         $data = $result['data']->map(fn ($item) => [
             'id' => $item->id,
             'created_at' => $item->created_at?->toISOString(),
+            'invoice_number' => $item->invoice_number,
             'consultation_id' => $item->consultation_id,
-            'patient' => $item->patient ? ['id' => $item->patient->id, 'name' => $item->patient->name, 'email' => $item->patient->email] : null,
+            'consultation_number' => $item->consultation?->consultation_number,
+            'doctor_id' => $item->doctor_id,
+            'patient' => $item->patient ? ['id' => $item->patient->id, 'name' => $item->patient->name, 'email' => $item->patient->email, 'patient_number' => $item->patient->patient_number] : null,
             'doctor' => $item->doctor ? ['id' => $item->doctor->id, 'name' => $item->doctor->name] : null,
-            'consultation_type' => $item->consultation_type ?? 'Unknown',
+            'consultation_type' => $item->consultation?->consultation_type ?? 'Unknown',
             'amount_paid' => (float) $item->amount_paid,
             'platform_fee' => (float) $item->platform_fee,
             'doctor_earning' => (float) $item->doctor_earning,
@@ -150,7 +155,7 @@ class FinanceController extends Controller
             'id' => $item->id,
             'created_at' => $item->created_at?->toISOString(),
             'consultation_id' => $item->consultation_id ? '#' . $item->consultation_id : '–',
-            'patient' => $item->patient ? ['id' => $item->patient->id, 'name' => $item->patient->name, 'email' => $item->patient->email] : null,
+            'patient' => $item->patient ? ['id' => $item->patient->id, 'name' => $item->patient->name, 'email' => $item->patient->email, 'patient_number' => $item->patient->patient_number] : null,
             'doctor' => $item->doctor ? ['id' => $item->doctor->id, 'name' => $item->doctor->name] : null,
             'source' => $item->source ?? 'Consultation Fee',
             'amount' => (float) $item->amount,

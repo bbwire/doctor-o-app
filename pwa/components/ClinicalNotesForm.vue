@@ -1,5 +1,5 @@
 <template>
-  <div class="clinical-notes-form flex flex-col h-full">
+  <div class="clinical-notes-form flex flex-col h-full min-h-0 flex-1">
     <!-- Progress -->
     <div class="shrink-0 flex items-center gap-1 px-2 py-2 border-b border-gray-700">
       <span class="text-xs text-gray-400">
@@ -13,17 +13,19 @@
       </div>
     </div>
 
-    <!-- Current step content -->
-    <div class="flex-1 min-h-0 flex flex-col overflow-hidden p-4">
-      <h3 class="text-sm font-semibold text-gray-200 mb-2">
-        {{ currentStep?.label }}
-      </h3>
-      <p v-if="currentStep?.hint" class="text-xs text-gray-500 mb-3">
-        {{ currentStep.hint }}
-      </p>
+    <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
+      <div class="shrink-0 px-4 pt-3 pb-2 border-b border-gray-800/70">
+        <h3 class="text-sm font-semibold text-gray-200 mb-0.5">
+          {{ currentStep?.label }}
+        </h3>
+        <p v-if="currentStep?.hint" class="text-xs text-gray-500 leading-snug">
+          {{ currentStep.hint }}
+        </p>
+      </div>
 
+      <div class="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-3">
       <!-- Multi-select for management plan categories -->
-      <div v-if="currentStep?.key === 'management_plan_select'" class="flex-1 min-h-0 flex flex-col overflow-y-auto">
+      <div v-if="currentStep?.key === 'management_plan_select'" class="space-y-3 pb-2">
         <p class="text-xs text-gray-400 mb-3">Select one or more options. You can edit later.</p>
         <div class="space-y-2">
           <label
@@ -138,7 +140,164 @@
           </div>
         </div>
       </div>
-      <div v-else-if="currentStep?.key === 'final_diagnosis'" class="flex-1 min-h-0 flex flex-col overflow-y-auto">
+
+      <div v-else-if="currentStep?.key === 'in_person_visit_system_examination'" class="pb-2">
+        <div class="space-y-4 p-1">
+          <UAlert
+            v-if="legacySystemExaminationString"
+            color="amber"
+            variant="soft"
+            title="Previous system examination (free text)"
+            :description="legacySystemExaminationString"
+            class="text-left"
+          />
+          <p class="text-xs text-gray-400">
+            Use one field per system. Earlier free-text notes appear above until you replace them with these fields.
+          </p>
+          <div class="space-y-3">
+            <div v-for="row in systemExaminationFieldDefs" :key="row.field">
+              <label class="text-xs text-gray-400">{{ row.label }}</label>
+              <p v-if="row.hint" class="text-[11px] text-gray-500 mt-0.5 mb-1">{{ row.hint }}</p>
+              <UTextarea
+                :model-value="getSystemExaminationField(row.field)"
+                :placeholder="row.placeholder"
+                :rows="3"
+                class="mt-1 w-full resize-none"
+                @update:model-value="setSystemExaminationField(row.field, $event)"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-else-if="currentStep?.key === 'treatment'" class="pb-2">
+        <div class="space-y-4 p-1">
+          <UAlert
+            v-if="legacyFreeTextTreatment"
+            color="amber"
+            variant="soft"
+            title="Previous treatment (free text)"
+            :description="legacyFreeTextTreatment"
+          />
+          <p class="text-xs text-gray-400">Match the prescription layout used when issuing a prescription from consultation details.</p>
+          <div class="space-y-4">
+            <div
+              v-for="(med, i) in prescriptionMedicationRows"
+              :key="i"
+              class="rounded-lg border border-gray-700 p-3 space-y-3"
+            >
+              <div class="flex gap-2 items-start flex-wrap">
+                <UInput
+                  :model-value="med.name"
+                  placeholder="Drug name"
+                  class="flex-1 min-w-[8rem]"
+                  @update:model-value="updatePrescriptionMedField(i, 'name', $event)"
+                />
+                <USelectMenu
+                  :model-value="med.form"
+                  :options="medicationFormOptions"
+                  value-attribute="value"
+                  option-attribute="label"
+                  placeholder="Form"
+                  class="w-36"
+                  @update:model-value="updatePrescriptionMedField(i, 'form', $event)"
+                />
+                <UButton
+                  v-if="prescriptionMedicationRows.length > 1"
+                  color="red"
+                  variant="ghost"
+                  icon="i-lucide-trash-2"
+                  size="xs"
+                  @click.prevent="removePrescriptionMedRow(i)"
+                />
+              </div>
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <UInput
+                  :model-value="med.dosage"
+                  placeholder="Dosage"
+                  @update:model-value="updatePrescriptionMedField(i, 'dosage', $event)"
+                />
+                <UInput
+                  :model-value="med.frequency"
+                  placeholder="Frequency"
+                  @update:model-value="updatePrescriptionMedField(i, 'frequency', $event)"
+                />
+                <UInput
+                  :model-value="med.duration"
+                  placeholder="Duration"
+                  @update:model-value="updatePrescriptionMedField(i, 'duration', $event)"
+                />
+              </div>
+              <UInput
+                :model-value="med.instructions"
+                placeholder="Instructions (e.g. Take with food)"
+                @update:model-value="updatePrescriptionMedField(i, 'instructions', $event)"
+              />
+            </div>
+            <UButton
+              variant="outline"
+              size="sm"
+              icon="i-lucide-plus"
+              @click.prevent="addPrescriptionMedRow"
+            >
+              Add medication
+            </UButton>
+          </div>
+          <div class="mt-2 space-y-1">
+            <label class="text-xs text-gray-400">General instructions (optional)</label>
+            <UTextarea
+              :model-value="prescriptionGeneralInstructions"
+              placeholder="Additional notes for the patient..."
+              :rows="2"
+              class="w-full"
+              @update:model-value="updatePrescriptionGeneralInstructions"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div v-else-if="currentStep?.key === 'investigation_results'" class="space-y-4 pb-2">
+        <div
+          v-if="patientInvestigationUploads.length"
+          class="rounded-lg border border-primary-700/50 bg-primary-950/30 p-3 space-y-2"
+        >
+          <p class="text-xs font-medium text-primary-200">
+            Patient-uploaded lab & radiology files
+          </p>
+          <ul class="space-y-2">
+            <li
+              v-for="u in patientInvestigationUploads"
+              :key="u.id"
+              class="flex flex-col sm:flex-row sm:items-center sm:flex-wrap gap-1 sm:gap-2 text-xs"
+            >
+              <UBadge size="xs" color="primary" variant="soft" class="capitalize w-fit">
+                {{ u.category === 'radiology' ? 'Radiology' : 'Laboratory' }}
+              </UBadge>
+              <a
+                :href="resolvePublicFileUrl(u.file_url)"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="text-primary-300 hover:text-primary-200 underline break-all"
+              >
+                {{ u.label || u.original_filename || 'Open file' }}
+              </a>
+              <span v-if="u.uploaded_at" class="text-gray-500">{{ formatUploadTime(u.uploaded_at) }}</span>
+            </li>
+          </ul>
+        </div>
+        <p class="text-xs text-gray-400">
+          Add your clinical interpretation below. Patient files (if any) are listed above.
+        </p>
+        <UTextarea
+          :model-value="currentValue"
+          :placeholder="currentStep?.placeholder"
+          :rows="8"
+          class="w-full min-h-[140px] resize-none"
+          @update:model-value="onInput"
+        />
+      </div>
+
+      <div v-else-if="currentStep?.key === 'final_diagnosis'" class="pb-2">
         <div class="space-y-4 p-1">
           <div class="space-y-2">
             <p class="text-xs text-gray-400">ICD-11 search (English) - select one code</p>
@@ -182,7 +341,7 @@
         </div>
       </div>
 
-      <div v-else-if="currentStep?.key === 'differential_diagnosis'" class="flex-1 min-h-0 flex flex-col overflow-y-auto">
+      <div v-else-if="currentStep?.key === 'differential_diagnosis'" class="pb-2">
         <div class="space-y-4 p-1">
           <div class="space-y-2">
             <p class="text-xs text-gray-400">ICD-11 search (English) - select multiple codes</p>
@@ -233,18 +392,19 @@
         </div>
       </div>
 
-      <div v-else class="flex-1 min-h-0 flex flex-col">
+      <div v-else class="pb-2">
         <UTextarea
           :model-value="currentValue"
           :placeholder="currentStep?.placeholder"
-          :rows="6"
-          class="flex-1 min-h-[120px] resize-none"
+          :rows="8"
+          class="w-full min-h-[120px] resize-none"
           @update:model-value="onInput"
         />
       </div>
+      </div>
 
-      <!-- Navigation -->
-      <div class="flex justify-between gap-2 mt-4 shrink-0">
+      <!-- Navigation: pinned below scroll area -->
+      <div class="shrink-0 px-3 py-3 border-t border-gray-700 bg-gray-900/98 flex justify-between gap-2 gap-y-2 flex-wrap safe-area-bottom">
         <UButton
           variant="ghost"
           size="sm"
@@ -290,15 +450,43 @@ export interface GeneralExaminationData {
   dehydration?: 'Nil' | 'Some' | 'Severe'
 }
 
+export interface SystemExaminationFields {
+  cns?: string
+  respiratory?: string
+  cardiovascular?: string
+  abdomen?: string
+  musculoskeletal?: string
+  mental_state?: string
+  ophthalmic?: string
+  ent?: string
+  vocal?: string
+  dental?: string
+}
+
+export interface PrescriptionMedicationRow {
+  name: string
+  form: string
+  dosage: string
+  frequency: string
+  duration: string
+  instructions: string
+}
+
+export interface ManagementPlanPrescription {
+  medications: PrescriptionMedicationRow[]
+  instructions: string
+}
+
 export interface InPersonVisitData {
   revisit_history?: string
   general_examination?: GeneralExaminationData | string
-  system_examination?: string
+  system_examination?: string | SystemExaminationFields
 }
 
 export interface ManagementPlanData {
   selected_categories?: string[]
   treatment?: string
+  prescription?: ManagementPlanPrescription | null
   investigation_radiology?: string
   investigation_laboratory?: string
   investigation_interventional?: string
@@ -309,6 +497,15 @@ export interface ManagementPlanData {
 export interface Icd11Diagnosis {
   code?: string
   title?: string
+}
+
+export interface PatientInvestigationUpload {
+  id: string
+  category: 'radiology' | 'laboratory'
+  file_url: string
+  original_filename?: string | null
+  label?: string | null
+  uploaded_at?: string | null
 }
 
 export interface ClinicalNotesData {
@@ -324,9 +521,11 @@ export interface ClinicalNotesData {
   summary_of_history?: string
   differential_diagnosis?: string
   differential_diagnoses_icd11?: Icd11Diagnosis[]
+  investigation_results?: string
   management_plan?: ManagementPlanData | string
   final_diagnosis?: string
   final_diagnosis_icd11?: Icd11Diagnosis | null
+  final_treatment?: string
 }
 
 const props = withDefaults(
@@ -336,9 +535,19 @@ const props = withDefaults(
     consultationId: string | number
     onSave?: (data: ClinicalNotesData) => Promise<void>
     compact?: boolean
+    /** Patient-uploaded lab/radiology files (from consultation metadata); shown on Investigation results step. */
+    patientInvestigationUploads?: PatientInvestigationUpload[]
   }>(),
-  { compact: false }
+  { compact: false, patientInvestigationUploads: () => [] }
 )
+
+function formatUploadTime (iso: string) {
+  try {
+    return new Date(iso).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })
+  } catch {
+    return iso
+  }
+}
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: ClinicalNotesData): void
@@ -349,6 +558,7 @@ const saving = ref(false)
 
 const config = useRuntimeConfig()
 const tokenCookie = useCookie<string | null>('auth_token')
+const { resolvePublicFileUrl } = useResolvePublicFileUrl()
 
 // ------------------------
 // ICD-11 (code + title)
@@ -493,6 +703,13 @@ function hasGeneralExaminationContent (val: unknown): boolean {
   return Object.values(val).some((x) => typeof x === 'string' && x.trim().length > 0)
 }
 
+function hasSystemExaminationContent (val: unknown): boolean {
+  if (!val) return false
+  if (typeof val === 'string') return val.trim().length > 0
+  if (typeof val !== 'object' || Array.isArray(val)) return false
+  return Object.values(val as Record<string, unknown>).some((v) => typeof v === 'string' && v.trim().length > 0)
+}
+
 function getGeneralExaminationObject (): GeneralExaminationData | null {
   const mp = props.modelValue.management_plan
   if (typeof mp !== 'object' || !mp) return null
@@ -612,6 +829,163 @@ const dehydrationValue = computed<string>({
   set: (val) => setGeneralExaminationField('dehydration', val as GeneralExaminationData['dehydration'] | '')
 })
 
+const systemExaminationFieldDefs: Array<{ field: keyof SystemExaminationFields; label: string; hint?: string; placeholder?: string }> = [
+  { field: 'cns', label: 'CNS', hint: 'Consciousness, response, motor, etc.', placeholder: 'e.g. GCS, focal signs...' },
+  { field: 'respiratory', label: 'Respiratory', hint: 'RR, effort, air entry, wheeze/crackles', placeholder: 'Respiratory findings...' },
+  { field: 'cardiovascular', label: 'Cardiovascular', hint: 'Pulse, rhythm, BP, heart sounds', placeholder: 'Cardiovascular findings...' },
+  { field: 'abdomen', label: 'Abdomen', hint: 'Inspection, palpation, auscultation', placeholder: 'Abdominal findings...' },
+  { field: 'musculoskeletal', label: 'Musculoskeletal', hint: 'Joints, limbs, ROM, tenderness', placeholder: 'MSK findings...' },
+  { field: 'mental_state', label: 'Mental state', hint: 'Mood, affect, speech, behaviour', placeholder: 'Mental state findings...' },
+  { field: 'ophthalmic', label: 'Ophthalmic', hint: 'Pupils, conjunctiva/sclera (if needed)', placeholder: 'Eye exam findings...' },
+  { field: 'ent', label: 'ENT', hint: 'Throat, ear, nose', placeholder: 'ENT findings...' },
+  { field: 'vocal', label: 'Vocal', hint: 'Voice quality, stridor (if present)', placeholder: 'Vocal findings...' },
+  { field: 'dental', label: 'Dental', hint: 'Gums, teeth, oral lesions', placeholder: 'Dental findings...' },
+]
+
+const legacySystemExaminationString = computed(() => {
+  const mp = props.modelValue.management_plan
+  if (typeof mp !== 'object' || !mp) return ''
+  const ipv = mp.in_person_visit
+  if (!ipv || typeof ipv !== 'object') return ''
+  const se = ipv.system_examination
+  return typeof se === 'string' && se.trim() ? se : ''
+})
+
+function getSystemExaminationField (field: keyof SystemExaminationFields): string {
+  const mp = props.modelValue.management_plan
+  if (typeof mp !== 'object' || !mp) return ''
+  const ipv = mp.in_person_visit
+  if (!ipv || typeof ipv !== 'object') return ''
+  const se = ipv.system_examination
+  if (se && typeof se === 'object' && !Array.isArray(se)) {
+    const v = (se as SystemExaminationFields)[field]
+    return typeof v === 'string' ? v : ''
+  }
+  return ''
+}
+
+function setSystemExaminationField (field: keyof SystemExaminationFields, val: string) {
+  const mp = typeof props.modelValue.management_plan === 'object' && props.modelValue.management_plan
+    ? { ...props.modelValue.management_plan }
+    : {}
+  const ipv = mp.in_person_visit && typeof mp.in_person_visit === 'object' ? { ...mp.in_person_visit } : {}
+  const prev = ipv.system_examination
+  const base: SystemExaminationFields = prev && typeof prev === 'object' && !Array.isArray(prev) ? { ...(prev as SystemExaminationFields) } : {}
+  const nextVal = val?.trim() || ''
+  if (nextVal) {
+    base[field] = nextVal
+  } else {
+    delete base[field]
+  }
+  const hasAnyField = Object.values(base).some((v) => typeof v === 'string' && v.trim().length > 0)
+  if (hasAnyField) {
+    ipv.system_examination = base
+  } else if (typeof prev === 'string' && prev.trim()) {
+    ipv.system_examination = prev
+  } else {
+    delete ipv.system_examination
+  }
+  mp.in_person_visit = ipv
+  emit('update:modelValue', { ...props.modelValue, management_plan: mp })
+}
+
+const medicationFormOptions = [
+  { label: 'Tablet', value: 'Tablet' },
+  { label: 'Capsule', value: 'Capsule' },
+  { label: 'Suppository', value: 'Suppository' },
+  { label: 'Syrup', value: 'Syrup' },
+] as const
+
+function emptyPrescriptionMed (): PrescriptionMedicationRow {
+  return { name: '', form: '', dosage: '', frequency: '', duration: '', instructions: '' }
+}
+
+function hasPrescriptionContent (p: unknown): boolean {
+  if (!p || typeof p !== 'object') return false
+  const meds = (p as ManagementPlanPrescription).medications
+  if (!Array.isArray(meds)) return false
+  return meds.some((m) => typeof m?.name === 'string' && m.name.trim().length > 0)
+}
+
+const prescriptionMedicationRows = computed((): PrescriptionMedicationRow[] => {
+  const mp = props.modelValue.management_plan
+  if (typeof mp !== 'object' || !mp) return [emptyPrescriptionMed()]
+  const p = mp.prescription
+  if (p && typeof p === 'object' && Array.isArray(p.medications) && p.medications.length) {
+    return p.medications.map((m) => ({
+      ...emptyPrescriptionMed(),
+      name: m.name ?? '',
+      form: m.form ?? '',
+      dosage: m.dosage ?? '',
+      frequency: m.frequency ?? '',
+      duration: m.duration ?? '',
+      instructions: m.instructions ?? '',
+    }))
+  }
+  return [emptyPrescriptionMed()]
+})
+
+const prescriptionGeneralInstructions = computed(() => {
+  const mp = props.modelValue.management_plan
+  if (typeof mp !== 'object' || !mp?.prescription || typeof mp.prescription !== 'object') return ''
+  return (mp.prescription as ManagementPlanPrescription).instructions || ''
+})
+
+const legacyFreeTextTreatment = computed(() => {
+  const mp = props.modelValue.management_plan
+  if (typeof mp !== 'object' || !mp?.treatment?.trim()) return ''
+  return mp.treatment.trim()
+})
+
+function commitPrescription (next: ManagementPlanPrescription) {
+  const mp = typeof props.modelValue.management_plan === 'object' && props.modelValue.management_plan
+    ? { ...props.modelValue.management_plan }
+    : {}
+  const meds = next.medications.length ? next.medications.map((m) => ({
+    name: m.name || '',
+    form: m.form || '',
+    dosage: m.dosage || '',
+    frequency: m.frequency || '',
+    duration: m.duration || '',
+    instructions: m.instructions || '',
+  })) : [emptyPrescriptionMed()]
+  const instructions = next.instructions?.trim() || ''
+  const hasAny = meds.some((m) => m.name.trim().length > 0) || Boolean(instructions)
+  if (!hasAny) {
+    delete mp.prescription
+  } else {
+    mp.prescription = { medications: meds, instructions }
+  }
+  emit('update:modelValue', { ...props.modelValue, management_plan: mp })
+}
+
+function updatePrescriptionMedField (i: number, field: keyof PrescriptionMedicationRow, value: string) {
+  const rows = prescriptionMedicationRows.value.map((r, idx) => idx === i ? { ...r, [field]: value } : { ...r })
+  commitPrescription({ medications: rows, instructions: prescriptionGeneralInstructions.value })
+}
+
+function addPrescriptionMedRow () {
+  commitPrescription({
+    medications: [...prescriptionMedicationRows.value, emptyPrescriptionMed()],
+    instructions: prescriptionGeneralInstructions.value,
+  })
+}
+
+function removePrescriptionMedRow (i: number) {
+  const rows = prescriptionMedicationRows.value.filter((_, idx) => idx !== i)
+  commitPrescription({
+    medications: rows.length ? rows : [emptyPrescriptionMed()],
+    instructions: prescriptionGeneralInstructions.value,
+  })
+}
+
+function updatePrescriptionGeneralInstructions (val: string) {
+  commitPrescription({
+    medications: prescriptionMedicationRows.value,
+    instructions: val,
+  })
+}
+
 const MANAGEMENT_PLAN_OPTIONS = [
   { value: 'treatment', label: 'Treatment (Prescribe drugs or other interventions)' },
   { value: 'investigation_radiology', label: 'Investigation – Radiology (CT Scan, X-ray, MRI...)' },
@@ -623,7 +997,7 @@ const MANAGEMENT_PLAN_OPTIONS = [
 
 const MP_FIELD_STEPS: Record<string, Array<{ key: string; label: string; hint?: string; placeholder?: string }>> = {
   treatment: [
-    { key: 'treatment', label: 'Treatment', hint: 'Prescribe drugs or other interventions', placeholder: 'Medications, dosages, duration, other interventions...' },
+    { key: 'treatment', label: 'Treatment (prescription)', hint: 'Structured prescription matching the issue-prescription form.', placeholder: '' },
   ],
   investigation_radiology: [
     { key: 'investigation_radiology', label: 'Investigation – Radiology', hint: 'CT Scan, X-ray, MRI, etc.', placeholder: 'Radiology investigations ordered...' },
@@ -643,19 +1017,7 @@ const MP_FIELD_STEPS: Record<string, Array<{ key: string; label: string; hint?: 
     {
       key: 'in_person_visit_system_examination',
       label: 'In-person visit: System examination',
-      hint: 'Free-text: cover CNS, Respiratory, Cardiovascular, Abdomen, Musculoskeletal, Mental state, Ophthalmic, ENT, Vocal, Dental.',
-      placeholder: [
-        'CNS: consciousness/response, motor, etc.',
-        'Respiratory: RR, effort, air entry, wheeze/crackles',
-        'Cardiovascular: pulse, rhythm, BP, heart sounds',
-        'Abdomen: inspection/palpation/auscultation',
-        'Musculoskeletal: joints/limbs, ROM, tenderness',
-        'Mental state: mood/affect, speech/behavior',
-        'Ophthalmic exam: pupils, conjunctiva/sclera (if needed)',
-        'ENT exam: throat/ear/nose findings',
-        'Vocal exam: voice quality/stridor (if present)',
-        'Dental: gums/teeth/oral lesions'
-      ].join('\n')
+      hint: 'Enter findings for each system in its own field.',
     },
   ],
 }
@@ -682,7 +1044,9 @@ const BASE_STEP_DEFINITIONS: Array<{
   { key: 'summary_of_history', label: 'Summary of history', required: true, placeholder: 'Concise summary of the history...' },
   { key: 'differential_diagnosis', label: 'Differential diagnosis', required: true, placeholder: 'Working diagnoses...' },
   { key: 'management_plan_select', label: 'Management plan: Select options', hint: 'Choose one or more. You can edit later.' },
+  { key: 'investigation_results', label: 'Investigation results', hint: 'Laboratory, imaging, and other investigation results available at this visit.', placeholder: 'Document investigation results (labs, radiology, point-of-care tests, etc.)...' },
   { key: 'final_diagnosis', label: 'Final diagnosis', required: true, placeholder: 'Confirmed diagnosis...' },
+  { key: 'final_treatment', label: 'Final treatment', required: true, hint: 'Overall treatment plan and follow-up after diagnosis.', placeholder: 'Final treatment plan, follow-up, and patient advice...' },
 ]
 
 const patientAgeYears = computed(() => {
@@ -704,12 +1068,17 @@ const selectedMpCategories = computed(() => {
   const sel = mp.selected_categories
   if (Array.isArray(sel) && sel.length) return sel
   const derived: string[] = []
-  if (mp.treatment) derived.push('treatment')
+  if (mp.treatment?.trim()) derived.push('treatment')
+  if (hasPrescriptionContent(mp.prescription) && !derived.includes('treatment')) derived.push('treatment')
   if (mp.investigation_radiology) derived.push('investigation_radiology')
   if (mp.investigation_laboratory) derived.push('investigation_laboratory')
   if (mp.investigation_interventional) derived.push('investigation_interventional')
   if (mp.referrals) derived.push('referrals')
-  if (mp.in_person_visit && (mp.in_person_visit.revisit_history || hasGeneralExaminationContent(mp.in_person_visit.general_examination) || mp.in_person_visit.system_examination)) {
+  if (mp.in_person_visit && (
+    mp.in_person_visit.revisit_history
+    || hasGeneralExaminationContent(mp.in_person_visit.general_examination)
+    || hasSystemExaminationContent(mp.in_person_visit.system_examination)
+  )) {
     derived.push('in_person_visit')
   }
   return derived
@@ -786,12 +1155,13 @@ function onInput (val: string) {
     ? { ...props.modelValue.management_plan }
     : {}
   if (key.startsWith('in_person_visit_')) {
+    if (key === 'in_person_visit_system_examination' || key === 'in_person_visit_general_examination') return
     const subKey = key.replace('in_person_visit_', '') as keyof InPersonVisitData
     const ipv = mp.in_person_visit ? { ...mp.in_person_visit } : {}
     ipv[subKey] = val || ''
     mp.in_person_visit = ipv
     emit('update:modelValue', { ...props.modelValue, management_plan: mp })
-  } else if (['treatment', 'investigation_radiology', 'investigation_laboratory', 'investigation_interventional', 'referrals'].includes(key)) {
+  } else if (['investigation_radiology', 'investigation_laboratory', 'investigation_interventional', 'referrals'].includes(key)) {
     ;(mp as Record<string, string>)[key] = val || ''
     emit('update:modelValue', { ...props.modelValue, management_plan: mp })
   } else {

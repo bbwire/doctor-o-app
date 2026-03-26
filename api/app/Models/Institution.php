@@ -14,6 +14,7 @@ class Institution extends Model
         'name',
         'type',
         'services',
+        'institution_number',
         'practicing_certificate_path',
         'address',
         'location',

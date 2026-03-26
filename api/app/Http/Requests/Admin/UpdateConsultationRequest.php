@@ -36,7 +36,7 @@ class UpdateConsultationRequest extends FormRequest
             ],
             'scheduled_at' => ['sometimes', 'date'],
             'consultation_type' => ['sometimes', Rule::in(['text', 'audio', 'video'])],
-            'status' => ['sometimes', Rule::in(['scheduled', 'completed', 'cancelled'])],
+            'status' => ['sometimes', Rule::in(['waiting', 'scheduled', 'completed', 'cancelled'])],
             'reason' => ['nullable', 'string'],
             'notes' => ['nullable', 'string'],
             'metadata' => ['nullable', 'array'],

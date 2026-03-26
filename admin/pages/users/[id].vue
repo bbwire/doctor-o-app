@@ -38,15 +38,29 @@
     </div>
 
     <template v-else-if="user">
+      <div
+        v-if="user.role === 'patient' && user.patient_number"
+        class="flex flex-col gap-2 rounded-xl border-2 border-primary-200 bg-primary-50/90 p-4 dark:border-primary-700 dark:bg-primary-950/40 sm:flex-row sm:items-center sm:justify-between"
+      >
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wide text-primary-800 dark:text-primary-200">
+            Patient number
+          </p>
+          <p class="mt-1 text-2xl font-bold font-mono tracking-tight text-primary-900 dark:text-primary-50">
+            {{ user.patient_number }}
+          </p>
+        </div>
+      </div>
+
       <UCard :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }">
         <div v-if="!editing" class="space-y-4">
           <div class="flex items-center gap-4">
             <UAvatar :alt="user.name" size="lg" />
-            <div>
+            <div class="min-w-0 flex-1">
               <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ user.name }}
               </h2>
-              <UBadge :color="roleColor(user.role)" variant="soft" class="mt-1">
+              <UBadge :color="roleColor(user.role)" variant="soft" class="mt-2">
                 {{ user.role }}
               </UBadge>
             </div>

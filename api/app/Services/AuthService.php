@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\HealthcareProfessional;
 use App\Models\User;
+use App\Support\IdSystem;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Hash;
@@ -30,8 +31,13 @@ class AuthService
             'preferred_language' => $validated['preferred_language'] ?? null,
         ]);
 
+        if ($user->isPatient()) {
+            $user->patient_number = app(PatientNumberGenerator::class)->generate($user->created_at);
+            $user->save();
+        }
+
         if (($validated['role'] ?? '') === 'doctor') {
-            HealthcareProfessional::create([
+            $hp = HealthcareProfessional::create([
                 'user_id' => $user->id,
                 'institution_id' => $validated['institution_id'] ?? null,
                 'speciality' => $validated['speciality'] ?? null,
@@ -40,6 +46,11 @@ class AuthService
                 'regulatory_council' => $validated['regulatory_council'] ?? null,
                 'is_active' => true,
             ]);
+
+            $hp->refresh();
+            $prefix = IdSystem::professionalPrefix($hp->speciality);
+            $hp->professional_number = app(EntityNumberGenerator::class)->generate($prefix, $hp->created_at);
+            $hp->saveQuietly();
         }
 
         $token = $user->createToken('auth_token')->plainTextToken;

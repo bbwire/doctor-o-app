@@ -37,6 +37,7 @@ class PatientDashboardService
             ->first();
 
         return [
+            'patient_number' => $patient->patient_number,
             'upcoming_consultations' => $upcomingConsultationsCount,
             'prescriptions' => $prescriptionsCount,
             'completed_consultations' => $completedConsultationsCount,

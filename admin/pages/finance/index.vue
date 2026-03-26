@@ -102,7 +102,16 @@
           v-else
           :rows="topUps"
           :columns="topUpColumns"
-        />
+        >
+          <template #user-data="{ row }">
+            <div class="flex min-w-0 max-w-xs flex-col gap-1">
+              <AdminPatientNumber :patient-number="row.user?.patient_number" />
+              <span class="truncate text-sm text-gray-900 dark:text-white">
+                {{ row.user ? `${row.user.name} (${row.user.email})` : `User #${row.user_id}` }}
+              </span>
+            </div>
+          </template>
+        </UTable>
         <p v-if="!topUps.length && !topUpsLoading" class="py-4 text-center text-sm text-gray-500 dark:text-gray-400">
           No top-ups yet
         </p>
@@ -119,7 +128,20 @@
           v-else
           :rows="settlements"
           :columns="settlementColumns"
-        />
+        >
+          <template #invoice_number-data="{ row }">
+            <AdminHumanId :value="row.invoice_number" />
+          </template>
+          <template #consultation_number-data="{ row }">
+            <AdminHumanId :value="row.consultation_number" />
+          </template>
+          <template #patient-data="{ row }">
+            <div class="flex min-w-0 max-w-xs flex-col gap-1">
+              <AdminPatientNumber :patient-number="row.patient?.patient_number" />
+              <span class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ row.patient?.name || '—' }}</span>
+            </div>
+          </template>
+        </UTable>
         <p v-if="!settlements.length && !settlementsLoading" class="py-4 text-center text-sm text-gray-500 dark:text-gray-400">
           No settlements yet
         </p>
@@ -165,6 +187,8 @@ const topUpColumns = [
 ]
 const settlementColumns = [
   { key: 'created_at', label: 'Date' },
+  { key: 'invoice_number', label: 'Invoice no.' },
+  { key: 'consultation_number', label: 'Consultation no.' },
   { key: 'consultation_type', label: 'Type' },
   { key: 'patient', label: 'Patient' },
   { key: 'doctor', label: 'Doctor' },
@@ -222,8 +246,7 @@ async function fetchTopUps () {
     topUps.value = (res?.data ?? []).map((t) => ({
       ...t,
       created_at: t.created_at ? new Date(t.created_at).toLocaleString() : '',
-      amount: formatMoney(t.amount),
-      user: t.user ? `${t.user.name} (${t.user.email})` : `User #${t.user_id}`
+      amount: formatMoney(t.amount)
     }))
   } catch (_) {
     topUps.value = []
@@ -238,11 +261,12 @@ async function fetchSettlements () {
     const res = await get('admin/finance/settlements', { query: { per_page: '15' } })
     settlements.value = (res?.data ?? []).map((s) => ({
       ...s,
+      invoice_number: s.invoice_number || null,
+      consultation_number: s.consultation_number || null,
       created_at: s.created_at ? new Date(s.created_at).toLocaleString() : '',
       amount_paid: formatMoney(s.amount_paid),
       platform_fee: formatMoney(s.platform_fee),
       doctor_earning: formatMoney(s.doctor_earning),
-      patient: s.patient ? `${s.patient.name}` : '–',
       doctor: s.doctor ? `${s.doctor.name}` : '–'
     }))
   } catch (_) {

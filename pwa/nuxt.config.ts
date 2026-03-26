@@ -57,6 +57,11 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     public: {
+      /**
+       * Optional override when static files are not under the same path as apiBase without /api/v1.
+       * Example: https://cdn.example.com or https://api.example.com/subdir
+       */
+      apiFilesBase: process.env.NUXT_PUBLIC_API_FILES_BASE || '',
       // apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://127.0.0.1:8000/api/v1'
       apiBase: process.env.NUXT_PUBLIC_API_BASE || 'https://dotoroapi.tangutechug.com/public/api/v1',
       /** Jitsi domain for video/audio calls. Use JaaS domain for proper moderator authentication. */

@@ -2,6 +2,8 @@
 
 namespace Database\Factories;
 
+use App\Models\User;
+use App\Services\PatientNumberGenerator;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -67,8 +69,17 @@ class UserFactory extends Factory
      */
     public function patient(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'role' => 'patient',
-        ]);
+        return $this
+            ->afterCreating(function (User $user) {
+                if ($user->role !== 'patient' || $user->patient_number !== null) {
+                    return;
+                }
+
+                $user->patient_number = app(PatientNumberGenerator::class)->generate($user->created_at);
+                $user->saveQuietly();
+            })
+            ->state(fn (array $attributes) => [
+                'role' => 'patient',
+            ]);
     }
 }

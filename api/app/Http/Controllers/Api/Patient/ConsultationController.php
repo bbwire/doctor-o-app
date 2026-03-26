@@ -42,9 +42,10 @@ class ConsultationController extends Controller
 
     public function show(Request $request, int $consultationId): ConsultationResource
     {
-        return new ConsultationResource(
-            $this->patientConsultationService->findForPatientOrFail($request->user(), $consultationId)
-        );
+        $consultation = $this->patientConsultationService->findForPatientOrFail($request->user(), $consultationId);
+        $consultation->loadMissing(['messages']);
+
+        return new ConsultationResource($consultation);
     }
 
     public function cancel(Request $request, int $consultationId): ConsultationResource

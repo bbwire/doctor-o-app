@@ -50,6 +50,9 @@
         :columns="columns"
         :loading="loading"
       >
+        <template #institution_number-data="{ row }">
+          <AdminHumanId :value="row.institution_number" />
+        </template>
         <template #is_active-data="{ row }">
           <UBadge :color="row.is_active ? 'green' : 'gray'" variant="soft">
             {{ row.is_active ? 'Active' : 'Inactive' }}
@@ -121,6 +124,7 @@ const activeOptions = [
 
 const columns = [
   { key: 'id', label: 'ID' },
+  { key: 'institution_number', label: 'Institution no.' },
   { key: 'name', label: 'Name' },
   { key: 'type', label: 'Type' },
   { key: 'address', label: 'Address' },

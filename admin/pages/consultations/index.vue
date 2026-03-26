@@ -42,8 +42,15 @@
         <template #scheduled_at-data="{ row }">
           {{ formatDate(row.scheduled_at) }}
         </template>
+        <template #consultation_number-data="{ row }">
+          <AdminHumanId :value="row.consultation_number" />
+        </template>
         <template #patient-data="{ row }">
-          {{ row.patient?.name || '—' }}
+          <div class="flex min-w-0 max-w-xs flex-col gap-1">
+            <AdminPatientNumber :patient-number="row.patient?.patient_number" />
+            <span class="truncate font-medium text-gray-900 dark:text-white">{{ row.patient?.name || '—' }}</span>
+            <span class="truncate text-xs text-gray-500 dark:text-gray-400">{{ row.patient?.email || '' }}</span>
+          </div>
         </template>
         <template #doctor-data="{ row }">
           {{ row.doctor?.name || '—' }}
@@ -97,6 +104,7 @@ const typeOptions = [
 
 const columns = [
   { key: 'id', label: 'ID' },
+  { key: 'consultation_number', label: 'Consultation no.' },
   { key: 'scheduled_at', label: 'Scheduled' },
   { key: 'patient', label: 'Patient' },
   { key: 'doctor', label: 'Doctor' },

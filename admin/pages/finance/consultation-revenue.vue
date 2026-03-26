@@ -135,7 +135,21 @@
         :rows="filteredRevenue"
         :columns="revenueColumns"
         :loading="loading"
-      />
+      >
+        <template #invoice_number-data="{ row }">
+          <AdminHumanId :value="row.invoice_number" />
+        </template>
+        <template #consultation_number-data="{ row }">
+          <AdminHumanId :value="row.consultation_number" />
+        </template>
+        <template #patient-data="{ row }">
+          <div class="flex min-w-0 max-w-xs flex-col gap-1">
+            <AdminPatientNumber :patient-number="row.patient?.patient_number" />
+            <span class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ row.patient?.name || '—' }}</span>
+            <span class="truncate text-xs text-gray-500 dark:text-gray-400">{{ row.patient?.email || '' }}</span>
+          </div>
+        </template>
+      </UTable>
 
       <div v-if="!filteredRevenue.length && !loading" class="py-8 text-center text-sm text-gray-500">
         No consultation revenue found.
@@ -204,8 +218,10 @@ const doctorOptions = ref([])
 
 const revenueColumns = [
   { key: 'created_at', label: 'Date & Time', sortable: true },
+  { key: 'invoice_number', label: 'Invoice no.', sortable: false },
+  { key: 'consultation_number', label: 'Consultation no.', sortable: false },
   { key: 'consultation_id', label: 'Consultation ID', sortable: true },
-  { key: 'patient', label: 'Patient', sortable: true },
+  { key: 'patient', label: 'Patient', sortable: false },
   { key: 'doctor', label: 'Doctor', sortable: true },
   { key: 'type', label: 'Type', sortable: true },
   { key: 'amount', label: 'Amount', sortable: true },
@@ -223,7 +239,7 @@ const filteredRevenue = computed(() => {
   }
 
   if (selectedDoctor.value) {
-    filtered = filtered.filter(item => item.doctor_id === selectedDoctor.value)
+    filtered = filtered.filter(item => String(item.doctor_id ?? '') === String(selectedDoctor.value))
   }
 
   return filtered
@@ -289,9 +305,11 @@ function renderChart () {
 
 function exportData () {
   const csvContent = [
-    ['Date', 'Consultation ID', 'Patient', 'Doctor', 'Type', 'Amount', 'Platform Fee', 'Doctor Earning'].join(','),
+    ['Date', 'Invoice no.', 'Consultation no.', 'Consultation ID', 'Patient', 'Doctor', 'Type', 'Amount', 'Platform Fee', 'Doctor Earning'].join(','),
     ...filteredRevenue.value.map(item => [
       item.created_at,
+      item.invoice_number || '—',
+      item.consultation_number || '—',
       item.consultation_id,
       item.patient,
       item.doctor,
@@ -344,9 +362,12 @@ async function fetchRevenue () {
     const data = res?.data ?? []
     revenue.value = data.map((item) => ({
       ...item,
+      doctor_id: item.doctor_id,
       created_at: item.created_at ? new Date(item.created_at).toLocaleString() : '',
+      invoice_number: item.invoice_number || null,
+      consultation_number: item.consultation_number || null,
       consultation_id: `#${item.consultation_id}`,
-      patient: item.patient ? `${item.patient.name} (${item.patient.email})` : '–',
+      patient: item.patient || null,
       doctor: item.doctor ? `${item.doctor.name}` : '–',
       type: item.consultation_type || 'Unknown',
       amount: formatMoney(item.amount_paid),

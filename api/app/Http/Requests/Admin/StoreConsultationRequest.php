@@ -36,7 +36,7 @@ class StoreConsultationRequest extends FormRequest
             ],
             'scheduled_at' => ['required', 'date'],
             'consultation_type' => ['required', Rule::in(['text', 'audio', 'video'])],
-            'status' => ['sometimes', Rule::in(['scheduled', 'completed', 'cancelled'])],
+            'status' => ['sometimes', Rule::in(['waiting', 'scheduled', 'completed', 'cancelled'])],
             'reason' => ['nullable', 'string'],
             'notes' => ['nullable', 'string'],
             'metadata' => ['nullable', 'array'],

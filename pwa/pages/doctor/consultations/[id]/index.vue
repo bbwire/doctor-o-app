@@ -10,7 +10,8 @@
     </UButton>
 
     <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
-      Consultation #{{ consultation?.id }}
+      <span v-if="consultation?.consultation_number">Consultation {{ consultation.consultation_number }}</span>
+      <span v-else>Consultation #{{ consultation?.id }}</span>
     </h1>
 
     <UAlert
@@ -33,6 +34,19 @@
     >
       <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
         <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2 flex-1 min-w-0">
+          <div class="sm:col-span-2 rounded-xl border-2 border-primary-200 bg-primary-50/90 p-4 dark:border-primary-700 dark:bg-primary-950/40">
+            <dt class="text-xs font-semibold uppercase tracking-wide text-primary-800 dark:text-primary-200">
+              Patient number
+            </dt>
+            <dd class="mt-2">
+              <PatientNumberBadge
+                v-if="consultation.patient?.patient_number"
+                size="lg"
+                :patient-number="consultation.patient.patient_number"
+              />
+              <span v-else class="text-lg font-mono font-semibold text-gray-500 dark:text-gray-400">—</span>
+            </dd>
+          </div>
           <div>
             <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Patient</dt>
             <dd class="text-sm text-gray-900 dark:text-gray-100">
@@ -42,7 +56,20 @@
           <div v-if="consultation.patient?.chronic_conditions?.length" class="sm:col-span-2">
             <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Patient chronic conditions</dt>
             <dd class="mt-0.5 flex flex-wrap gap-1">
-              <UBadge v-for="c in (consultation.patient.chronic_conditions || [])" :key="c" size="xs" color="neutral" variant="soft">{{ c }}</UBadge>
+              <UBadge v-for="c in (consultation.patient.chronic_conditions || [])" :key="c" size="xs" color="gray" variant="soft">{{ c }}</UBadge>
+            </dd>
+          </div>
+          <div v-if="consultation.consultation_number" class="sm:col-span-2">
+            <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Consultation no.</dt>
+            <dd class="mt-1">
+              <HumanIdBadge size="lg" :value="consultation.consultation_number" />
+              <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">(ID {{ consultation.id }})</span>
+            </dd>
+          </div>
+          <div v-if="consultation.referral_number" class="sm:col-span-2">
+            <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Referral no.</dt>
+            <dd class="mt-1">
+              <HumanIdBadge size="lg" :value="consultation.referral_number" />
             </dd>
           </div>
           <div>
@@ -139,17 +166,28 @@
       v-if="consultation && (consultation.status === 'scheduled' || consultation.status === 'completed')"
       :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }"
     >
-      <div class="flex items-center justify-between mb-4">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
           Clinical notes
         </h3>
-        <UButton
-          size="sm"
-          icon="i-lucide-clipboard-list"
-          @click="showClinicalNotesModal = true"
-        >
-          {{ hasClinicalNotes ? 'Edit clinical notes' : 'Add clinical notes' }}
-        </UButton>
+        <div class="flex flex-wrap gap-2">
+          <UButton
+            size="sm"
+            variant="soft"
+            icon="i-lucide-download"
+            :loading="downloadingPdf"
+            @click="downloadClinicalRecordPdf"
+          >
+            Download PDF
+          </UButton>
+          <UButton
+            size="sm"
+            icon="i-lucide-clipboard-list"
+            @click="showClinicalNotesModal = true"
+          >
+            {{ hasClinicalNotes ? 'Edit clinical notes' : 'Add clinical notes' }}
+          </UButton>
+        </div>
       </div>
       <div v-if="hasClinicalNotes" class="space-y-3 text-sm">
         <div v-if="consultation.clinical_notes?.summary_of_history">
@@ -164,14 +202,68 @@
             {{ consultation.clinical_notes.differential_diagnosis }}
           </p>
         </div>
+        <div v-if="consultation.clinical_notes?.investigation_results || patientInvestigationUploads.length">
+          <p class="font-medium text-gray-500 dark:text-gray-400">Investigation results</p>
+          <div v-if="patientInvestigationUploads.length" class="mt-2 space-y-2">
+            <p class="text-xs text-gray-500 dark:text-gray-400">Patient-uploaded files</p>
+            <ul class="space-y-2 text-sm">
+              <li
+                v-for="u in patientInvestigationUploads"
+                :key="u.id"
+                class="flex flex-wrap items-center gap-2"
+              >
+                <UBadge size="xs" color="primary" variant="soft" class="capitalize">
+                  {{ u.category === 'radiology' ? 'Radiology' : 'Laboratory' }}
+                </UBadge>
+                <a
+                  :href="resolvePublicFileUrl(u.file_url)"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="text-primary-600 dark:text-primary-400 underline break-all"
+                >
+                  {{ u.label || u.original_filename || 'Open file' }}
+                </a>
+                <span v-if="u.uploaded_at" class="text-xs text-gray-500">{{ formatUploadMetaTime(u.uploaded_at) }}</span>
+              </li>
+            </ul>
+          </div>
+          <p
+            v-if="consultation.clinical_notes?.investigation_results"
+            class="text-gray-900 dark:text-gray-100 whitespace-pre-line mt-2"
+          >
+            {{ consultation.clinical_notes.investigation_results }}
+          </p>
+        </div>
         <div v-if="consultation.clinical_notes?.final_diagnosis">
           <p class="font-medium text-gray-500 dark:text-gray-400">Final diagnosis</p>
           <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">
             {{ consultation.clinical_notes.final_diagnosis }}
           </p>
         </div>
+        <div v-if="consultation.clinical_notes?.final_treatment">
+          <p class="font-medium text-gray-500 dark:text-gray-400">Final treatment</p>
+          <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">
+            {{ consultation.clinical_notes.final_treatment }}
+          </p>
+        </div>
         <div v-if="hasStructuredManagementPlan" class="space-y-2">
           <p class="font-medium text-gray-500 dark:text-gray-400">Management plan</p>
+          <div v-if="hasClinicalNotesPrescription" class="pl-2 border-l-2 border-gray-200 dark:border-gray-700">
+            <p class="text-xs text-gray-500 dark:text-gray-400">Prescription (clinical notes)</p>
+            <ul class="mt-1 space-y-1 text-gray-900 dark:text-gray-100">
+              <li v-for="(med, i) in (mp.prescription?.medications || []).filter((m: any) => m?.name?.trim())" :key="i">
+                {{ med.name }}
+                <span v-if="med.form"> ({{ med.form }})</span>
+                <span v-if="med.dosage"> — {{ med.dosage }}</span>
+                <span v-if="med.frequency">, {{ med.frequency }}</span>
+                <span v-if="med.duration"> ({{ med.duration }})</span>
+                <span v-if="med.instructions" class="block text-gray-500 dark:text-gray-400 text-xs mt-0.5">{{ med.instructions }}</span>
+              </li>
+            </ul>
+            <p v-if="mp.prescription?.instructions" class="mt-2 text-xs text-gray-500 dark:text-gray-400 whitespace-pre-line">
+              {{ mp.prescription.instructions }}
+            </p>
+          </div>
           <div v-if="mp.treatment" class="pl-2 border-l-2 border-gray-200 dark:border-gray-700">
             <p class="text-xs text-gray-500 dark:text-gray-400">Treatment</p>
             <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">{{ mp.treatment }}</p>
@@ -196,9 +288,9 @@
               <p class="text-xs text-gray-500 dark:text-gray-400">General examination</p>
               <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">{{ formatGeneralExamination(ipv.general_examination) }}</p>
             </div>
-            <div v-if="ipv.system_examination" class="mt-1">
+            <div v-if="hasSystemExaminationContent(ipv.system_examination)" class="mt-1">
               <p class="text-xs text-gray-500 dark:text-gray-400">System examination</p>
-              <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">{{ ipv.system_examination }}</p>
+              <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">{{ formatSystemExamination(ipv.system_examination) }}</p>
             </div>
           </div>
         </div>
@@ -216,17 +308,63 @@
           <template #header>
             <h3 class="text-lg font-semibold">Clinical notes</h3>
           </template>
-          <div class="min-h-[400px]">
+          <div class="min-h-[400px] max-h-[min(85vh,760px)] flex flex-col min-h-0">
             <ClinicalNotesForm
+              class="flex-1 min-h-0 min-w-0"
               v-model="clinicalNotesData"
               :patient-date-of-birth="consultation?.patient?.date_of_birth"
               :consultation-id="id"
+              :patient-investigation-uploads="patientInvestigationUploads"
               :on-save="saveClinicalNotes"
               @done="showClinicalNotesModal = false; fetchConsultation()"
             />
           </div>
         </UCard>
       </UModal>
+    </UCard>
+
+    <div ref="conversationAnchor" class="h-0 scroll-mt-24" aria-hidden="true" />
+
+    <UCard
+      v-if="consultation"
+      :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }"
+    >
+      <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+        Conversation
+      </h3>
+      <ul
+        v-if="(consultation.messages || []).length"
+        class="space-y-3 max-h-[min(60vh,520px)] overflow-y-auto text-sm"
+      >
+        <li
+          v-for="m in (consultation.messages || [])"
+          :key="m.id"
+          class="rounded-lg border border-gray-200 dark:border-gray-700 p-3"
+        >
+          <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">
+            {{ String(m.sender || '').toUpperCase() }} · {{ formatDate(m.at) }}
+          </p>
+          <p class="text-gray-900 dark:text-gray-100 whitespace-pre-wrap">
+            {{ m.text }}
+          </p>
+          <a
+            v-if="m.attachment_url"
+            :href="resolvePublicFileUrl(m.attachment_url)"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-xs text-primary-600 dark:text-primary-400 underline mt-2 inline-block break-all"
+          >
+            Attachment
+          </a>
+        </li>
+      </ul>
+
+      <div
+        v-else
+        class="py-10 text-center text-sm text-gray-500 dark:text-gray-400"
+      >
+        No messages yet.
+      </div>
     </UCard>
 
     <UCard
@@ -253,10 +391,16 @@
           :key="p.id"
           class="rounded-lg border border-gray-200 dark:border-gray-800 p-4"
         >
-          <div class="flex items-center justify-between">
-            <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
-              Issued {{ formatDate(p.issued_at) }}
-            </p>
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex flex-col gap-1">
+              <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                Issued {{ formatDate(p.issued_at) }}
+              </p>
+              <HumanIdBadge
+                v-if="p.prescription_number"
+                :value="p.prescription_number"
+              />
+            </div>
             <UBadge :color="p.status === 'active' ? 'green' : 'gray'" variant="soft" size="xs">
               {{ p.status }}
             </UBadge>
@@ -370,12 +514,15 @@ definePageMeta({
   middleware: 'doctor'
 })
 
+import type { ClinicalNotesData } from '~/components/ClinicalNotesForm.vue'
+
 const route = useRoute()
 const router = useRouter()
 const config = useRuntimeConfig()
 const { token } = useAuth()
 const toast = useToast()
 const tokenCookie = useCookie('auth_token')
+const { resolvePublicFileUrl } = useResolvePublicFileUrl()
 
 const id = route.params.id as string
 
@@ -388,20 +535,53 @@ const notesDraft = ref('')
 const showIssuePrescription = ref(false)
 const showClinicalNotesModal = ref(false)
 const clinicalNotesData = ref<Record<string, unknown>>({})
+const downloadingPdf = ref(false)
+
+const conversationAnchor = ref<HTMLElement | null>(null)
+
+function hasPrescriptionShape (p: unknown): boolean {
+  if (!p || typeof p !== 'object') return false
+  const meds = (p as { medications?: unknown }).medications
+  if (!Array.isArray(meds)) return false
+  return meds.some((m: any) => typeof m?.name === 'string' && m.name.trim().length > 0)
+}
+
+const patientInvestigationUploads = computed(() => {
+  const list = consultation.value?.patient_investigation_uploads
+  if (!Array.isArray(list)) return []
+  return list.filter((u: any) => u && typeof u.id === 'string' && typeof u.file_url === 'string')
+})
+
+function formatUploadMetaTime (iso: string) {
+  try {
+    return new Date(iso).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })
+  } catch {
+    return iso
+  }
+}
 
 const hasClinicalNotes = computed(() => {
   const notes = consultation.value?.clinical_notes
+  if (patientInvestigationUploads.value.length) return true
   if (!notes) return false
   const hasManagementPlan = notes.management_plan && typeof notes.management_plan === 'object'
     ? Object.values(notes.management_plan).some((v) => v && String(v).trim())
     : !!notes.management_plan
-  return !!notes.summary_of_history || !!notes.differential_diagnosis || hasManagementPlan || !!notes.final_diagnosis
+  return !!notes.summary_of_history
+    || !!notes.differential_diagnosis
+    || !!notes.investigation_results
+    || !!notes.final_treatment
+    || hasManagementPlan
+    || !!notes.final_diagnosis
+    || hasPrescriptionShape((notes.management_plan as any)?.prescription)
 })
 
 const mp = computed(() => {
   const m = consultation.value?.clinical_notes?.management_plan
   return (typeof m === 'object' && m) ? m : {}
 })
+
+const hasClinicalNotesPrescription = computed(() => hasPrescriptionShape(mp.value.prescription))
 
 const ipv = computed(() => (typeof mp.value.in_person_visit === 'object' && mp.value.in_person_visit) ? mp.value.in_person_visit : {})
 
@@ -436,13 +616,46 @@ function formatGeneralExamination (ge: unknown): string {
   return lines.join('\n')
 }
 
+function hasSystemExaminationContent (se: unknown): boolean {
+  if (!se) return false
+  if (typeof se === 'string') return se.trim().length > 0
+  if (typeof se !== 'object' || Array.isArray(se)) return false
+  return Object.values(se as Record<string, unknown>).some((v) => typeof v === 'string' && v.trim().length > 0)
+}
+
+function formatSystemExamination (se: unknown): string {
+  if (!se) return ''
+  if (typeof se === 'string') return se
+  if (typeof se !== 'object' || Array.isArray(se)) return ''
+  const labels: [string, string][] = [
+    ['cns', 'CNS'],
+    ['respiratory', 'Respiratory'],
+    ['cardiovascular', 'Cardiovascular'],
+    ['abdomen', 'Abdomen'],
+    ['musculoskeletal', 'Musculoskeletal'],
+    ['mental_state', 'Mental state'],
+    ['ophthalmic', 'Ophthalmic'],
+    ['ent', 'ENT'],
+    ['vocal', 'Vocal'],
+    ['dental', 'Dental'],
+  ]
+  const o = se as Record<string, unknown>
+  const lines: string[] = []
+  for (const [key, label] of labels) {
+    const v = o[key]
+    if (typeof v === 'string' && v.trim().length > 0) lines.push(`${label}: ${v}`)
+  }
+  return lines.join('\n')
+}
+
 const hasInPersonVisitContent = computed(() =>
-  Boolean(ipv.value.revisit_history || hasGeneralExaminationContent(ipv.value.general_examination) || ipv.value.system_examination)
+  Boolean(ipv.value.revisit_history || hasGeneralExaminationContent(ipv.value.general_examination) || hasSystemExaminationContent(ipv.value.system_examination))
 )
 
 const hasStructuredManagementPlan = computed(() => {
   const m = mp.value
   if (m.treatment || m.investigation_radiology || m.investigation_laboratory || m.investigation_interventional || m.referrals) return true
+  if (hasPrescriptionShape(m.prescription)) return true
   return hasInPersonVisitContent.value
 })
 
@@ -509,6 +722,11 @@ async function fetchConsultation () {
       headers: getHeaders()
     })
     consultation.value = res?.data ?? null
+
+    if (route.query.focus === 'conversation') {
+      await nextTick()
+      conversationAnchor.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
   } catch (e: any) {
     errorMessage.value = e?.data?.message || 'Failed to load consultation.'
   } finally {
@@ -562,7 +780,7 @@ async function updateNotes () {
   }
 }
 
-async function saveClinicalNotes (data: Record<string, unknown>) {
+async function saveClinicalNotes (data: ClinicalNotesData) {
   const res = await $fetch<{ data: any }>(`/doctor/consultations/${id}`, {
     baseURL: config.public.apiBase,
     method: 'PATCH',
@@ -571,6 +789,34 @@ async function saveClinicalNotes (data: Record<string, unknown>) {
   })
   consultation.value = res?.data ?? consultation.value
   toast.add({ title: 'Clinical notes saved', color: 'green' })
+}
+
+async function downloadClinicalRecordPdf () {
+  downloadingPdf.value = true
+  try {
+    const url = `${config.public.apiBase}/doctor/consultations/${id}/clinical-notes/pdf`
+    const res = await fetch(url, { headers: getHeaders() })
+    if (!res.ok) {
+      toast.add({
+        title: 'Could not download PDF',
+        description: res.status === 404 ? 'Nothing to export yet (add notes, uploads, or messages).' : 'Please try again.',
+        color: 'red'
+      })
+      return
+    }
+    const blob = await res.blob()
+    const a = document.createElement('a')
+    const href = URL.createObjectURL(blob)
+    a.href = href
+    a.download = `consultation-${id}-clinical-record.pdf`
+    a.click()
+    URL.revokeObjectURL(href)
+    toast.add({ title: 'Download started', color: 'green' })
+  } catch {
+    toast.add({ title: 'Download failed', color: 'red' })
+  } finally {
+    downloadingPdf.value = false
+  }
 }
 
 async function submitPrescription () {

@@ -38,10 +38,10 @@
                 value-attribute="value"
                 searchable
                 :loading="loadingDoctors"
-                placeholder="Select a doctor (optional - system will assign available doctor)"
+                placeholder="Select a doctor (optional - join the waiting room)"
               />
               <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                If no doctor is selected, the system will assign an available doctor in the selected category for your chosen time slot.
+                If you don't select a doctor, your request will be sent to the doctor's waiting room for your selected category.
               </p>
             </UFormGroup>
 
@@ -140,14 +140,19 @@
 
             <UFormGroup name="consent" label="">
               <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-4">
-                <p class="text-sm text-gray-600 dark:text-gray-300 mb-3">
-                  By booking a consultation, you consent to the collection and use of your health information for the purpose of this consultation, in accordance with our
-                  <NuxtLink to="/privacy" class="text-primary-600 dark:text-primary-400 hover:underline">Privacy Policy</NuxtLink>.
-                  You understand that consultation content may be used for clinical documentation and that your data will be shared with the healthcare professional assigned to your consultation.
+                <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                  By proceeding with this consultation, I confirm that:
                 </p>
+                <ol class="text-sm text-gray-600 dark:text-gray-300 space-y-2 mb-4 list-decimal list-inside">
+                  <li>I am the patient named above, OR I am the parent/legal guardian of the patient named above and am authorised to consent on their behalf.</li>
+                  <li>I have read and understood the <NuxtLink to="/terms" class="text-primary-600 dark:text-primary-400 hover:underline">Terms of Service</NuxtLink>, <NuxtLink to="/privacy" class="text-primary-600 dark:text-primary-400 hover:underline">Privacy Policy</NuxtLink>, and <NuxtLink to="/consent" class="text-primary-600 dark:text-primary-400 hover:underline">Consent Form</NuxtLink>.</li>
+                  <li>I have had the opportunity to ask questions and have had them answered to my satisfaction.</li>
+                  <li>I voluntarily consent to virtual consultation services from Dr. O Virtual Consultations.</li>
+                  <li>I understand that I may withdraw consent at any time, though this may affect the services I can receive.</li>
+                </ol>
                 <UCheckbox v-model="consent" :ui="{ label: 'text-sm text-gray-700 dark:text-gray-300' }">
                   <template #label>
-                    I have read and agree to the consultation terms above
+                    I confirm and agree to all the statements above
                   </template>
                 </UCheckbox>
               </div>
@@ -260,14 +265,14 @@ const fetchDoctors = async () => {
   errorMessage.value = ''
 
   try {
-    const response = await $fetch<{ data: Array<{ id: number; name: string; speciality?: string | null; institution?: string | null }> }>('/doctors', {
+    const response = await $fetch<{ data: Array<{ id: number; name: string; speciality?: string | null; institution?: string | null; professional_number?: string | null }> }>('/doctors', {
       baseURL: config.public.apiBase,
       headers: apiHeaders.value
     })
 
     doctorOptions.value = (response.data || []).map(doctor => ({
       value: doctor.id,
-      label: [doctor.name, doctor.speciality, doctor.institution].filter(Boolean).join(' - ')
+      label: [doctor.professional_number, doctor.name, doctor.speciality, doctor.institution].filter(Boolean).join(' - ')
     }))
     retryDoctorsWhenOnline.value = false
 

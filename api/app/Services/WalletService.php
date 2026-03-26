@@ -72,7 +72,7 @@ class WalletService
                 $doctor->save();
             }
 
-            ConsultationSettlement::create([
+            $settlement = ConsultationSettlement::create([
                 'consultation_id' => $consultation->id,
                 'patient_id' => $user->id,
                 'doctor_id' => $consultation->doctor_id,
@@ -81,6 +81,20 @@ class WalletService
                 'platform_fee' => $platformFee,
                 'doctor_earning' => $doctorEarning,
             ]);
+
+            $settlement->refresh();
+            $settlement->invoice_number = app(EntityNumberGenerator::class)->generate('IN', $settlement->created_at);
+            $settlement->saveQuietly();
+
+            // Send consultation receipt email to the patient after billing succeeds.
+            DB::afterCommit(function () use ($settlement): void {
+                try {
+                    app(ConsultationReceiptService::class)->sendForSettlement($settlement->fresh(['patient', 'doctor', 'consultation']));
+                } catch (\Throwable $e) {
+                    // Receipt sending is best-effort: billing should not fail.
+                    report($e);
+                }
+            });
 
             app(AuditLogService::class)->log(
                 $user,

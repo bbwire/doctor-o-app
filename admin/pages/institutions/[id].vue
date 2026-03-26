@@ -44,6 +44,12 @@
             </UBadge>
           </div>
           <dl class="grid gap-3 sm:grid-cols-2">
+            <div v-if="institution.institution_number">
+              <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Institution no.</dt>
+              <dd class="mt-1">
+                <AdminHumanId variant="lg" :value="institution.institution_number" :show-dash="false" />
+              </dd>
+            </div>
             <div>
               <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Type</dt>
               <dd class="mt-0.5 text-gray-900 dark:text-white capitalize">{{ institution.type }}</dd>
@@ -261,6 +267,7 @@ const serviceOptions = [
   { label: 'Pharmacy', value: 'pharmacy' },
   { label: 'Lab', value: 'lab' },
   { label: 'Radiology', value: 'radiology' },
+  { label: 'Dental', value: 'dental' },
   { label: 'Interventional Unit', value: 'interventional_unit' },
   { label: 'Nursing care', value: 'nursing_care' }
 ]
@@ -334,6 +341,7 @@ function formatServices (services) {
     pharmacy: 'Pharmacy',
     lab: 'Lab',
     radiology: 'Radiology',
+    dental: 'Dental',
     interventional_unit: 'Interventional Unit',
     nursing_care: 'Nursing care'
   }

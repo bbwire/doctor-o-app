@@ -62,7 +62,7 @@
           <div class="flex items-center gap-4">
             <UAvatar
               :alt="user?.name || 'User'"
-              :src="avatarPreview || undefined"
+              :src="avatarDisplaySrc"
               size="3xl"
             />
             <div>
@@ -87,7 +87,7 @@
               color="gray"
               variant="ghost"
               icon="i-lucide-trash-2"
-              :disabled="!avatarPreview"
+              :disabled="!avatarDisplaySrc"
               @click="removePhoto"
             >
               Remove
@@ -109,6 +109,13 @@
 
             <UFormGroup label="Role">
               <UInput :model-value="user?.role || ''" disabled />
+            </UFormGroup>
+
+            <UFormGroup
+              v-if="user?.role === 'patient'"
+              label="Patient number"
+            >
+              <UInput :model-value="user?.patient_number || '—'" disabled class="font-mono" />
             </UFormGroup>
 
             <UFormGroup label="Phone">
@@ -174,6 +181,21 @@
         </div>
 
         <UForm :state="professionalState" class="space-y-4" @submit="onSaveProfessional">
+          <div
+            v-if="user?.healthcare_professional?.professional_number"
+            class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50"
+          >
+            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              Professional ID
+            </p>
+            <div class="mt-2">
+              <HumanIdBadge size="lg" :value="user.healthcare_professional.professional_number" />
+            </div>
+            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              Use this ID in documents and correspondence. It does not replace your council registration number.
+            </p>
+          </div>
+
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <UFormGroup label="Speciality" required>
               <USelectMenu
@@ -564,6 +586,7 @@ definePageMeta({
 })
 
 const { user, fetchUser } = useAuth()
+const { resolvePublicFileUrl } = useResolvePublicFileUrl()
 const { isApiReachable, hasApiStatusChecked } = useApiHealth()
 const config = useRuntimeConfig()
 const tokenCookie = useCookie<string | null>('auth_token')
@@ -578,6 +601,15 @@ const errorMessage = ref('')
 const isApiOffline = computed(() => hasApiStatusChecked.value && !isApiReachable.value)
 const selectedPhoto = ref<File | null>(null)
 const avatarPreview = ref<string | null>(null)
+
+/** Resolved API host for stored URLs; keeps blob: previews for local file picks. */
+const avatarDisplaySrc = computed(() => {
+  const p = avatarPreview.value
+  if (!p) return undefined
+  if (p.startsWith('blob:') || p.startsWith('data:')) return p
+  const r = resolvePublicFileUrl(p)
+  return r || undefined
+})
 const removeProfilePhoto = ref(false)
 const initialProfile = ref({
   name: '',

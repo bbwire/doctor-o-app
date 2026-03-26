@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('consultations', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('patient_id')->constrained('users')->cascadeOnDelete();
-            $table->foreignId('doctor_id')->constrained('users')->cascadeOnDelete();
+            $table->foreignId('doctor_id')->nullable()->constrained('users')->cascadeOnDelete();
             $table->dateTime('scheduled_at');
             $table->string('consultation_type')->default('video');
             $table->string('status')->default('scheduled');

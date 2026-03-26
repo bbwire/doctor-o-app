@@ -140,6 +140,7 @@ const serviceOptions = [
   { label: 'Pharmacy', value: 'pharmacy' },
   { label: 'Lab', value: 'lab' },
   { label: 'Radiology', value: 'radiology' },
+  { label: 'Dental', value: 'dental' },
   { label: 'Interventional Unit', value: 'interventional_unit' },
   { label: 'Nursing care', value: 'nursing_care' }
 ]

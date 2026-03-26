@@ -44,6 +44,9 @@
         :columns="columns"
         :loading="loading"
       >
+        <template #professional_number-data="{ row }">
+          <AdminHumanId :value="row.professional_number" />
+        </template>
         <template #user-data="{ row }">
           <span class="text-gray-900 dark:text-white">{{ row.user?.name || '—' }}</span>
           <span class="block text-sm text-gray-500 dark:text-gray-400">{{ row.user?.email }}</span>
@@ -91,6 +94,7 @@ const errorMessage = ref('')
 
 const columns = [
   { key: 'id', label: 'ID' },
+  { key: 'professional_number', label: 'Professional no.' },
   { key: 'user', label: 'User' },
   { key: 'speciality', label: 'Speciality' },
   { key: 'institution', label: 'Institution' },

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Doctor;
 use App\Http\Controllers\Controller;
 use App\Models\AcademicDocument;
 use App\Models\HealthcareProfessional;
+use App\Support\PublicStorageUrl;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -46,12 +47,12 @@ class AcademicDocumentController extends Controller
         $documents = $profile->academicDocuments()
             ->orderByDesc('created_at')
             ->get()
-            ->map(function (AcademicDocument $doc) {
+            ->map(function (AcademicDocument $doc) use ($request) {
                 return [
                     'id' => $doc->id,
                     'type' => $doc->type,
                     'name' => $doc->original_name,
-                    'url' => Storage::disk('public')->url($doc->stored_path),
+                    'url' => PublicStorageUrl::url($request, $doc->stored_path),
                     'mime_type' => $doc->mime_type,
                     'size' => $doc->size,
                     'uploaded_at' => $doc->created_at?->toISOString(),
@@ -108,7 +109,7 @@ class AcademicDocumentController extends Controller
                 'id' => $document->id,
                 'type' => $document->type,
                 'name' => $document->original_name,
-                'url' => Storage::disk('public')->url($document->stored_path),
+                'url' => PublicStorageUrl::url($request, $document->stored_path),
                 'mime_type' => $document->mime_type,
                 'size' => $document->size,
                 'uploaded_at' => $document->created_at?->toISOString(),

@@ -14,6 +14,8 @@ class Consultation extends Model
     protected $fillable = [
         'patient_id',
         'doctor_id',
+        'consultation_number',
+        'referral_number',
         'scheduled_at',
         'consultation_type',
         'status',

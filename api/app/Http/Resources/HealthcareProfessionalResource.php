@@ -2,9 +2,9 @@
 
 namespace App\Http\Resources;
 
+use App\Support\PublicStorageUrl;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Storage;
 
 /** @mixin \App\Models\HealthcareProfessional */
 class HealthcareProfessionalResource extends JsonResource
@@ -21,6 +21,7 @@ class HealthcareProfessionalResource extends JsonResource
             'user_id' => $this->user_id,
             'institution_id' => $this->institution_id,
             'speciality' => $this->speciality,
+            'professional_number' => $this->professional_number,
             'license_number' => $this->license_number,
             'registration_date' => $this->registration_date?->toDateString(),
             'regulatory_council' => $this->regulatory_council,
@@ -38,12 +39,12 @@ class HealthcareProfessionalResource extends JsonResource
                 'role' => $this->user?->role,
             ]),
             'institution' => new InstitutionResource($this->whenLoaded('institution')),
-            'academic_documents' => $this->whenLoaded('academicDocuments', function () {
+            'academic_documents' => $this->whenLoaded('academicDocuments', function () use ($request) {
                 return $this->academicDocuments->map(fn ($doc) => [
                     'id' => $doc->id,
                     'type' => $doc->type,
                     'name' => $doc->original_name,
-                    'url' => $doc->stored_path ? Storage::disk('public')->url($doc->stored_path) : null,
+                    'url' => $doc->stored_path ? PublicStorageUrl::url($request, $doc->stored_path) : null,
                     'mime_type' => $doc->mime_type,
                     'size' => $doc->size,
                     'uploaded_at' => $doc->created_at?->toISOString(),

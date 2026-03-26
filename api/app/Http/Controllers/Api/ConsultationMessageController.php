@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Consultation;
 use App\Models\ConsultationMessage;
+use App\Support\PublicStorageUrl;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -21,7 +22,7 @@ class ConsultationMessageController extends Controller
 
         $messages = $consultation->messages()
             ->get()
-            ->map(fn (ConsultationMessage $m) => $this->formatMessage($m));
+            ->map(fn (ConsultationMessage $m) => $this->formatMessage($request, $m));
 
         return response()->json(['data' => $messages]);
     }
@@ -47,7 +48,7 @@ class ConsultationMessageController extends Controller
                 'consultation-messages/' . $consultation->id,
                 'public'
             );
-            $attachmentUrl = Storage::disk('public')->url($path);
+            $attachmentUrl = PublicStorageUrl::url($request, $path);
         }
 
         $message = $consultation->messages()->create([
@@ -58,18 +59,22 @@ class ConsultationMessageController extends Controller
         ]);
 
         return response()->json([
-            'data' => $this->formatMessage($message),
+            'data' => $this->formatMessage($request, $message),
         ], 201);
     }
 
-    private function formatMessage(ConsultationMessage $m): array
+    private function formatMessage(Request $request, ConsultationMessage $m): array
     {
+        $attachmentUrl = $m->attachment_url
+            ? PublicStorageUrl::normalize($request, $m->attachment_url)
+            : null;
+
         return [
             'id' => $m->id,
             'text' => $m->text,
             'sender' => $m->sender,
             'at' => $m->created_at->toISOString(),
-            'attachment_url' => $m->attachment_url,
+            'attachment_url' => $attachmentUrl,
             'source' => $m->source ?? 'user',
         ];
     }

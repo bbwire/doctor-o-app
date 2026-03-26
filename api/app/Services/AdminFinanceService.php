@@ -147,7 +147,7 @@ class AdminFinanceService
     {
         $query = WalletTransaction::query()
             ->where('type', 'top_up')
-            ->with('user:id,name,email')
+            ->with('user:id,name,email,patient_number')
             ->orderByDesc('created_at');
 
         if ($from) {
@@ -166,7 +166,7 @@ class AdminFinanceService
     public function settlementsList(int $perPage = 15, ?string $from = null, ?string $to = null)
     {
         $query = ConsultationSettlement::query()
-            ->with(['consultation:id,scheduled_at,consultation_type', 'patient:id,name,email', 'doctor:id,name,email'])
+            ->with(['consultation:id,scheduled_at,consultation_type,consultation_number', 'patient:id,name,email,patient_number', 'doctor:id,name,email'])
             ->orderByDesc('created_at');
 
         if ($from) {
@@ -185,7 +185,7 @@ class AdminFinanceService
     public function consultationRevenue(int $perPage = 15, int $page = 1, ?string $period = null, ?string $type = null, ?int $doctorId = null): array
     {
         $query = ConsultationSettlement::query()
-            ->with(['consultation:id,consultation_type', 'patient:id,name,email', 'doctor:id,name']);
+            ->with(['consultation:id,consultation_type,consultation_number', 'patient:id,name,email,patient_number', 'doctor:id,name']);
 
         // Apply period filter
         if ($period && $period !== 'all') {
@@ -231,7 +231,7 @@ class AdminFinanceService
         
         $query = ConsultationSettlement::query()
             ->where('created_at', '>=', $startDate)
-            ->with(['consultation:id', 'patient:id,name,email', 'doctor:id,name'])
+            ->with(['consultation:id', 'patient:id,name,email,patient_number', 'doctor:id,name'])
             ->orderByDesc('created_at');
 
         $paginator = $query->paginate($perPage);
@@ -252,7 +252,7 @@ class AdminFinanceService
     public function doctorEarnings(int $perPage = 15, int $page = 1, ?string $period = null, ?string $speciality = null, ?int $doctorId = null): array
     {
         $query = ConsultationSettlement::query()
-            ->with(['consultation:id,consultation_type', 'doctor:id,name,speciality', 'patient:id,name,email']);
+            ->with(['consultation:id,consultation_type', 'doctor:id,name,speciality', 'patient:id,name,email,patient_number']);
 
         // Apply period filter
         if ($period && $period !== 'all') {

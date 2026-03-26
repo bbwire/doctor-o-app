@@ -36,16 +36,51 @@ class PatientConsultationService
     public function createForPatient(User $patient, array $validated): Consultation
     {
         $scheduledAt = Carbon::parse($validated['scheduled_at']);
-        
-        // If no specific doctor is selected, find an available doctor in the category
-        $doctorId = $validated['doctor_id'] ?? $this->findAvailableDoctorInCategory($validated['category'], $scheduledAt);
-        
-        if (!$doctorId) {
-            throw ValidationException::withMessages([
-                'scheduled_at' => ['No available doctors found in the selected category for the chosen time slot. Please try a different time or select a specific doctor.'],
+
+        $doctorId = $validated['doctor_id'] ?? null;
+
+        // Waiting-room flow: if patient didn't pick a doctor, create an unassigned
+        // consultation that becomes scheduled only when a doctor claims it.
+        if (! $doctorId) {
+            $consultation = Consultation::create([
+                'patient_id' => $patient->id,
+                'doctor_id' => null,
+                'scheduled_at' => $scheduledAt->toDateTimeString(),
+                'consultation_type' => $validated['consultation_type'],
+                'status' => 'waiting',
+                'reason' => $validated['reason'],
+                'notes' => $validated['notes'] ?? null,
+                'metadata' => [
+                    'requested_category' => $validated['category'],
+                    'auto_assigned' => false,
+                ],
             ]);
+
+            $consultation->refresh();
+            $consultation->consultation_number = app(EntityNumberGenerator::class)->generate('CN', $consultation->created_at);
+            $consultation->saveQuietly();
+            $consultation->load(['patient']);
+
+            $notificationService = app(NotificationService::class);
+            $notificationService->createForUser(
+                $patient->id,
+                'consultation_requested',
+                'Appointment request received',
+                'Your consultation request has been submitted for ' . $scheduledAt->format('M j, Y \a\t g:i A') . '. Waiting for doctor assignment.',
+                ['consultation_id' => $consultation->id]
+            );
+            $notificationService->notifyAdmins(
+                'consultation_requested',
+                'New consultation request',
+                'A patient requested a consultation for ' . $scheduledAt->format('M j, Y \a\t g:i A') . '.',
+                ['consultation_id' => $consultation->id, 'patient_id' => $patient->id]
+            );
+
+            return $consultation;
         }
 
+        // Explicit doctor selection flow:
+        // validate slot availability, charge immediately, then schedule.
         $isDoctorSlotTaken = Consultation::query()
             ->where('doctor_id', $doctorId)
             ->where('status', 'scheduled')
@@ -79,11 +114,16 @@ class PatientConsultationService
             'status' => 'scheduled',
             'reason' => $validated['reason'],
             'notes' => $validated['notes'] ?? null,
-            'metadata' => array_merge($consultation->metadata ?? [], [
+            'metadata' => [
                 'requested_category' => $validated['category'],
-                'auto_assigned' => !isset($validated['doctor_id']),
-            ]),
-        ])->load(['doctor.healthcareProfessional.institution', 'patient']);
+                'auto_assigned' => false,
+            ],
+        ]);
+
+        $consultation->refresh();
+        $consultation->consultation_number = app(EntityNumberGenerator::class)->generate('CN', $consultation->created_at);
+        $consultation->saveQuietly();
+        $consultation->load(['doctor.healthcareProfessional.institution', 'patient']);
 
         if ($amount > 0) {
             app(WalletService::class)->chargeForConsultation($patient, $consultation, $amount);
@@ -125,7 +165,7 @@ class PatientConsultationService
     public function cancelForPatient(User $patient, int $consultationId): Consultation
     {
         $consultation = $this->findForPatientOrFail($patient, $consultationId);
-        $this->assertCanManageScheduledConsultation($consultation);
+        $this->assertCanManageConsultation($consultation);
 
         $consultation->update([
             'status' => 'cancelled',
@@ -135,13 +175,15 @@ class PatientConsultationService
             ]),
         ]);
 
-        app(NotificationService::class)->createForUser(
-            (int) $consultation->doctor_id,
-            'consultation_cancelled',
-            'Appointment cancelled',
-            'A patient has cancelled their consultation scheduled for ' . $consultation->scheduled_at->format('M j, Y \a\t g:i A') . '.',
-            ['consultation_id' => $consultation->id]
-        );
+        if ($consultation->doctor_id) {
+            app(NotificationService::class)->createForUser(
+                (int) $consultation->doctor_id,
+                'consultation_cancelled',
+                'Appointment cancelled',
+                'A patient has cancelled their consultation scheduled for ' . $consultation->scheduled_at->format('M j, Y \a\t g:i A') . '.',
+                ['consultation_id' => $consultation->id]
+            );
+        }
         app(NotificationService::class)->notifyAdmins(
             'consultation_cancelled',
             'Consultation cancelled',
@@ -158,7 +200,7 @@ class PatientConsultationService
     public function rescheduleForPatient(User $patient, int $consultationId, array $validated): Consultation
     {
         $consultation = $this->findForPatientOrFail($patient, $consultationId);
-        $this->assertCanManageScheduledConsultation($consultation);
+        $this->assertCanManageConsultation($consultation);
 
         $newScheduledAt = Carbon::parse($validated['scheduled_at']);
 
@@ -186,11 +228,11 @@ class PatientConsultationService
         return $consultation->refresh()->load(['doctor.healthcareProfessional.institution', 'prescriptions']);
     }
 
-    private function assertCanManageScheduledConsultation(Consultation $consultation): void
+    private function assertCanManageConsultation(Consultation $consultation): void
     {
-        if ($consultation->status !== 'scheduled') {
+        if (! in_array($consultation->status, ['scheduled', 'waiting'], true)) {
             throw ValidationException::withMessages([
-                'status' => ['Only scheduled consultations can be updated.'],
+                'status' => ['Only scheduled or waiting consultations can be updated.'],
             ]);
         }
 

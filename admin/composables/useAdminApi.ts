@@ -61,6 +61,27 @@ export const useAdminApi = () => {
     })
   }
 
+  /** GET binary (e.g. PDF) with Bearer auth; triggers browser download. */
+  const downloadBlob = async (path: string, filename: string) => {
+    const p = path.startsWith('http') ? path : `${baseURL}${path.startsWith('/') ? path : `/${path}`}`
+    const res = await fetch(p, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token.value || ''}` }
+    })
+    if (!res.ok) {
+      const err = new Error('Download failed') as Error & { status?: number }
+      err.status = res.status
+      throw err
+    }
+    const blob = await res.blob()
+    const a = document.createElement('a')
+    const href = URL.createObjectURL(blob)
+    a.href = href
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(href)
+  }
+
   /** Fetch paginated list and return { data, meta } (Laravel resource collection shape). */
   const fetchList = async (
     resource: 'users' | 'institutions' | 'healthcare-professionals' | 'consultations' | 'prescriptions',
@@ -100,6 +121,7 @@ export const useAdminApi = () => {
     del,
     fetchList,
     getCount,
-    fetchDashboardSummary
+    fetchDashboardSummary,
+    downloadBlob
   }
 }

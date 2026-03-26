@@ -12,11 +12,16 @@
         Connect with healthcare professionals through secure text, audio, and video consultations. Get digital prescriptions, investigations, and referrals in one place.
       </p>
       <div class="relative mt-7 flex items-center justify-center gap-3">
-        <UButton to="/register" size="lg" icon="i-lucide-arrow-right">
-          Get Started
-        </UButton>
-        <UButton to="/login" size="lg" color="gray" variant="soft">
-          Sign In
+        <template v-if="!user">
+          <UButton to="/register" size="lg" icon="i-lucide-arrow-right">
+            Get Started
+          </UButton>
+          <UButton to="/login" size="lg" color="gray" variant="soft">
+            Sign In
+          </UButton>
+        </template>
+        <UButton v-else :to="dashboardLink" size="lg" icon="i-lucide-layout-dashboard">
+          Go to Dashboard
         </UButton>
       </div>
     </section>
@@ -49,6 +54,10 @@
 </template>
 
 <script setup>
+const { user } = useAuth()
+
+const dashboardLink = computed(() => user.value?.role === 'doctor' ? '/doctor/dashboard' : '/dashboard')
+
 const features = [
   {
     icon: 'i-lucide-message-circle',

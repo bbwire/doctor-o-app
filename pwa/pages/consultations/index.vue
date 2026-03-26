@@ -48,8 +48,19 @@
                 <p class="text-sm text-gray-500 dark:text-gray-400">
                   {{ formatDateTime(consultation.scheduled_at) }}
                 </p>
+                <div v-if="consultation.consultation_number" class="mt-2">
+                  <HumanIdBadge :value="consultation.consultation_number" />
+                </div>
                 <p class="font-semibold text-gray-900 dark:text-white mt-1">
-                  Dr. {{ consultation.doctor?.name || 'Unknown Doctor' }}
+                  Dr.
+                  {{
+                    consultation.doctor?.name
+                      || (consultation.status === 'waiting'
+                        ? (consultation.metadata?.requested_category
+                          ? `Assigned: ${consultation.metadata.requested_category}`
+                          : 'Pending doctor assignment')
+                        : 'Unknown Doctor')
+                  }}
                 </p>
                 <p class="text-sm text-gray-600 dark:text-gray-300 capitalize">
                   {{ consultation.consultation_type }} consultation
@@ -138,15 +149,19 @@ definePageMeta({
 
 interface ConsultationItem {
   id: number
+  consultation_number?: string | null
   scheduled_at: string
   consultation_type: 'text' | 'audio' | 'video'
-  status: 'scheduled' | 'completed' | 'cancelled'
+  status: 'scheduled' | 'waiting' | 'completed' | 'cancelled'
   reason?: string
   consultation_summary?: {
     summary_of_history?: string
     differential_diagnosis?: string
     final_diagnosis?: string
     management_plan?: string
+  }
+  metadata?: {
+    requested_category?: string
   }
   doctor?: {
     name?: string
@@ -169,8 +184,8 @@ const errorMessage = ref('')
 const retryWhenOnline = ref(false)
 const reconnectRetryInProgress = ref(false)
 const consultations = ref<ConsultationItem[]>([])
-const statusFilter = ref<'all' | 'scheduled' | 'completed' | 'cancelled'>('all')
-const statusOptions = ['all', 'scheduled', 'completed', 'cancelled']
+const statusFilter = ref<'all' | 'scheduled' | 'waiting' | 'completed' | 'cancelled'>('all')
+const statusOptions = ['all', 'scheduled', 'waiting', 'completed', 'cancelled']
 
 const fetchConsultations = async () => {
   loading.value = true
@@ -186,7 +201,9 @@ const fetchConsultations = async () => {
       query: statusFilter.value === 'all' ? {} : { status: statusFilter.value }
     })
 
-    consultations.value = response.data || []
+    consultations.value = (response.data || []).slice().sort((a, b) => {
+      return new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime()
+    })
     retryWhenOnline.value = false
 
     if (reconnectRetryInProgress.value) {
@@ -220,6 +237,7 @@ const fetchConsultations = async () => {
 
 const statusColor = (status: ConsultationItem['status']) => {
   if (status === 'scheduled') return 'blue'
+  if (status === 'waiting') return 'amber'
   if (status === 'completed') return 'green'
   return 'gray'
 }

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\HealthcareProfessional;
 use App\Models\User;
+use App\Support\IdSystem;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Hash;
@@ -80,7 +81,14 @@ class HealthcareProfessionalService
             'is_active' => $validated['is_active'] ?? true,
         ];
 
-        return HealthcareProfessional::create($professionalData)->load(['user', 'institution']);
+        $hp = HealthcareProfessional::create($professionalData);
+        $hp->refresh();
+
+        $prefix = IdSystem::professionalPrefix($hp->speciality);
+        $hp->professional_number = app(EntityNumberGenerator::class)->generate($prefix, $hp->created_at);
+        $hp->saveQuietly();
+
+        return $hp->load(['user', 'institution']);
     }
 
     /**

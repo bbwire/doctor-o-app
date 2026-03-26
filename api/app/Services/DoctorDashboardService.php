@@ -20,6 +20,7 @@ class DoctorDashboardService
             ->where('doctor_id', $doctor->id)
             ->where('status', 'scheduled')
             ->whereBetween('scheduled_at', [$todayStart, $todayEnd])
+            ->where('scheduled_at', '>=', now())
             ->count();
 
         $upcomingConsultationsCount = Consultation::query()
@@ -48,12 +49,14 @@ class DoctorDashboardService
             'completed_today' => $completedTodayCount,
             'next_consultation' => $nextConsultation ? [
                 'id' => $nextConsultation->id,
+                'consultation_number' => $nextConsultation->consultation_number,
                 'scheduled_at' => $nextConsultation->scheduled_at?->toISOString(),
                 'consultation_type' => $nextConsultation->consultation_type,
                 'status' => $nextConsultation->status,
                 'patient' => [
                     'id' => $nextConsultation->patient?->id,
                     'name' => $nextConsultation->patient?->name,
+                    'patient_number' => $nextConsultation->patient?->patient_number,
                 ],
             ] : null,
         ];

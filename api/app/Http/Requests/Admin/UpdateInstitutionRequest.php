@@ -22,7 +22,7 @@ class UpdateInstitutionRequest extends FormRequest
     public function rules(): array
     {
         $types = ['hospital', 'clinic', 'lab', 'drugshop', 'pharmacy', 'nursing_home'];
-        $serviceOptions = ['consultation', 'pharmacy', 'lab', 'radiology', 'interventional_unit', 'nursing_care'];
+        $serviceOptions = ['consultation', 'pharmacy', 'lab', 'radiology', 'interventional_unit', 'nursing_care', 'dental'];
 
         return [
             'name' => ['sometimes', 'string', 'max:255'],

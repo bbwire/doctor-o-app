@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Institution;
+use App\Support\IdSystem;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class InstitutionService
@@ -37,7 +38,16 @@ class InstitutionService
      */
     public function create(array $validated): Institution
     {
-        return Institution::create($validated);
+        $institution = Institution::create($validated);
+        $institution->refresh();
+
+        $prefix = IdSystem::institutionPrefix($institution->type);
+        if ($prefix !== null) {
+            $institution->institution_number = app(EntityNumberGenerator::class)->generate($prefix, $institution->created_at);
+            $institution->saveQuietly();
+        }
+
+        return $institution;
     }
 
     /**

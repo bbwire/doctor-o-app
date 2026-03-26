@@ -44,7 +44,11 @@ class PrescriptionService
     {
         $this->validateParticipantsForConsultation($validated);
 
-        $prescription = Prescription::create($validated)->load(['consultation', 'patient', 'doctor']);
+        $prescription = Prescription::create($validated);
+        $prescription->refresh();
+        $prescription->prescription_number = app(EntityNumberGenerator::class)->generate('RX', $prescription->created_at);
+        $prescription->saveQuietly();
+        $prescription->load(['consultation', 'patient', 'doctor']);
 
         app(NotificationService::class)->createForUser(
             (int) $prescription->patient_id,

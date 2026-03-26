@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Institution;
+use App\Support\PublicStorageUrl;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -32,7 +33,7 @@ class InstitutionDocumentController extends Controller
 
         return response()->json([
             'data' => [
-                'url' => Storage::disk('public')->url($path),
+                'url' => PublicStorageUrl::url($request, $path),
                 'mime_type' => $file->getClientMimeType(),
                 'size' => $file->getSize(),
             ],

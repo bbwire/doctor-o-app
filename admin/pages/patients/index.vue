@@ -18,7 +18,7 @@
       <div class="mb-4 flex items-center justify-between gap-4">
         <UInput
           v-model="search"
-          placeholder="Search patients..."
+          placeholder="Search by name, email, or patient no...."
           icon="i-lucide-search"
           class="max-w-xs"
         />
@@ -38,6 +38,9 @@
         :columns="columns"
         :loading="loading"
       >
+        <template #patient_number-data="{ row }">
+          <AdminPatientNumber :patient-number="row.patient_number" />
+        </template>
         <template #chronic_conditions-data="{ row }">
           <span v-if="row.chronic_conditions?.length" class="text-sm">
             {{ (row.chronic_conditions || []).join(', ') }}
@@ -83,7 +86,10 @@
             Delete patient
           </h3>
           <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            Are you sure you want to delete <strong>{{ patientToDelete?.name || patientToDelete?.email }}</strong>? This cannot be undone.
+            Are you sure you want to delete
+            <strong>{{ patientToDelete?.name || patientToDelete?.email }}</strong>
+            <span v-if="patientToDelete?.patient_number"> (patient no. {{ patientToDelete.patient_number }})</span>?
+            This cannot be undone.
           </p>
           <div class="mt-4 flex justify-end gap-2">
             <UButton variant="outline" @click="deleteModalOpen = false">
@@ -115,11 +121,12 @@ const patients = ref<any[]>([])
 const total = ref(0)
 const errorMessage = ref('')
 const deleteModalOpen = ref(false)
-const patientToDelete = ref<{ id: number; name?: string; email?: string } | null>(null)
+const patientToDelete = ref<{ id: number; name?: string; email?: string; patient_number?: string | null } | null>(null)
 const deleting = ref(false)
 
 const columns = [
   { key: 'id', label: 'ID' },
+  { key: 'patient_number', label: 'Patient no.' },
   { key: 'name', label: 'Name' },
   { key: 'email', label: 'Email' },
   { key: 'phone', label: 'Phone' },

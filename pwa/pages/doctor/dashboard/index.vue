@@ -63,10 +63,18 @@
             <p v-if="loading" class="text-sm text-gray-500 dark:text-gray-400 mt-1">
               Loading...
             </p>
-            <div v-else class="mt-1">
+            <div v-else class="mt-1 space-y-2">
               <p class="text-sm text-gray-700 dark:text-gray-300">
                 {{ formatDateTime(summary.next_consultation.scheduled_at) }}
               </p>
+              <div v-if="summary.next_consultation.patient?.patient_number" class="flex flex-wrap items-center gap-2">
+                <span class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Patient no.</span>
+                <PatientNumberBadge size="lg" :patient-number="summary.next_consultation.patient.patient_number" />
+              </div>
+              <div v-if="summary.next_consultation.consultation_number" class="flex flex-wrap items-center gap-2">
+                <span class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Consultation no.</span>
+                <HumanIdBadge size="lg" :value="summary.next_consultation.consultation_number" />
+              </div>
               <p class="text-sm text-gray-600 dark:text-gray-400 capitalize">
                 {{ summary.next_consultation.consultation_type }} with
                 {{ summary.next_consultation.patient?.name || 'Unknown Patient' }}
@@ -98,13 +106,88 @@
           <template #scheduled_at-data="{ row }">
           {{ formatDateTime(row.scheduled_at) }}
           </template>
+          <template #consultation_number-data="{ row }">
+            <HumanIdBadge
+              v-if="row.consultation_number"
+              :value="row.consultation_number"
+            />
+            <span v-else class="font-mono text-xs text-gray-400 dark:text-gray-500">—</span>
+          </template>
           <template #patient-data="{ row }">
-            {{ row.patient?.name || `Patient #${row.patient_id}` }}
+            <div class="flex min-w-0 max-w-[220px] flex-col gap-1">
+              <PatientNumberBadge
+                v-if="row.patient?.patient_number"
+                :patient-number="row.patient.patient_number"
+              />
+              <span class="truncate font-medium text-gray-900 dark:text-white">
+                {{ row.patient?.name || `Patient #${row.patient_id}` }}
+              </span>
+            </div>
           </template>
         </UTable>
 
         <div v-if="!consultations.length && !loading" class="mt-2 text-gray-500 dark:text-gray-400">
           No upcoming consultations.
+        </div>
+      </UCard>
+
+      <UCard :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }">
+        <h3 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+          Waiting room
+        </h3>
+
+        <UTable
+          :rows="waitingConsultations"
+          :columns="waitingColumns"
+          :loading="loading"
+          class="cursor-default"
+        >
+          <template #scheduled_at-data="{ row }">
+            {{ formatDateTime(row.scheduled_at) }}
+          </template>
+
+          <template #consultation_number-data="{ row }">
+            <HumanIdBadge
+              v-if="row.consultation_number"
+              :value="row.consultation_number"
+            />
+            <span v-else class="font-mono text-xs text-gray-400 dark:text-gray-500">—</span>
+          </template>
+
+          <template #patient-data="{ row }">
+            <div class="flex min-w-0 max-w-[220px] flex-col gap-1">
+              <PatientNumberBadge
+                v-if="row.patient?.patient_number"
+                :patient-number="row.patient.patient_number"
+              />
+              <span class="truncate font-medium text-gray-900 dark:text-white">
+                {{ row.patient?.name || `Patient #${row.patient_id}` }}
+              </span>
+            </div>
+          </template>
+
+          <template #category-data="{ row }">
+            <UBadge color="amber" variant="soft" size="sm">
+              {{ row.metadata?.requested_category || '—' }}
+            </UBadge>
+          </template>
+
+          <template #action-data="{ row }">
+            <UButton
+              size="sm"
+              variant="soft"
+              color="green"
+              icon="i-lucide-check-circle"
+              :loading="waitingActionLoading[row.id]"
+              @click.stop="claimWaiting(row)"
+            >
+              Accept
+            </UButton>
+          </template>
+        </UTable>
+
+        <div v-if="!waitingConsultations.length && !loading" class="mt-2 text-gray-500 dark:text-gray-400">
+          No patients waiting in your category.
         </div>
       </UCard>
 
@@ -135,10 +218,13 @@ const { formatDateTime } = useDateFormat()
 const { user, token } = useAuth()
 const router = useRouter()
 const tokenCookie = useCookie('auth_token')
+const toast = useToast()
 
 const loading = ref(true)
 const errorMessage = ref('')
 const consultations = ref<any[]>([])
+const waitingConsultations = ref<any[]>([])
+const waitingActionLoading = ref<Record<number, boolean>>({})
 const summary = reactive({
   today_consultations: 0,
   upcoming_consultations: 0,
@@ -148,9 +234,19 @@ const summary = reactive({
 
 const columns = [
   { key: 'scheduled_at', label: 'Time' },
+  { key: 'consultation_number', label: 'Consultation no.' },
   { key: 'patient', label: 'Patient' },
   { key: 'consultation_type', label: 'Type' },
   { key: 'status', label: 'Status' }
+]
+
+const waitingColumns = [
+  { key: 'scheduled_at', label: 'Time' },
+  { key: 'consultation_number', label: 'Consultation no.' },
+  { key: 'patient', label: 'Patient' },
+  { key: 'consultation_type', label: 'Type' },
+  { key: 'category', label: 'Category' },
+  { key: 'action', label: '' },
 ]
 
 function goToDetail (row: any) {
@@ -172,16 +268,21 @@ async function fetchDashboard () {
   errorMessage.value = ''
 
   try {
-    const [summaryRes, consultationsRes] = await Promise.all([
+    const [summaryRes, consultationsRes, waitingRes] = await Promise.all([
       $fetch<{ data: any }>('/doctor/dashboard/summary', {
         baseURL: config.public.apiBase,
         headers: apiHeaders()
       }),
       $fetch<{ data: any[] }>('/doctor/consultations', {
         baseURL: config.public.apiBase,
-        query: { status: 'scheduled', per_page: 10 },
+        query: { status: 'scheduled', from: new Date().toISOString(), per_page: 10 },
         headers: apiHeaders()
-      })
+      }),
+      $fetch<{ data: any[] }>('/doctor/consultations/queue', {
+        baseURL: config.public.apiBase,
+        query: { per_page: 10 },
+        headers: apiHeaders()
+      }),
     ])
 
     const data = summaryRes?.data || {}
@@ -191,10 +292,35 @@ async function fetchDashboard () {
     summary.next_consultation = data.next_consultation ?? null
 
     consultations.value = consultationsRes?.data ?? []
+    waitingConsultations.value = waitingRes?.data ?? []
   } catch (e: any) {
     errorMessage.value = e?.data?.message || 'Failed to load dashboard.'
   } finally {
     loading.value = false
+  }
+}
+
+async function claimWaiting (row: any) {
+  if (!row?.id) return
+
+  waitingActionLoading.value[row.id] = true
+  try {
+    await $fetch(`/doctor/consultations/${row.id}/claim`, {
+      method: 'POST',
+      baseURL: config.public.apiBase,
+      headers: apiHeaders(),
+    })
+
+    toast.add({ title: 'Patient accepted', color: 'green' })
+    await fetchDashboard()
+  } catch (e: any) {
+    toast.add({
+      title: 'Could not accept patient',
+      description: e?.data?.message || 'Please try again.',
+      color: 'red',
+    })
+  } finally {
+    waitingActionLoading.value[row.id] = false
   }
 }
 

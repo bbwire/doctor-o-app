@@ -200,14 +200,17 @@
 
           <UCheckbox v-model="showPasswords" label="Show passwords" />
 
-          <UFormGroup name="consent" required>
-            <UCheckbox v-model="state.consent" :ui="{ label: 'text-sm text-gray-600 dark:text-gray-300' }">
-              <template #label>
-                I agree to the
-                <NuxtLink to="/privacy" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline">Privacy Policy</NuxtLink>
-                and consent to the use of my data for this service.
-              </template>
-            </UCheckbox>
+          <UFormGroup v-if="state.role === 'patient'" name="consent" label="">
+            <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-4">
+              <UCheckbox v-model="state.consent_acknowledged" :ui="{ label: 'text-sm text-gray-700 dark:text-gray-300' }">
+                <template #label>
+                  I confirm that I have read and understood the
+                  <NuxtLink to="/terms" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline"> Terms of Service</NuxtLink>,
+                  <NuxtLink to="/privacy" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline"> Privacy Policy</NuxtLink>, and
+                  <NuxtLink to="/consent" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline"> Consent Form</NuxtLink>.
+                </template>
+              </UCheckbox>
+            </div>
           </UFormGroup>
 
           <UButton
@@ -215,7 +218,7 @@
             block
             size="lg"
             :loading="loading"
-            :disabled="isApiOffline || !state.consent"
+            :disabled="isApiOffline || !allConsentsChecked"
           >
             Create account
           </UButton>
@@ -256,11 +259,6 @@ const languageOptions = [
 ]
 const showPasswords = ref(false)
 
-const roleOptions = [
-  { label: 'Patient', value: 'patient' },
-  { label: 'Doctor', value: 'doctor' }
-]
-
 const state = reactive({
   role: 'patient',
   name: '',
@@ -270,7 +268,8 @@ const state = reactive({
   date_of_birth: '',
   password: '',
   password_confirmation: '',
-  consent: false,
+  consent_acknowledged: false,
+  // Doctor fields
   speciality: '',
   institution_id: null,
   license_number: '',
@@ -309,6 +308,14 @@ onMounted(async () => {
   } catch {
     institutionOptions.value = []
   }
+})
+
+const allConsentsChecked = computed(() => {
+  if (state.role === 'doctor') {
+    return true
+  }
+
+  return state.consent_acknowledged
 })
 
 const loading = ref(false)

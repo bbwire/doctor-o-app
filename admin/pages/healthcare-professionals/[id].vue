@@ -94,6 +94,12 @@
             </UButton>
           </div>
           <dl class="grid gap-3 sm:grid-cols-2">
+            <div v-if="item.professional_number" class="sm:col-span-2">
+              <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Professional no.</dt>
+              <dd class="mt-1">
+                <AdminHumanId variant="lg" :value="item.professional_number" :show-dash="false" />
+              </dd>
+            </div>
             <div><dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Email</dt><dd class="mt-0.5 text-gray-900 dark:text-white">{{ item.user?.email || '—' }}</dd></div>
             <div><dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Institution</dt><dd class="mt-0.5 text-gray-900 dark:text-white">{{ item.institution?.name || '—' }}</dd></div>
             <div><dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Speciality</dt><dd class="mt-0.5 text-gray-900 dark:text-white">{{ item.speciality || '—' }}</dd></div>

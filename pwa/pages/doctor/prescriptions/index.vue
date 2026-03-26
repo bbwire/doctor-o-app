@@ -24,6 +24,13 @@
         :columns="columns"
         :loading="loading"
       >
+        <template #prescription_number-data="{ row }">
+          <HumanIdBadge
+            v-if="row.prescription_number"
+            :value="row.prescription_number"
+          />
+          <span v-else class="font-mono text-xs text-gray-400 dark:text-gray-500">—</span>
+        </template>
         <template #patient-data="{ row }">
           {{ row.patient?.name || `Patient #${row.patient_id}` }}
         </template>
@@ -57,6 +64,7 @@ const total = ref(0)
 
 const columns = [
   { key: 'issued_at', label: 'Issued at' },
+  { key: 'prescription_number', label: 'Prescription no.' },
   { key: 'patient', label: 'Patient' },
   { key: 'status', label: 'Status' }
 ]

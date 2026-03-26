@@ -30,6 +30,11 @@ class AdminUserService
         }
         $user = User::create($attrs);
 
+        if ($user->isPatient()) {
+            $user->patient_number = app(PatientNumberGenerator::class)->generate($user->created_at);
+            $user->save();
+        }
+
         return $user->load('healthcareProfessional.institution');
     }
 
@@ -49,7 +54,8 @@ class AdminUserService
 
             $query->where(function (Builder $builder) use ($search): void {
                 $builder->where('name', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%");
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('patient_number', 'like', "%{$search}%");
             });
         }
 

@@ -11,6 +11,7 @@ class ConsultationSettlement extends Model
         'consultation_id',
         'patient_id',
         'doctor_id',
+        'invoice_number',
         'amount_paid',
         'platform_fee_percentage',
         'platform_fee',

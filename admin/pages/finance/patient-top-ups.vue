@@ -54,7 +54,7 @@
         <div class="flex items-center gap-2">
           <UInput
             v-model="searchQuery"
-            placeholder="Search by patient name or email..."
+            placeholder="Search by patient no., name, or email..."
             icon="i-lucide-search"
             class="w-64"
           />
@@ -78,7 +78,17 @@
         :rows="filteredTopUps"
         :columns="topUpColumns"
         :loading="loading"
-      />
+      >
+        <template #patient_number-data="{ row }">
+          <AdminPatientNumber :patient-number="row.user?.patient_number" />
+        </template>
+        <template #user-data="{ row }">
+          <div class="flex min-w-0 max-w-xs flex-col gap-0.5">
+            <span class="truncate font-medium text-gray-900 dark:text-white">{{ row.user?.name || '—' }}</span>
+            <span class="truncate text-xs text-gray-500 dark:text-gray-400">{{ row.user?.email || '' }}</span>
+          </div>
+        </template>
+      </UTable>
 
       <div v-if="!filteredTopUps.length && !loading" class="py-8 text-center text-sm text-gray-500">
         No top-up transactions found.
@@ -122,6 +132,7 @@ let chartInstance = null
 
 const topUpColumns = [
   { key: 'created_at', label: 'Date & Time', sortable: true },
+  { key: 'patient_number', label: 'Patient no.', sortable: true },
   { key: 'user', label: 'Patient', sortable: true },
   { key: 'amount', label: 'Amount', sortable: true },
   { key: 'payment_method', label: 'Payment Method', sortable: true },
@@ -134,9 +145,10 @@ const filteredTopUps = computed(() => {
   if (!searchQuery.value) return topUps.value
   
   const query = searchQuery.value.toLowerCase()
-  return topUps.value.filter(topUp => 
+  return topUps.value.filter(topUp =>
     topUp.user?.name?.toLowerCase().includes(query) ||
     topUp.user?.email?.toLowerCase().includes(query) ||
+    String(topUp.user?.patient_number || '').toLowerCase().includes(query) ||
     topUp.payment_method?.toLowerCase().includes(query)
   )
 })
@@ -147,9 +159,10 @@ function formatMoney (value) {
 
 function exportData () {
   const csvContent = [
-    ['Date', 'Patient', 'Email', 'Amount', 'Payment Method', 'Status'].join(','),
+    ['Date', 'Patient no.', 'Patient', 'Email', 'Amount', 'Payment Method', 'Status'].join(','),
     ...filteredTopUps.value.map(topUp => [
       topUp.created_at,
+      topUp.user?.patient_number || '',
       topUp.user?.name || '',
       topUp.user?.email || '',
       topUp.amount,

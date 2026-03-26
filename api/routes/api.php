@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\Admin\ConsultationController as AdminConsultationController;
+use App\Http\Controllers\Api\Admin\ConsultationPdfController as AdminConsultationPdfController;
 use App\Http\Controllers\Api\Admin\HealthcareProfessionalController as AdminHealthcareProfessionalController;
 use App\Http\Controllers\Api\Admin\InstitutionController as AdminInstitutionController;
 use App\Http\Controllers\Api\Admin\InstitutionDocumentController;
@@ -26,8 +27,11 @@ use App\Http\Controllers\Api\Doctor\AcademicDocumentController as DoctorAcademic
 use App\Http\Controllers\Api\Doctor\Icd11Controller;
 use App\Http\Controllers\Api\JitsiController;
 use App\Http\Controllers\Api\InstitutionController;
-use Illuminate\Support\Facades\Route;
+use Database\Seeders\DatabaseSeeder;
+use Illuminate\Database\Seeder;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
     // Public routes
@@ -60,23 +64,81 @@ Route::prefix('v1')->group(function () {
         }
       });
 
-    Route::get('/artisan/seed', function () {
+    Route::get('/artisan/seed', function (Request $request) {
         try {
-          Artisan::call('db:seed', ['--force' => true]);
+          $options = ['--force' => true];
+          $seederClass = DatabaseSeeder::class;
+
+          $requested = $request->query('class');
+          if (is_string($requested) && trim($requested) !== '') {
+              $requested = trim($requested);
+              if (str_starts_with($requested, 'Database\\Seeders\\')) {
+                  if (! preg_match('/^Database\\\\Seeders\\\\[A-Za-z][A-Za-z0-9_]*$/', $requested)) {
+                      return response()->json([
+                          'success' => false,
+                          'message' => 'Invalid seeder class name',
+                      ], 422);
+                  }
+                  $fqcn = $requested;
+              } else {
+                  if (! preg_match('/^[A-Za-z][A-Za-z0-9_]*$/', $requested)) {
+                      return response()->json([
+                          'success' => false,
+                          'message' => 'Invalid seeder class name (use e.g. BackfillPatientNumbersSeeder)',
+                      ], 422);
+                  }
+                  $fqcn = 'Database\\Seeders\\'.$requested;
+              }
+
+              if (! class_exists($fqcn) || ! is_subclass_of($fqcn, Seeder::class)) {
+                  return response()->json([
+                      'success' => false,
+                      'message' => 'Unknown or invalid seeder class',
+                      'class' => $fqcn,
+                  ], 422);
+              }
+
+              $options['--class'] = $fqcn;
+              $seederClass = $fqcn;
+          }
+
+          Artisan::call('db:seed', $options);
           $output = Artisan::output();
+
           return response()->json([
-            'success' => true,
-            'message' => 'Database seeded',
-            'output' => trim($output),
+              'success' => true,
+              'message' => 'Database seeded',
+              'seeder' => $seederClass,
+              'output' => trim($output),
           ]);
         } catch (\Throwable $e) {
           return response()->json([
-            'success' => false,
-            'message' => 'Seeding failed',
-            'error' => $e->getMessage(),
+              'success' => false,
+              'message' => 'Seeding failed',
+              'error' => $e->getMessage(),
           ], 500);
         }
       });
+
+    /** Creates public/storage → storage/app/public (same as `php artisan storage:link --force`). */
+    Route::get('/storage-link', function () {
+        try {
+            Artisan::call('storage:link', ['--force' => true]);
+            $output = Artisan::output();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Storage link completed',
+                'output' => trim($output),
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Storage link failed',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    });
 
     Route::get('/cache/clear', [CacheController::class, 'clear']);
 
@@ -117,6 +179,8 @@ Route::prefix('v1')->group(function () {
             Route::post('/dependants', [PatientDependantController::class, 'store']);
             Route::delete('/dependants/{dependant}', [PatientDependantController::class, 'destroy']);
             Route::post('/consultations/reason-images', [PatientConsultationMediaController::class, 'storeReasonImage']);
+            Route::post('/consultations/{consultationId}/investigation-uploads', [PatientConsultationMediaController::class, 'storeInvestigationUpload']);
+            Route::delete('/consultations/{consultationId}/investigation-uploads/{uploadId}', [PatientConsultationMediaController::class, 'destroyInvestigationUpload']);
             Route::get('/wallet', [PatientWalletController::class, 'show']);
             Route::post('/wallet/top-up', [PatientWalletController::class, 'topUp']);
             Route::post('/wallet/top-up/initiate', [PatientWalletController::class, 'initiateTopUp']);
@@ -128,8 +192,11 @@ Route::prefix('v1')->group(function () {
         Route::prefix('doctor')->middleware([\App\Http\Middleware\EnsureUserIsDoctor::class])->group(function () {
             Route::get('/dashboard/summary', [\App\Http\Controllers\Api\Doctor\DashboardController::class, 'summary']);
             Route::get('/consultations', [\App\Http\Controllers\Api\Doctor\ConsultationController::class, 'index']);
+            Route::get('/consultations/queue', [\App\Http\Controllers\Api\Doctor\ConsultationController::class, 'queue']);
+            Route::get('/consultations/{consultation}/clinical-notes/pdf', [\App\Http\Controllers\Api\Doctor\ConsultationController::class, 'downloadClinicalNotesPdf']);
             Route::get('/consultations/{consultation}', [\App\Http\Controllers\Api\Doctor\ConsultationController::class, 'show']);
             Route::patch('/consultations/{consultation}', [\App\Http\Controllers\Api\Doctor\ConsultationController::class, 'update']);
+            Route::post('/consultations/{consultation}/claim', [\App\Http\Controllers\Api\Doctor\ConsultationController::class, 'claim']);
             Route::get('/icd11/search', [Icd11Controller::class, 'search']);
             Route::get('/consultations/{consultation}/messages', [ConsultationMessageController::class, 'index']);
             Route::post('/consultations/{consultation}/messages', [ConsultationMessageController::class, 'store']);
@@ -165,6 +232,7 @@ Route::prefix('v1')->group(function () {
                 Route::apiResource('healthcare-professionals', AdminHealthcareProfessionalController::class);
             });
             Route::middleware('admin_permission:manage_consultations')->group(function () {
+                Route::get('consultations/{consultation}/clinical-notes/pdf', [AdminConsultationPdfController::class, 'clinicalNotes']);
                 Route::apiResource('consultations', AdminConsultationController::class);
             });
             Route::middleware('admin_permission:manage_prescriptions')->group(function () {

@@ -23,7 +23,7 @@ class ListConsultationsRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'status' => ['nullable', Rule::in(['scheduled', 'completed', 'cancelled'])],
+            'status' => ['nullable', Rule::in(['scheduled', 'waiting', 'completed', 'cancelled'])],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'page' => ['nullable', 'integer', 'min:1'],
         ];

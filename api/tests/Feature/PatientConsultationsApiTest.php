@@ -3,7 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Consultation;
+use App\Models\ConsultationSettlement;
 use App\Models\User;
+use App\Models\HealthcareProfessional;
+use App\Models\Institution;
+use App\Models\WalletTransaction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -16,11 +20,16 @@ class PatientConsultationsApiTest extends TestCase
     {
         $patient = User::factory()->patient()->create();
         $doctor = User::factory()->doctor()->create();
+        HealthcareProfessional::factory()->create([
+            'user_id' => $doctor->id,
+            'institution_id' => Institution::factory()->create()->id,
+        ]);
 
         Sanctum::actingAs($patient);
 
         $response = $this->postJson('/api/v1/consultations/book', [
             'doctor_id' => $doctor->id,
+            'category' => 'General Doctor',
             'scheduled_at' => now()->addDay()->toISOString(),
             'consultation_type' => 'video',
             'reason' => 'Follow-up checkup',
@@ -38,6 +47,10 @@ class PatientConsultationsApiTest extends TestCase
         $patient = User::factory()->patient()->create();
         $otherPatient = User::factory()->patient()->create();
         $doctor = User::factory()->doctor()->create();
+        HealthcareProfessional::factory()->create([
+            'user_id' => $doctor->id,
+            'institution_id' => Institution::factory()->create()->id,
+        ]);
         $scheduledAt = now()->addDay()->startOfHour();
 
         Consultation::factory()->create([
@@ -51,6 +64,7 @@ class PatientConsultationsApiTest extends TestCase
 
         $this->postJson('/api/v1/consultations/book', [
             'doctor_id' => $doctor->id,
+            'category' => 'General Doctor',
             'scheduled_at' => $scheduledAt->toISOString(),
             'consultation_type' => 'video',
             'reason' => 'Follow-up checkup',
@@ -232,5 +246,74 @@ class PatientConsultationsApiTest extends TestCase
             'scheduled_at' => now()->addDay()->toISOString(),
         ])->assertForbidden();
         $this->postJson('/api/v1/consultations/book', [])->assertForbidden();
+    }
+
+    public function test_patient_booking_without_doctor_creates_waiting_consultation(): void
+    {
+        $patient = User::factory()->patient()->create();
+
+        Sanctum::actingAs($patient);
+
+        $response = $this->postJson('/api/v1/consultations/book', [
+            'scheduled_at' => now()->addDay()->toISOString(),
+            'category' => 'General Doctor',
+            'consultation_type' => 'video',
+            'reason' => 'Need general checkup',
+        ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('data.patient_id', $patient->id)
+            ->assertJsonPath('data.status', 'waiting')
+            ->assertJsonPath('data.doctor_id', null);
+    }
+
+    public function test_doctor_claims_waiting_consultation_and_charges_wallet(): void
+    {
+        $patient = User::factory()->patient()->create([
+            'wallet_balance' => 1000,
+        ]);
+
+        $consultationCreatedAt = now()->addDay()->startOfHour();
+
+        Sanctum::actingAs($patient);
+        $booking = $this->postJson('/api/v1/consultations/book', [
+            'scheduled_at' => $consultationCreatedAt->toISOString(),
+            'category' => 'General Doctor',
+            'consultation_type' => 'video',
+            'reason' => 'Waiting room test',
+        ])->assertCreated();
+
+        $consultationId = $booking->json('data.id');
+
+        $doctor = User::factory()->doctor()->create();
+        $institution = Institution::factory()->create();
+
+        HealthcareProfessional::factory()->create([
+            'user_id' => $doctor->id,
+            'institution_id' => $institution->id,
+            'speciality' => 'General Doctor',
+            'is_active' => true,
+            'is_approved' => true,
+            'consultation_charge' => 100,
+            // null working hours => considered available by claim logic
+            'availability_start_time' => null,
+            'availability_end_time' => null,
+        ]);
+
+        Sanctum::actingAs($doctor);
+
+        $settlementBefore = ConsultationSettlement::query()->count();
+        $walletTxBefore = WalletTransaction::query()->count();
+
+        $this->postJson("/api/v1/doctor/consultations/{$consultationId}/claim", [])
+            ->assertOk()
+            ->assertJsonPath('data.id', $consultationId)
+            ->assertJsonPath('data.status', 'scheduled')
+            ->assertJsonPath('data.doctor_id', $doctor->id);
+
+        $this->assertTrue(ConsultationSettlement::query()->count() > $settlementBefore);
+        $this->assertTrue(WalletTransaction::query()->count() > $walletTxBefore);
+        $this->assertSame(900.0, (float) $patient->refresh()->wallet_balance);
     }
 }

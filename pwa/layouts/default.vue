@@ -71,6 +71,12 @@
 
 
         <div class="flex items-center gap-2 shrink-0">
+          <span
+            v-if="user"
+            class="hidden lg:inline-flex items-center rounded-full border border-gray-300/80 dark:border-gray-700 px-2.5 py-1 text-[11px] font-semibold text-gray-700 dark:text-gray-300"
+          >
+            {{ userRoleLabel }}
+          </span>
           <NuxtLink
             v-if="user && user.role === 'patient'"
             to="/wallet"
@@ -125,7 +131,7 @@
             <UDropdown :items="profileMenuItems" :popper="{ placement: 'bottom-end' }">
               <UAvatar
                 :alt="user?.name || 'User'"
-                :src="user?.profile_photo_url || undefined"
+                :src="headerAvatarSrc"
                 size="sm"
                 class="cursor-pointer"
               />
@@ -209,6 +215,7 @@
 
 <script setup>
 const { user, logout, token } = useAuth()
+const { resolvePublicFileUrl } = useResolvePublicFileUrl()
 const route = useRoute()
 const router = useRouter()
 const config = useRuntimeConfig()
@@ -224,6 +231,13 @@ const headerDoctorWalletLoading = ref(false)
 
 /** UGX below which we show "running low" reminder to patients */
 const LOW_CREDIT_THRESHOLD_UGX = 10000
+
+const headerAvatarSrc = computed(() => {
+  const u = user.value?.profile_photo_url
+  if (!u) return undefined
+  const resolved = resolvePublicFileUrl(u)
+  return resolved || undefined
+})
 
 const showLowCreditReminder = computed(() => {
   if (!user.value || user.value.role !== 'patient') return false
@@ -381,6 +395,11 @@ const doctorNavItems = [
 
 const mobileNavItems = computed(() => {
   return user.value?.role === 'doctor' ? doctorNavItems : patientNavItems
+})
+
+const userRoleLabel = computed(() => {
+  if (!user.value) return ''
+  return user.value.role === 'doctor' ? 'Logged in as Healthcare professional' : 'Logged in as Patient'
 })
 
 function isMobileNavActive (item) {

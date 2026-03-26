@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Services\PatientNumberGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -26,7 +27,7 @@ class AuthApiTest extends TestCase
         $response
             ->assertCreated()
             ->assertJsonStructure([
-                'user' => ['id', 'name', 'email', 'role'],
+                'user' => ['id', 'name', 'email', 'role', 'patient_number'],
                 'token',
             ]);
 
@@ -34,14 +35,20 @@ class AuthApiTest extends TestCase
             'email' => 'jane@example.com',
             'role' => 'patient',
         ]);
+
+        $pn = $response->json('user.patient_number');
+        $this->assertIsString($pn);
+        $this->assertMatchesRegularExpression('/^DRO-\d{2}-\d{5}-\d$/', $pn);
+        $this->assertSame(1, preg_match('/^DRO-(\d{2})-(\d{5})-(\d)$/', $pn, $m));
+        $gen = app(PatientNumberGenerator::class);
+        $this->assertTrue($gen->luhnIsValid($m[1].$m[2].$m[3]));
     }
 
     public function test_user_can_login_with_valid_credentials(): void
     {
-        User::factory()->create([
+        User::factory()->patient()->create([
             'email' => 'john@example.com',
             'password' => 'password123',
-            'role' => 'patient',
         ]);
 
         $response = $this->postJson('/api/v1/login', [
@@ -68,7 +75,8 @@ class AuthApiTest extends TestCase
         $response
             ->assertOk()
             ->assertJsonPath('data.id', $user->id)
-            ->assertJsonPath('data.role', 'patient');
+            ->assertJsonPath('data.role', 'patient')
+            ->assertJsonPath('data.patient_number', $user->fresh()->patient_number);
     }
 
     public function test_authenticated_user_can_update_profile(): void

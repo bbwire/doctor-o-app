@@ -119,8 +119,13 @@
         </div>
         <ul v-else-if="recentConsultations.length" class="space-y-2">
           <li v-for="c in recentConsultations" :key="c.id" class="flex items-center justify-between gap-2 text-sm">
-            <NuxtLink :to="`/consultations/${c.id}`" class="text-gray-900 dark:text-white hover:underline truncate">
-              #{{ c.id }} {{ c.patient?.name || 'Patient' }} – {{ c.doctor?.name || 'Doctor' }}
+            <NuxtLink :to="`/consultations/${c.id}`" class="flex min-w-0 flex-1 flex-col gap-0.5 text-gray-900 dark:text-white hover:underline sm:flex-row sm:items-center sm:gap-2">
+              <span class="shrink-0 font-mono text-xs font-bold text-primary-700 dark:text-primary-300">
+                {{ c.patient?.patient_number || '—' }}
+              </span>
+              <span class="truncate">
+                #{{ c.id }} {{ c.patient?.name || 'Patient' }} – {{ c.doctor?.name || 'Doctor' }}
+              </span>
             </NuxtLink>
             <UBadge :color="consultationStatusColor(c.status)" variant="soft" class="shrink-0 text-xs">
               {{ c.status }}
@@ -146,8 +151,11 @@
         </div>
         <ul v-else-if="recentPrescriptions.length" class="space-y-2">
           <li v-for="p in recentPrescriptions" :key="p.id" class="flex items-center justify-between gap-2 text-sm">
-            <NuxtLink :to="`/prescriptions/${p.id}`" class="text-gray-900 dark:text-white hover:underline truncate">
-              #{{ p.id }} {{ p.patient?.name || 'Patient' }}
+            <NuxtLink :to="`/prescriptions/${p.id}`" class="flex min-w-0 flex-1 flex-col gap-0.5 text-gray-900 dark:text-white hover:underline sm:flex-row sm:items-center sm:gap-2">
+              <span class="shrink-0 font-mono text-xs font-bold text-primary-700 dark:text-primary-300">
+                {{ p.patient?.patient_number || '—' }}
+              </span>
+              <span class="truncate">#{{ p.id }} {{ p.patient?.name || 'Patient' }}</span>
             </NuxtLink>
             <UBadge color="blue" variant="soft" class="shrink-0 text-xs">
               {{ p.status }}

@@ -149,6 +149,8 @@ interface User {
   name: string
   email: string
   role: 'patient' | 'doctor' | 'admin'
+  /** Dr. O patient ID: DRO-YY-NNNNN-C */
+  patient_number?: string | null
   phone?: string
   date_of_birth?: string
   preferred_language?: string

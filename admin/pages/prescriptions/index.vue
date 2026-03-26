@@ -33,17 +33,24 @@
         :columns="columns"
         :loading="loading"
       >
+        <template #prescription_number-data="{ row }">
+          <AdminHumanId :value="row.prescription_number" />
+        </template>
         <template #issued_at-data="{ row }">
           {{ formatDate(row.issued_at) }}
         </template>
         <template #consultation-data="{ row }">
           <NuxtLink v-if="row.consultation" :to="`/consultations/${row.consultation.id}`" class="text-primary-600 hover:underline dark:text-primary-400">
-            #{{ row.consultation.id }}
+            <template v-if="row.consultation.consultation_number">{{ row.consultation.consultation_number }}</template>
+            <template v-else>#{{ row.consultation.id }}</template>
           </NuxtLink>
           <span v-else>—</span>
         </template>
         <template #patient-data="{ row }">
-          {{ row.patient?.name || '—' }}
+          <div class="flex min-w-0 max-w-xs flex-col gap-1">
+            <AdminPatientNumber :patient-number="row.patient?.patient_number" />
+            <span class="truncate font-medium text-gray-900 dark:text-white">{{ row.patient?.name || '—' }}</span>
+          </div>
         </template>
         <template #doctor-data="{ row }">
           {{ row.doctor?.name || '—' }}
@@ -89,6 +96,7 @@ const statusOptions = [
 
 const columns = [
   { key: 'id', label: 'ID' },
+  { key: 'prescription_number', label: 'Prescription no.' },
   { key: 'issued_at', label: 'Issued' },
   { key: 'consultation', label: 'Consultation' },
   { key: 'patient', label: 'Patient' },

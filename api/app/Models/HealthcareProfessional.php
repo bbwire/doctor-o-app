@@ -14,6 +14,7 @@ class HealthcareProfessional extends Model
         'user_id',
         'institution_id',
         'speciality',
+        'professional_number',
         'license_number',
         'registration_date',
         'regulatory_council',
