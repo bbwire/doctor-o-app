@@ -177,18 +177,21 @@
           />
         </div>
 
-        <!-- Inline chat panel -->
+        <!-- Inline chat: on small screens use a bottom sheet so it is not clipped by overflow-hidden -->
         <div
           v-if="showCallChat"
-          class="shrink-0 border-t border-gray-800 bg-gray-900/80"
+          class="flex min-h-0 flex-col border-t border-gray-800 bg-gray-900/80
+            max-md:fixed max-md:left-0 max-md:right-0 max-md:z-40 max-md:rounded-t-2xl max-md:border-x max-md:shadow-2xl
+            max-md:bottom-[calc(3.75rem+env(safe-area-inset-bottom,0px))] max-md:max-h-[min(52vh,380px)]
+            md:relative md:shrink-0 md:max-h-none md:rounded-none md:border-x-0 md:shadow-none"
         >
           <div
             ref="messagesContainer"
-            class="max-h-72 overflow-y-auto overflow-x-hidden overscroll-contain p-4 space-y-3"
+            class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-4 space-y-3 md:max-h-72 md:flex-none"
           >
             <div
-              v-for="(msg, i) in messages"
-              :key="msg.id ?? i"
+              v-for="(msg, i) in messagesNewestFirst"
+              :key="msg.id ?? `${msg.at}-${i}`"
               class="flex"
               :class="msg.sender === 'doctor' ? 'justify-end' : 'justify-start'"
             >
@@ -215,7 +218,6 @@
                 No messages yet. Start the conversation below.
               </p>
             </div>
-            <div ref="scrollAnchor" class="h-0" aria-hidden="true" />
           </div>
           <form
             ref="chatFormRef"
@@ -294,7 +296,7 @@
       </div>
       <div
         v-if="showClinicalNotes"
-        class="absolute top-0 bottom-24 right-0 z-60 w-full max-w-md bg-gray-900 border-l border-gray-800 shadow-xl flex flex-col min-h-0 md:bottom-0"
+        class="absolute top-0 bottom-24 right-0 z-[60] w-full max-w-md bg-gray-900 border-l border-gray-800 shadow-xl flex flex-col min-h-0 md:bottom-0"
       >
         <div class="shrink-0 flex items-center justify-between px-4 py-2 border-b border-gray-800">
           <span class="text-sm font-medium text-gray-200">Clinical notes</span>
@@ -313,11 +315,11 @@
       <div class="flex-1 flex flex-col min-h-0 bg-gray-900/50 overflow-hidden">
         <div
           ref="messagesContainer"
-          class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain p-4 pb-32 space-y-4"
+          class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain p-4 pb-4 md:pb-32 space-y-4"
         >
           <div
-            v-for="(msg, i) in messages"
-            :key="msg.id ?? i"
+            v-for="(msg, i) in messagesNewestFirst"
+            :key="msg.id ?? `${msg.at}-${i}`"
             class="flex"
             :class="msg.sender === 'doctor' ? 'justify-end' : 'justify-start'"
           >
@@ -345,11 +347,10 @@
               <span class="text-sm">Type below to start the conversation.</span>
             </p>
           </div>
-          <div ref="scrollAnchor" class="h-0" aria-hidden="true" />
         </div>
         <form
           ref="chatFormRef"
-          class="fixed left-0 right-0 z-50 flex flex-col border-t border-gray-800 bg-gray-900/95 safe-area-bottom transition-[bottom] duration-150"
+          class="shrink-0 z-50 flex flex-col border-t border-gray-800 bg-gray-900/95 safe-area-bottom md:fixed md:left-0 md:right-0 md:bottom-0 md:transition-[bottom] md:duration-150"
           :style="chatFormStyle"
           :class="showClinicalNotes ? 'md:right-[28rem] md:w-[calc(100%-28rem)]' : ''"
           @submit.prevent="sendMessage"
@@ -468,6 +469,9 @@ const tokenCookie = useCookie('auth_token')
 
 const id = route.params.id as string
 
+/** Must match API `ConsultationMessageController` image max (kilobytes → bytes). */
+const MAX_CHAT_IMAGE_BYTES = 2 * 1024 * 1024
+
 const isVideoOrAudio = computed(() => {
   const t = consultation.value?.consultation_type
   return t === 'video' || t === 'audio'
@@ -478,11 +482,11 @@ const errorMessage = ref('')
 const consultation = ref<any | null>(null)
 const newMessage = ref('')
 const messagesContainer = ref<HTMLElement | null>(null)
-const scrollAnchor = ref<HTMLElement | null>(null)
 const sending = ref(false)
 const gettingLocation = ref(false)
 
 const messages = ref<Array<{ id?: number; text: string; sender: 'doctor' | 'patient'; at: string; attachment_url?: string | null }>>([])
+const messagesNewestFirst = useMessagesNewestFirst(messages)
 const chatInputRef = ref<HTMLTextAreaElement | null>(null)
 const chatFormRef = ref<HTMLFormElement | null>(null)
 const imageInputRef = ref<HTMLInputElement | null>(null)
@@ -577,29 +581,32 @@ function formatTime (iso: string) {
   return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 }
 
-function scrollToBottom () {
+function scrollToLatest (opts?: { smooth?: boolean }) {
   nextTick(() => {
-    scrollAnchor.value?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    const el = messagesContainer.value
+    if (!el) return
+    const behavior = opts?.smooth === false ? 'auto' : 'smooth'
+    el.scrollTo({ top: 0, behavior })
   })
 }
 
-function isNearBottom () {
+function isNearLatest () {
   const el = messagesContainer.value
   if (!el) return true
   const threshold = 80
-  return el.scrollHeight - el.scrollTop - el.clientHeight < threshold
+  return el.scrollTop < threshold
 }
 
 async function fetchMessages () {
   if (!id) return
-  const wasAtBottom = isNearBottom()
+  const wasViewingLatest = isNearLatest()
   try {
     const res = await $fetch(`/doctor/consultations/${id}/messages`, {
       baseURL: config.public.apiBase,
       headers: getHeaders()
     })
     messages.value = ((res as any)?.data ?? []) as typeof messages.value
-    if (wasAtBottom) scrollToBottom()
+    if (wasViewingLatest) scrollToLatest()
   } catch {
     // ignore fetch errors for polling
   }
@@ -612,8 +619,13 @@ function updateKeyboardOffset () {
     return
   }
   const vv = window.visualViewport
-  const offset = vv ? Math.max(0, window.innerHeight - vv.height) : 0
-  keyboardOffset.value = offset
+  if (!vv) {
+    keyboardOffset.value = 0
+    return
+  }
+  // Include offsetTop so fixed composers stay above the keyboard when the visual viewport shifts (iOS Safari).
+  const inset = window.innerHeight - vv.height - vv.offsetTop
+  keyboardOffset.value = Math.max(0, inset)
 }
 
 function scrollInputIntoView () {
@@ -632,6 +644,15 @@ function onImageSelect (e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file || !file.type.startsWith('image/')) return
+  if (file.size > MAX_CHAT_IMAGE_BYTES) {
+    toast.add({
+      title: 'Image too large',
+      description: 'Chat images must be 2 MB or smaller.',
+      color: 'red'
+    })
+    input.value = ''
+    return
+  }
   selectedImage.value = file
   imagePreview.value = URL.createObjectURL(file)
   input.value = ''
@@ -653,7 +674,7 @@ async function sendMessage () {
     let res: any
     if (image) {
       const formData = new FormData()
-      formData.append('text', text || ' ')
+      formData.append('text', text)
       formData.append('image', image)
       res = await $fetch(`/doctor/consultations/${id}/messages`, {
         baseURL: config.public.apiBase,
@@ -673,12 +694,20 @@ async function sendMessage () {
         body: { text }
       })
     }
-    const msg = (res as any)?.data ?? { text: text || ' ', sender: 'doctor' as const, at: new Date().toISOString() }
+    const msg = (res as any)?.data ?? { text, sender: 'doctor' as const, at: new Date().toISOString() }
     messages.value = [...messages.value, msg]
     newMessage.value = ''
-    scrollToBottom()
+    scrollToLatest()
   } catch (e: any) {
-    toast.add({ title: 'Failed to send', description: e?.data?.message || 'Please try again.', color: 'red' })
+    const d = e?.data
+    const fieldErr = d?.errors && typeof d.errors === 'object'
+      ? (Object.values(d.errors).flat().find((x): x is string => typeof x === 'string'))
+      : undefined
+    toast.add({
+      title: 'Failed to send',
+      description: (typeof d?.message === 'string' ? d.message : fieldErr) || 'Please try again.',
+      color: 'red'
+    })
   } finally {
     sending.value = false
   }
@@ -706,7 +735,7 @@ async function shareLocation () {
     })
     const msg = (res as any)?.data ?? { text, sender: 'doctor' as const, at: new Date().toISOString() }
     messages.value = [...messages.value, msg]
-    scrollToBottom()
+    scrollToLatest()
   } catch (e: any) {
     const msg = e?.message || ''
     if (/denied|permission/i.test(msg)) {
@@ -752,7 +781,7 @@ async function saveClinicalNotes (data: Record<string, unknown>) {
 onMounted(async () => {
   await fetchConsultation()
   await fetchMessages()
-  scrollToBottom()
+  scrollToLatest({ smooth: false })
   pollInterval = setInterval(fetchMessages, 3000)
   updateKeyboardOffset()
   window.visualViewport?.addEventListener('resize', updateKeyboardOffset)

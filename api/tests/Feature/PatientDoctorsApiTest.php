@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Consultation;
 use App\Models\HealthcareProfessional;
 use App\Models\Institution;
+use App\Models\Setting;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -38,6 +39,46 @@ class PatientDoctorsApiTest extends TestCase
                 'speciality' => 'Cardiology',
                 'institution' => 'General Hospital',
             ]);
+    }
+
+    public function test_doctor_list_includes_effective_fee_and_category_pricing_meta(): void
+    {
+        Setting::setValue('consultations.pricing_by_speciality', json_encode([
+            'General Doctor' => 50000,
+        ]));
+
+        $patient = User::factory()->patient()->create();
+        $doctorCustom = User::factory()->doctor()->create(['name' => 'Dr. Custom']);
+        $doctorDefault = User::factory()->doctor()->create(['name' => 'Dr. Default']);
+
+        HealthcareProfessional::factory()->create([
+            'user_id' => $doctorCustom->id,
+            'speciality' => 'General Doctor',
+            'consultation_charge' => 120000,
+        ]);
+        HealthcareProfessional::factory()->create([
+            'user_id' => $doctorDefault->id,
+            'speciality' => 'General Doctor',
+            'consultation_charge' => null,
+        ]);
+
+        Sanctum::actingAs($patient);
+
+        $response = $this->getJson('/api/v1/doctors');
+
+        $response->assertOk();
+
+        $rows = collect($response->json('data'))->keyBy('name');
+
+        $this->assertEquals(120000, $rows->get('Dr. Custom')['effective_consultation_fee']);
+        $this->assertTrue($rows->get('Dr. Custom')['consultation_fee_is_custom']);
+        $this->assertEquals(50000, $rows->get('Dr. Default')['effective_consultation_fee']);
+        $this->assertFalse($rows->get('Dr. Default')['consultation_fee_is_custom']);
+        $this->assertNull($rows->get('Dr. Default')['consultation_fee']);
+
+        $meta = $response->json('meta');
+        $this->assertIsArray($meta);
+        $this->assertEquals(50000, $meta['pricing_by_speciality']['General Doctor']);
     }
 
     public function test_non_patient_cannot_list_doctors(): void

@@ -7,26 +7,26 @@ use App\Http\Controllers\Api\Admin\InstitutionController as AdminInstitutionCont
 use App\Http\Controllers\Api\Admin\InstitutionDocumentController;
 use App\Http\Controllers\Api\Admin\PrescriptionController as AdminPrescriptionController;
 use App\Http\Controllers\Api\Admin\SettingsController as AdminSettingsController;
-use App\Http\Controllers\Api\CacheController;
 use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CacheController;
 use App\Http\Controllers\Api\ConsultationMessageController;
 use App\Http\Controllers\Api\ConsultationRecordingController;
 use App\Http\Controllers\Api\ConsultationWebrtcSignalController;
-use App\Http\Controllers\Api\NotificationController;
-use App\Http\Controllers\Api\Patient\ConsultationController as PatientConsultationController;
-use App\Http\Controllers\Api\Patient\DashboardController as PatientDashboardController;
-use App\Http\Controllers\Api\Patient\DoctorController as PatientDoctorController;
-use App\Http\Controllers\Api\Patient\PrescriptionController as PatientPrescriptionController;
-use App\Http\Controllers\Api\Patient\DependantController as PatientDependantController;
-use App\Http\Controllers\Api\Patient\ConsultationMediaController as PatientConsultationMediaController;
-use App\Http\Controllers\Api\Patient\WalletController as PatientWalletController;
-use App\Http\Controllers\Api\PaymentWebhookController;
-use App\Http\Controllers\Api\Doctor\ProfileController as DoctorProfileController;
 use App\Http\Controllers\Api\Doctor\AcademicDocumentController as DoctorAcademicDocumentController;
 use App\Http\Controllers\Api\Doctor\Icd11Controller;
-use App\Http\Controllers\Api\JitsiController;
+use App\Http\Controllers\Api\Doctor\ProfileController as DoctorProfileController;
 use App\Http\Controllers\Api\InstitutionController;
+use App\Http\Controllers\Api\JitsiController;
+use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\Patient\ConsultationController as PatientConsultationController;
+use App\Http\Controllers\Api\Patient\ConsultationMediaController as PatientConsultationMediaController;
+use App\Http\Controllers\Api\Patient\DashboardController as PatientDashboardController;
+use App\Http\Controllers\Api\Patient\DependantController as PatientDependantController;
+use App\Http\Controllers\Api\Patient\DoctorController as PatientDoctorController;
+use App\Http\Controllers\Api\Patient\PrescriptionController as PatientPrescriptionController;
+use App\Http\Controllers\Api\Patient\WalletController as PatientWalletController;
+use App\Http\Controllers\Api\PaymentWebhookController;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Database\Seeder;
 use Illuminate\Http\Request;
@@ -48,77 +48,78 @@ Route::prefix('v1')->group(function () {
 
     Route::get('/artisan/migrate', function () {
         try {
-          Artisan::call('migrate', ['--force' => true]);
-          $output = Artisan::output();
-          return response()->json([
-            'success' => true,
-            'message' => 'Migration completed',
-            'output' => trim($output),
-          ]);
+            Artisan::call('migrate', ['--force' => true]);
+            $output = Artisan::output();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Migration completed',
+                'output' => trim($output),
+            ]);
         } catch (\Throwable $e) {
-          return response()->json([
-            'success' => false,
-            'message' => 'Migration failed',
-            'error' => $e->getMessage(),
-          ], 500);
+            return response()->json([
+                'success' => false,
+                'message' => 'Migration failed',
+                'error' => $e->getMessage(),
+            ], 500);
         }
-      });
+    });
 
     Route::get('/artisan/seed', function (Request $request) {
         try {
-          $options = ['--force' => true];
-          $seederClass = DatabaseSeeder::class;
+            $options = ['--force' => true];
+            $seederClass = DatabaseSeeder::class;
 
-          $requested = $request->query('class');
-          if (is_string($requested) && trim($requested) !== '') {
-              $requested = trim($requested);
-              if (str_starts_with($requested, 'Database\\Seeders\\')) {
-                  if (! preg_match('/^Database\\\\Seeders\\\\[A-Za-z][A-Za-z0-9_]*$/', $requested)) {
-                      return response()->json([
-                          'success' => false,
-                          'message' => 'Invalid seeder class name',
-                      ], 422);
-                  }
-                  $fqcn = $requested;
-              } else {
-                  if (! preg_match('/^[A-Za-z][A-Za-z0-9_]*$/', $requested)) {
-                      return response()->json([
-                          'success' => false,
-                          'message' => 'Invalid seeder class name (use e.g. BackfillPatientNumbersSeeder)',
-                      ], 422);
-                  }
-                  $fqcn = 'Database\\Seeders\\'.$requested;
-              }
+            $requested = $request->query('class');
+            if (is_string($requested) && trim($requested) !== '') {
+                $requested = trim($requested);
+                if (str_starts_with($requested, 'Database\\Seeders\\')) {
+                    if (! preg_match('/^Database\\\\Seeders\\\\[A-Za-z][A-Za-z0-9_]*$/', $requested)) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Invalid seeder class name',
+                        ], 422);
+                    }
+                    $fqcn = $requested;
+                } else {
+                    if (! preg_match('/^[A-Za-z][A-Za-z0-9_]*$/', $requested)) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Invalid seeder class name (use e.g. BackfillPatientNumbersSeeder)',
+                        ], 422);
+                    }
+                    $fqcn = 'Database\\Seeders\\'.$requested;
+                }
 
-              if (! class_exists($fqcn) || ! is_subclass_of($fqcn, Seeder::class)) {
-                  return response()->json([
-                      'success' => false,
-                      'message' => 'Unknown or invalid seeder class',
-                      'class' => $fqcn,
-                  ], 422);
-              }
+                if (! class_exists($fqcn) || ! is_subclass_of($fqcn, Seeder::class)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Unknown or invalid seeder class',
+                        'class' => $fqcn,
+                    ], 422);
+                }
 
-              $options['--class'] = $fqcn;
-              $seederClass = $fqcn;
-          }
+                $options['--class'] = $fqcn;
+                $seederClass = $fqcn;
+            }
 
-          Artisan::call('db:seed', $options);
-          $output = Artisan::output();
+            Artisan::call('db:seed', $options);
+            $output = Artisan::output();
 
-          return response()->json([
-              'success' => true,
-              'message' => 'Database seeded',
-              'seeder' => $seederClass,
-              'output' => trim($output),
-          ]);
+            return response()->json([
+                'success' => true,
+                'message' => 'Database seeded',
+                'seeder' => $seederClass,
+                'output' => trim($output),
+            ]);
         } catch (\Throwable $e) {
-          return response()->json([
-              'success' => false,
-              'message' => 'Seeding failed',
-              'error' => $e->getMessage(),
-          ], 500);
+            return response()->json([
+                'success' => false,
+                'message' => 'Seeding failed',
+                'error' => $e->getMessage(),
+            ], 500);
         }
-      });
+    });
 
     /** Creates public/storage → storage/app/public (same as `php artisan storage:link --force`). */
     Route::get('/storage-link', function () {
@@ -154,7 +155,7 @@ Route::prefix('v1')->group(function () {
         Route::patch('/notifications/{notification}', [NotificationController::class, 'markRead']);
 
         // Shared/authenticated routes (any role)
-        
+
         // Jitsi video conferencing routes
         Route::get('/jitsi/config', [JitsiController::class, 'getConfig']);
         Route::post('/jitsi/generate-token', [JitsiController::class, 'generateToken']);
@@ -174,7 +175,10 @@ Route::prefix('v1')->group(function () {
             Route::post('/consultations/{consultation}/webrtc-signals', [ConsultationWebrtcSignalController::class, 'store']);
             Route::patch('/consultations/{consultationId}/cancel', [PatientConsultationController::class, 'cancel']);
             Route::patch('/consultations/{consultationId}/reschedule', [PatientConsultationController::class, 'reschedule']);
+            Route::patch('/consultations/{consultationId}/outcome', [PatientConsultationController::class, 'submitOutcome']);
             Route::get('/prescriptions', [PatientPrescriptionController::class, 'index']);
+            Route::get('/prescriptions/{prescription}/download', [PatientPrescriptionController::class, 'download']);
+            Route::post('/prescriptions/{prescription}/acknowledge-receipt', [PatientPrescriptionController::class, 'acknowledgeReceipt']);
             Route::get('/dependants', [PatientDependantController::class, 'index']);
             Route::post('/dependants', [PatientDependantController::class, 'store']);
             Route::delete('/dependants/{dependant}', [PatientDependantController::class, 'destroy']);
@@ -233,6 +237,7 @@ Route::prefix('v1')->group(function () {
             });
             Route::middleware('admin_permission:manage_consultations')->group(function () {
                 Route::get('consultations/{consultation}/clinical-notes/pdf', [AdminConsultationPdfController::class, 'clinicalNotes']);
+                Route::get('consultations/clinical-summaries/export/{format}', [\App\Http\Controllers\Api\Admin\ConsultationSummaryExportController::class, 'export']);
                 Route::apiResource('consultations', AdminConsultationController::class);
             });
             Route::middleware('admin_permission:manage_prescriptions')->group(function () {

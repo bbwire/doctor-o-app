@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Patient\ListConsultationsRequest;
 use App\Http\Requests\Patient\RescheduleConsultationRequest;
 use App\Http\Requests\Patient\StoreConsultationRequest;
+use App\Http\Requests\Patient\SubmitConsultationOutcomeRequest;
 use App\Http\Resources\ConsultationResource;
 use App\Services\AuditLogService;
 use App\Services\PatientConsultationService;
@@ -30,11 +31,12 @@ class ConsultationController extends Controller
         app(AuditLogService::class)->log(
             $request->user(),
             'consultation.booked',
-            'Patient booked consultation #' . $consultation->id . ' for ' . $consultation->scheduled_at,
+            'Patient booked consultation #'.$consultation->id.' for '.$consultation->scheduled_at,
             \App\Models\Consultation::class,
             $consultation->id,
             ['doctor_id' => $consultation->doctor_id, 'consultation_type' => $consultation->consultation_type ?? null]
         );
+
         return (new ConsultationResource($consultation))
             ->response()
             ->setStatusCode(201);
@@ -43,7 +45,7 @@ class ConsultationController extends Controller
     public function show(Request $request, int $consultationId): ConsultationResource
     {
         $consultation = $this->patientConsultationService->findForPatientOrFail($request->user(), $consultationId);
-        $consultation->loadMissing(['messages']);
+        $consultation->loadMissing(['messages', 'prescriptions']);
 
         return new ConsultationResource($consultation);
     }
@@ -54,11 +56,12 @@ class ConsultationController extends Controller
         app(AuditLogService::class)->log(
             $request->user(),
             'consultation.cancelled',
-            'Patient cancelled consultation #' . $consultation->id,
+            'Patient cancelled consultation #'.$consultation->id,
             \App\Models\Consultation::class,
             $consultation->id,
             ['scheduled_at' => $consultation->scheduled_at]
         );
+
         return new ConsultationResource($consultation);
     }
 
@@ -68,11 +71,32 @@ class ConsultationController extends Controller
         app(AuditLogService::class)->log(
             $request->user(),
             'consultation.rescheduled',
-            'Patient rescheduled consultation #' . $consultation->id . ' to ' . $consultation->scheduled_at,
+            'Patient rescheduled consultation #'.$consultation->id.' to '.$consultation->scheduled_at,
             \App\Models\Consultation::class,
             $consultation->id,
             ['doctor_id' => $consultation->doctor_id]
         );
+
         return new ConsultationResource($consultation);
+    }
+
+    /**
+     * Patient follow-up: whether symptoms improved (stored under clinical_notes.outcome).
+     */
+    public function submitOutcome(SubmitConsultationOutcomeRequest $request, int $consultationId): ConsultationResource
+    {
+        $consultation = $this->patientConsultationService->findForPatientOrFail($request->user(), $consultationId);
+
+        abort_unless($consultation->status === 'completed', 422, 'Outcome feedback is only available after the consultation is completed.');
+
+        $validated = $request->validated();
+        $notes = is_array($consultation->clinical_notes) ? $consultation->clinical_notes : [];
+        $outcome = is_array($notes['outcome'] ?? null) ? $notes['outcome'] : [];
+        $outcome['patient_reports_improved'] = $validated['patient_reports_improved'];
+        $outcome['patient_reported_at'] = now()->toISOString();
+        $notes['outcome'] = $outcome;
+        $consultation->update(['clinical_notes' => $notes]);
+
+        return new ConsultationResource($consultation->loadMissing(['messages']));
     }
 }

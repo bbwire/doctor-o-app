@@ -29,6 +29,7 @@ class HealthcareProfessionalFactory extends Factory
             'bio' => fake()->paragraph(),
             'qualifications' => [fake()->sentence(3), fake()->sentence(4)],
             'is_active' => true,
+            'is_approved' => true,
         ];
     }
 }

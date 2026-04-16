@@ -8,8 +8,7 @@ use App\Models\ConsultationMessage;
 use App\Support\PublicStorageUrl;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class ConsultationMessageController extends Controller
 {
@@ -38,12 +37,22 @@ class ConsultationMessageController extends Controller
         $sender = $user->id === (int) $consultation->doctor_id ? 'doctor' : 'patient';
 
         $validated = $request->validate([
-            'text' => ['required', 'string', 'max:65535'],
-            'image' => ['nullable', 'image', 'max:5120'], // 5MB
+            'text' => ['nullable', 'string', 'max:65535'],
+            // max is kilobytes (Laravel); 2048 KB = 2 MB
+            'image' => ['nullable', 'image', 'max:2048'],
         ]);
 
+        $hasImage = $request->hasFile('image');
+        $textContent = trim((string) ($validated['text'] ?? ''));
+
+        if (! $hasImage && $textContent === '') {
+            throw ValidationException::withMessages([
+                'text' => 'Enter a message or attach an image.',
+            ]);
+        }
+
         $attachmentUrl = null;
-        if ($request->hasFile('image')) {
+        if ($hasImage) {
             $path = $request->file('image')->store(
                 'consultation-messages/' . $consultation->id,
                 'public'
@@ -54,7 +63,7 @@ class ConsultationMessageController extends Controller
         $message = $consultation->messages()->create([
             'user_id' => $user->id,
             'sender' => $sender,
-            'text' => $validated['text'],
+            'text' => $textContent,
             'attachment_url' => $attachmentUrl,
         ]);
 

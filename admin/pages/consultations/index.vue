@@ -23,6 +23,35 @@
           placeholder="Type"
           class="w-40"
         />
+        <div class="ml-auto flex flex-wrap items-center gap-2">
+          <UButton
+            size="sm"
+            variant="soft"
+            icon="i-lucide-file-json"
+            :loading="exportingFormat === 'json'"
+            @click="exportClinicalSummaries('json')"
+          >
+            Export JSON
+          </UButton>
+          <UButton
+            size="sm"
+            variant="soft"
+            icon="i-lucide-file-spreadsheet"
+            :loading="exportingFormat === 'excel'"
+            @click="exportClinicalSummaries('excel')"
+          >
+            Export Excel
+          </UButton>
+          <UButton
+            size="sm"
+            variant="soft"
+            icon="i-lucide-file-text"
+            :loading="exportingFormat === 'pdf'"
+            @click="exportClinicalSummaries('pdf')"
+          >
+            Export PDF
+          </UButton>
+        </div>
       </div>
 
       <UAlert
@@ -77,7 +106,8 @@ definePageMeta({
   middleware: 'auth-admin'
 })
 
-const { get } = useAdminApi()
+const { get, downloadBlob } = useAdminApi()
+const toast = useToast()
 
 const selectedStatus = ref(null)
 const selectedType = ref(null)
@@ -87,6 +117,7 @@ const loading = ref(false)
 const rows = ref([])
 const total = ref(0)
 const errorMessage = ref('')
+const exportingFormat = ref(null)
 
 const statusOptions = [
   { label: 'All', value: null },
@@ -144,6 +175,35 @@ async function fetchList () {
     errorMessage.value = e?.data?.message || 'Failed to load consultations.'
   } finally {
     loading.value = false
+  }
+}
+
+function currentFiltersQuery () {
+  const params = {}
+  if (selectedStatus.value) params.status = selectedStatus.value
+  if (selectedType.value) params.consultation_type = selectedType.value
+  return params
+}
+
+async function exportClinicalSummaries (format) {
+  exportingFormat.value = format
+  try {
+    const date = new Date().toISOString().slice(0, 10)
+    const ext = format === 'excel' ? 'xls' : format
+    await downloadBlob(
+      `admin/consultations/clinical-summaries/export/${format}`,
+      `clinical-summaries-${date}.${ext}`,
+      currentFiltersQuery()
+    )
+    toast.add({ title: `Clinical summaries ${format.toUpperCase()} export started`, color: 'green' })
+  } catch (e) {
+    toast.add({
+      title: 'Export failed',
+      description: e?.message || 'Unable to export clinical summaries.',
+      color: 'red'
+    })
+  } finally {
+    exportingFormat.value = null
   }
 }
 

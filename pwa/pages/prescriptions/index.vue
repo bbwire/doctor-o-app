@@ -21,9 +21,9 @@
 
         <div v-else-if="prescriptions.length === 0" class="mt-2 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 p-8 text-center">
           <UIcon name="i-lucide-file-text" class="w-8 h-8 mx-auto text-gray-400 dark:text-gray-500 mb-3" />
-          <h3 class="text-base font-semibold text-gray-900 dark:text-white">No prescriptions to display yet</h3>
+          <h3 class="text-base font-semibold text-gray-900 dark:text-white">No active prescriptions</h3>
           <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Prescriptions issued to your account will appear here.
+            New prescriptions appear here until you download them and mark them as received from the pharmacy. Your full record stays in each consultation’s clinical summary PDF.
           </p>
         </div>
 
@@ -33,8 +33,11 @@
             :key="prescription.id"
             :ui="{ background: 'bg-gray-50 dark:bg-gray-800/60', ring: 'ring-1 ring-gray-200 dark:ring-gray-700' }"
           >
-            <div class="flex items-start justify-between gap-4">
-              <div>
+            <div class="flex flex-wrap items-start justify-between gap-4">
+              <div class="min-w-0 flex-1">
+                <p v-if="prescription.prescription_number" class="text-xs font-mono text-primary-600 dark:text-primary-400">
+                  {{ prescription.prescription_number }}
+                </p>
                 <p class="text-sm text-gray-500 dark:text-gray-400">
                   Issued {{ formatDateTime(prescription.issued_at) }}
                 </p>
@@ -42,9 +45,29 @@
                   Dr. {{ prescription.doctor?.name || 'Unknown Doctor' }}
                 </p>
               </div>
-              <UBadge :color="prescription.status === 'active' ? 'green' : 'gray'" variant="soft">
-                {{ prescription.status }}
-              </UBadge>
+              <div class="flex flex-wrap items-center gap-2 shrink-0">
+                <UButton
+                  size="sm"
+                  variant="outline"
+                  icon="i-lucide-download"
+                  :loading="downloadingId === prescription.id"
+                  @click="downloadPrescription(prescription)"
+                >
+                  Download PDF
+                </UButton>
+                <UButton
+                  size="sm"
+                  color="primary"
+                  icon="i-lucide-circle-check"
+                  :loading="acknowledgingId === prescription.id"
+                  @click="acknowledgeReceipt(prescription)"
+                >
+                  Received
+                </UButton>
+                <UBadge :color="prescription.status === 'active' ? 'green' : 'gray'" variant="soft">
+                  {{ prescription.status }}
+                </UBadge>
+              </div>
             </div>
 
             <div class="mt-4">
@@ -89,8 +112,10 @@ interface Medication {
 
 interface PrescriptionItem {
   id: number
+  prescription_number?: string | null
   issued_at: string
   status: 'active' | 'completed' | 'cancelled'
+  patient_received_at?: string | null
   instructions?: string
   medications: Medication[]
   doctor?: {
@@ -105,6 +130,8 @@ const { isApiReachable, hasApiStatusChecked } = useApiHealth()
 const toast = useToast()
 
 const prescriptions = ref<PrescriptionItem[]>([])
+const downloadingId = ref<number | null>(null)
+const acknowledgingId = ref<number | null>(null)
 const loading = ref(true)
 const errorMessage = ref('')
 const retryWhenOnline = ref(false)
@@ -123,7 +150,7 @@ const fetchPrescriptions = async () => {
       }
     })
 
-    prescriptions.value = response.data || []
+    prescriptions.value = Array.isArray(response.data) ? response.data : []
     retryWhenOnline.value = false
 
     if (reconnectRetryInProgress.value) {
@@ -148,6 +175,55 @@ const fetchPrescriptions = async () => {
     errorMessage.value = typeof message === 'string' ? message : 'Unable to load prescriptions.'
   } finally {
     loading.value = false
+  }
+}
+
+async function downloadPrescription (p: PrescriptionItem) {
+  if (typeof document === 'undefined') return
+  downloadingId.value = p.id
+  try {
+    const url = `${config.public.apiBase}/prescriptions/${p.id}/download`
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${tokenCookie.value || ''}` }
+    })
+    if (!res.ok) throw new Error('Download failed')
+    const blob = await res.blob()
+    const safeName = (p.prescription_number || `rx-${p.id}`).replace(/[^\w.-]+/g, '_')
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `${safeName}.pdf`
+    a.click()
+    URL.revokeObjectURL(a.href)
+    toast.add({ title: 'Prescription downloaded', color: 'green' })
+  } catch {
+    toast.add({ title: 'Download failed', description: 'Please try again.', color: 'red' })
+  } finally {
+    downloadingId.value = null
+  }
+}
+
+async function acknowledgeReceipt (p: PrescriptionItem) {
+  acknowledgingId.value = p.id
+  try {
+    await $fetch(`/prescriptions/${p.id}/acknowledge-receipt`, {
+      baseURL: config.public.apiBase,
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${tokenCookie.value || ''}`,
+        Accept: 'application/json'
+      }
+    })
+    toast.add({
+      title: 'Marked as received',
+      description: 'This prescription is no longer shown here. Your consultation clinical summary PDF still lists it for your records.',
+      color: 'green'
+    })
+    await fetchPrescriptions()
+  } catch (e: any) {
+    const msg = e?.data?.message || e?.data?.errors?.prescription?.[0] || 'Please try again.'
+    toast.add({ title: 'Could not update', description: String(msg), color: 'red' })
+  } finally {
+    acknowledgingId.value = null
   }
 }
 

@@ -26,6 +26,7 @@ class PatientDashboardService
 
         $prescriptionsCount = Prescription::query()
             ->where('patient_id', $patient->id)
+            ->whereNull('patient_received_at')
             ->count();
 
         $nextConsultation = Consultation::query()

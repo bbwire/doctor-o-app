@@ -30,19 +30,143 @@
               />
             </UFormGroup>
 
-            <UFormGroup v-if="state.category" label="Doctor (Optional)">
-              <USelectMenu
-                v-model="state.doctor_id"
-                :options="filteredDoctorOptions"
-                option-attribute="label"
-                value-attribute="value"
-                searchable
-                :loading="loadingDoctors"
-                placeholder="Select a doctor (optional - join the waiting room)"
-              />
-              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                If you don't select a doctor, your request will be sent to the doctor's waiting room for your selected category.
+            <UFormGroup v-if="state.category" label="Choose a doctor (optional)">
+              <p class="text-sm text-gray-600 dark:text-gray-300 mb-3">
+                Tap a doctor to book with them, or choose <span class="font-medium">any available doctor</span> to join the waiting room for <span class="font-medium">{{ state.category }}</span>.
               </p>
+
+              <div v-if="loadingDoctors" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div
+                  v-for="n in 3"
+                  :key="n"
+                  class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-100/80 dark:bg-gray-800/50 animate-pulse h-48"
+                />
+              </div>
+
+              <div v-else class="space-y-3">
+                <button
+                  type="button"
+                  class="group w-full text-left rounded-2xl border-2 p-4 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
+                  :class="waitingRoomSelected
+                    ? 'border-primary-500 bg-primary-50/90 dark:bg-primary-950/40 shadow-md shadow-primary-500/10'
+                    : 'border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/30 hover:border-primary-400 dark:hover:border-primary-600'"
+                  @click="selectWaitingRoom"
+                >
+                  <div class="flex items-start gap-3">
+                    <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-300">
+                      <UIcon name="i-lucide-users" class="h-6 w-6" />
+                    </div>
+                    <div class="min-w-0 flex-1">
+                      <p class="font-semibold text-gray-900 dark:text-white">
+                        Any available doctor
+                      </p>
+                      <p class="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
+                        First available clinician in this category will accept your request.
+                      </p>
+                      <div
+                        v-if="state.category"
+                        class="mt-3 rounded-xl border border-primary-200/80 bg-white/80 px-3 py-2 dark:border-primary-800/60 dark:bg-gray-900/60"
+                      >
+                        <p class="text-[11px] font-semibold uppercase tracking-wide text-primary-700 dark:text-primary-300">
+                          Typical consultation fee
+                        </p>
+                        <p class="text-lg font-bold text-gray-900 dark:text-white tabular-nums">
+                          {{ formatConsultationFee(waitingRoomFeeDisplay) }}
+                        </p>
+                        <p class="text-xs text-gray-600 dark:text-gray-400">
+                          {{ waitingRoomFeeCaption }}
+                        </p>
+                      </div>
+                    </div>
+                    <UIcon
+                      v-if="waitingRoomSelected"
+                      name="i-lucide-circle-check"
+                      class="h-6 w-6 shrink-0 text-primary-600 dark:text-primary-400"
+                    />
+                  </div>
+                </button>
+
+                <div
+                  v-if="filteredDoctors.length === 0"
+                  class="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
+                >
+                  No listed doctors for this category yet. You can still book with <strong>any available doctor</strong> above.
+                </div>
+
+                <div
+                  v-else
+                  class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+                >
+                  <button
+                    v-for="doctor in filteredDoctors"
+                    :key="doctor.id"
+                    type="button"
+                    class="group text-left rounded-2xl border-2 p-4 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900 hover:shadow-lg hover:shadow-gray-900/5 dark:hover:shadow-black/20"
+                    :class="state.doctor_id === doctor.id
+                      ? 'border-primary-500 bg-white dark:bg-gray-900 ring-2 ring-primary-500/30'
+                      : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/80 hover:border-primary-300 dark:hover:border-primary-700'"
+                    @click="selectDoctor(doctor.id)"
+                  >
+                    <div class="flex gap-3">
+                      <div class="relative shrink-0">
+                        <img
+                          v-if="doctorPhotoUrl(doctor)"
+                          :src="doctorPhotoUrl(doctor)!"
+                          :alt="doctor.name"
+                          class="h-20 w-20 rounded-xl object-cover ring-2 ring-gray-100 dark:ring-gray-800"
+                          loading="lazy"
+                          @error="onDoctorImgError(doctor.id)"
+                        >
+                        <div
+                          v-else
+                          class="flex h-20 w-20 items-center justify-center rounded-xl bg-gradient-to-br from-primary-100 to-primary-200 text-lg font-bold text-primary-800 dark:from-primary-900 dark:to-primary-950 dark:text-primary-200"
+                        >
+                          {{ doctorInitials(doctor.name) }}
+                        </div>
+                      </div>
+                      <div class="min-w-0 flex-1 space-y-1">
+                        <div class="flex items-start justify-between gap-2">
+                          <p class="font-semibold text-gray-900 dark:text-white leading-tight line-clamp-2">
+                            {{ doctor.name }}
+                          </p>
+                          <UIcon
+                            v-if="state.doctor_id === doctor.id"
+                            name="i-lucide-circle-check"
+                            class="h-5 w-5 shrink-0 text-primary-600 dark:text-primary-400"
+                          />
+                        </div>
+                        <UBadge
+                          v-if="doctor.speciality"
+                          color="primary"
+                          variant="soft"
+                          size="xs"
+                          class="capitalize"
+                        >
+                          {{ doctor.speciality }}
+                        </UBadge>
+                        <div class="mt-2 rounded-xl border border-gray-200 bg-gray-50/90 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/80">
+                          <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                            Consultation fee
+                          </p>
+                          <p class="text-lg font-bold text-primary-700 dark:text-primary-300 tabular-nums">
+                            {{ formatConsultationFee(doctorEffectiveFee(doctor)) }}
+                          </p>
+                          <p class="text-xs text-gray-600 dark:text-gray-400">
+                            per consultation
+                          </p>
+                        </div>
+                        <p v-if="doctor.institution" class="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1">
+                          <UIcon name="i-lucide-building-2" class="h-3.5 w-3.5 shrink-0 opacity-70" />
+                          <span class="line-clamp-2">{{ doctor.institution }}</span>
+                        </p>
+                        <p v-if="doctor.professional_number" class="text-[11px] text-gray-500 dark:text-gray-500 font-mono">
+                          ID: {{ doctor.professional_number }}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
             </UFormGroup>
 
             <UFormGroup label="Preferred Date & Time">
@@ -73,7 +197,7 @@
 
             <UFormGroup label="Reason for Consultation" required>
               <div class="space-y-2">
-                <p class="text-xs text-gray-500 dark:text-gray-400">
+                <p class="text-sm text-gray-700 dark:text-gray-200 leading-snug">
                   Describe your symptoms, history and questions. You can format text and attach images.
                 </p>
                 <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40">
@@ -182,6 +306,7 @@ const consultationTypes = ['text', 'audio', 'video']
 const { isApiReachable, hasApiStatusChecked } = useApiHealth()
 const config = useRuntimeConfig()
 const toast = useToast()
+const { resolvePublicFileUrl } = useResolvePublicFileUrl()
 const tokenCookie = useCookie<string | null>('auth_token')
 const router = useRouter()
 const loadingDoctors = ref(false)
@@ -192,9 +317,21 @@ const retryDoctorsWhenOnline = ref(false)
 const reconnectRetryInProgress = ref(false)
 const suggestedSlots = ref<string[]>([])
 
-interface DoctorOption {
-  label: string
-  value: number
+interface DoctorForBooking {
+  id: number
+  name: string
+  email?: string | null
+  speciality?: string | null
+  professional_number?: string | null
+  institution?: string | null
+  profile_photo_url?: string | null
+  consultation_fee?: number | null
+  effective_consultation_fee?: number
+  consultation_fee_is_custom?: boolean
+  bio?: string | null
+  qualifications_summary?: string | null
+  license_number?: string | null
+  regulatory_council?: string | null
 }
 
 const state = reactive({
@@ -217,13 +354,109 @@ const categoryOptions = ref([
   { label: 'Dentist', value: 'Dentist' }
 ])
 
-const doctorOptions = ref<DoctorOption[]>([])
-const filteredDoctorOptions = computed(() => {
+const doctors = ref<DoctorForBooking[]>([])
+/** Admin-configured default consultation amounts per speciality (from doctors list meta). */
+const pricingBySpeciality = ref<Record<string, number>>({})
+/** Profile images that failed to load (show initials instead). */
+const brokenDoctorPhotos = ref<Record<number, boolean>>({})
+
+const filteredDoctors = computed(() => {
   if (!state.category) return []
-  return doctorOptions.value.filter(doctor => 
-    doctor.label.includes(state.category)
-  )
+  return doctors.value.filter(d => d.speciality === state.category)
 })
+
+const waitingRoomSelected = computed(() => state.doctor_id === null)
+
+function doctorEffectiveFee (doctor: DoctorForBooking): number {
+  const e = doctor.effective_consultation_fee
+  if (typeof e === 'number' && !Number.isNaN(e)) {
+    return e
+  }
+  const c = doctor.consultation_fee
+  if (typeof c === 'number' && !Number.isNaN(c)) {
+    return c
+  }
+  return 0
+}
+
+function doctorUsesCustomFee (doctor: DoctorForBooking): boolean {
+  if (typeof doctor.consultation_fee_is_custom === 'boolean') {
+    return doctor.consultation_fee_is_custom
+  }
+  return doctor.consultation_fee != null
+}
+
+/** Typical fee when booking “any available doctor”: category default, else lowest listed in category. */
+const waitingRoomFeeDisplay = computed(() => {
+  const cat = state.category
+  if (!cat) return 0
+  const metaVal = pricingBySpeciality.value[cat]
+  if (metaVal != null && Number.isFinite(metaVal)) {
+    return metaVal
+  }
+  const positives = filteredDoctors.value
+    .map(d => doctorEffectiveFee(d))
+    .filter(f => f > 0)
+  if (positives.length) {
+    return Math.min(...positives)
+  }
+  const anyListed = filteredDoctors.value.map(d => doctorEffectiveFee(d)).filter(f => Number.isFinite(f))
+  if (anyListed.length) {
+    return Math.min(...anyListed)
+  }
+  return 0
+})
+
+const waitingRoomFeeCaption = computed(() => {
+  const cat = state.category
+  if (!cat) return ''
+  const hasMeta = pricingBySpeciality.value[cat] != null && Number.isFinite(pricingBySpeciality.value[cat])
+  if (hasMeta) {
+    return `Category default for ${cat}. The clinician who accepts your request may use this rate or their own if set.`
+  }
+  if (filteredDoctors.value.length) {
+    return 'Lowest listed clinician amount in this category. Another doctor may charge differently.'
+  }
+  return 'Fee follows the category default or the clinician who accepts your request.'
+})
+
+function selectWaitingRoom () {
+  state.doctor_id = null
+}
+
+function selectDoctor (id: number) {
+  state.doctor_id = id
+}
+
+function doctorInitials (name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
+function formatConsultationFee (fee: number | null | undefined) {
+  if (fee == null || Number.isNaN(fee)) {
+    return '—'
+  }
+  return new Intl.NumberFormat('en-UG', {
+    style: 'currency',
+    currency: 'UGX',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(fee)
+}
+
+function doctorPhotoUrl (doctor: DoctorForBooking) {
+  if (brokenDoctorPhotos.value[doctor.id]) return null
+  const u = doctor.profile_photo_url
+  if (!u) return null
+  return resolvePublicFileUrl(u) || u
+}
+
+function onDoctorImgError (id: number) {
+  brokenDoctorPhotos.value = { ...brokenDoctorPhotos.value, [id]: true }
+}
 
 const reasonEditor = ref<HTMLElement | null>(null)
 const reasonImageInput = ref<HTMLInputElement | null>(null)
@@ -265,15 +498,16 @@ const fetchDoctors = async () => {
   errorMessage.value = ''
 
   try {
-    const response = await $fetch<{ data: Array<{ id: number; name: string; speciality?: string | null; institution?: string | null; professional_number?: string | null }> }>('/doctors', {
+    const response = await $fetch<{ data: DoctorForBooking[]; meta?: { pricing_by_speciality?: Record<string, number> } }>('/doctors', {
       baseURL: config.public.apiBase,
       headers: apiHeaders.value
     })
 
-    doctorOptions.value = (response.data || []).map(doctor => ({
-      value: doctor.id,
-      label: [doctor.professional_number, doctor.name, doctor.speciality, doctor.institution].filter(Boolean).join(' - ')
-    }))
+    doctors.value = Array.isArray(response.data) ? response.data : []
+    pricingBySpeciality.value = response.meta?.pricing_by_speciality && typeof response.meta.pricing_by_speciality === 'object'
+      ? response.meta.pricing_by_speciality
+      : {}
+    brokenDoctorPhotos.value = {}
     retryDoctorsWhenOnline.value = false
 
     if (reconnectRetryInProgress.value) {

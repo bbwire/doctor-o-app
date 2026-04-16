@@ -392,6 +392,44 @@
         </div>
       </div>
 
+      <div v-else-if="currentStep?.key === 'presenting_complaints'" class="pb-2 space-y-3">
+        <p class="text-xs text-gray-400">
+          Add one complaint per field. Use &quot;Add another complaint&quot; if the patient has more than one.
+        </p>
+        <div
+          v-for="(line, i) in presentingComplaintRows"
+          :key="i"
+          class="rounded-lg border border-gray-700 p-3 space-y-2"
+        >
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs text-gray-500">Complaint {{ i + 1 }}</span>
+            <UButton
+              v-if="presentingComplaintRows.length > 1"
+              color="red"
+              variant="ghost"
+              size="xs"
+              icon="i-lucide-trash-2"
+              @click.prevent="removePresentingComplaintRow(i)"
+            />
+          </div>
+          <UTextarea
+            :model-value="line"
+            :placeholder="currentStep?.placeholder"
+            :rows="4"
+            class="w-full min-h-[96px] resize-none"
+            @update:model-value="updatePresentingComplaintRow(i, $event)"
+          />
+        </div>
+        <UButton
+          variant="outline"
+          size="sm"
+          icon="i-lucide-plus"
+          @click.prevent="addPresentingComplaintRow"
+        >
+          Add another complaint
+        </UButton>
+      </div>
+
       <div v-else class="pb-2">
         <UTextarea
           :model-value="currentValue"
@@ -508,8 +546,16 @@ export interface PatientInvestigationUpload {
   uploaded_at?: string | null
 }
 
+export interface ClinicalOutcomeNotes {
+  doctor_notes?: string
+  patient_reports_improved?: boolean | null
+  patient_reported_at?: string | null
+}
+
 export interface ClinicalNotesData {
+  /** @deprecated Prefer presenting_complaints; kept in sync for exports and legacy readers */
   presenting_complaint?: string
+  presenting_complaints?: string[]
   history_of_presenting_complaint?: string
   review_of_systems?: string
   past_medical_history?: string
@@ -526,6 +572,7 @@ export interface ClinicalNotesData {
   final_diagnosis?: string
   final_diagnosis_icd11?: Icd11Diagnosis | null
   final_treatment?: string
+  outcome?: ClinicalOutcomeNotes
 }
 
 const props = withDefaults(
@@ -1032,7 +1079,7 @@ const BASE_STEP_DEFINITIONS: Array<{
   required?: boolean
   showWhen?: (ctx: { patientAgeYears: number | null }) => boolean
 }> = [
-  { key: 'presenting_complaint', label: 'Presenting complaint', required: true, placeholder: 'Chief complaint or reason for visit...' },
+  { key: 'presenting_complaints', label: 'Presenting complaint(s)', required: true, placeholder: 'Chief complaint or reason for visit...' },
   { key: 'history_of_presenting_complaint', label: 'History of presenting complaint', hint: 'Optional - if applicable', placeholder: 'History, onset, duration, associated symptoms...' },
   { key: 'review_of_systems', label: 'Review of Systems', required: true, placeholder: 'Relevant systems review...' },
   { key: 'past_medical_history', label: 'Past medical history', required: true, placeholder: 'Chronic conditions, previous diagnoses...' },
@@ -1047,6 +1094,12 @@ const BASE_STEP_DEFINITIONS: Array<{
   { key: 'investigation_results', label: 'Investigation results', hint: 'Laboratory, imaging, and other investigation results available at this visit.', placeholder: 'Document investigation results (labs, radiology, point-of-care tests, etc.)...' },
   { key: 'final_diagnosis', label: 'Final diagnosis', required: true, placeholder: 'Confirmed diagnosis...' },
   { key: 'final_treatment', label: 'Final treatment', required: true, hint: 'Overall treatment plan and follow-up after diagnosis.', placeholder: 'Final treatment plan, follow-up, and patient advice...' },
+  {
+    key: 'outcome_doctor_notes',
+    label: 'Outcome',
+    hint: 'Clinical outcome, recovery, or follow-up. The patient can later report whether their symptoms improved.',
+    placeholder: 'e.g. Resolving on treatment; review if fever returns...',
+  },
 ]
 
 const patientAgeYears = computed(() => {
@@ -1123,6 +1176,13 @@ const currentStep = computed(() => visibleSteps.value[visibleStepIndex.value])
 
 function getValueForKey (key: StepKey): string {
   if (!key) return ''
+  if (key === 'outcome_doctor_notes') {
+    const o = props.modelValue.outcome
+    if (typeof o === 'object' && o && typeof o.doctor_notes === 'string') {
+      return o.doctor_notes
+    }
+    return ''
+  }
   if (key.startsWith('in_person_visit_')) {
     const mp = props.modelValue.management_plan
     if (typeof mp !== 'object' || !mp) return ''
@@ -1136,12 +1196,58 @@ function getValueForKey (key: StepKey): string {
     const mp = props.modelValue.management_plan
     if (typeof mp === 'string') return key === 'management_plan_treatment' ? mp : ''
     const subKey = key.replace('management_plan_', '') as keyof ManagementPlanData
-    return (mp as ManagementPlanData)?.[subKey] ?? ''
+    const mv = (mp as ManagementPlanData)?.[subKey]
+    return typeof mv === 'string' ? mv : ''
   }
-  return (props.modelValue[key as keyof ClinicalNotesData] as string) ?? ''
+  if (key === 'presenting_complaints') return ''
+  const plain = props.modelValue[key as keyof ClinicalNotesData]
+  return typeof plain === 'string' ? plain : ''
 }
 
 const currentValue = computed(() => getValueForKey(currentStep.value?.key as StepKey))
+
+function presentingComplaintsToLegacyString (rows: string[]): string {
+  const filtered = rows.map((s) => (typeof s === 'string' ? s.trim() : '')).filter(Boolean)
+  if (filtered.length === 0) return ''
+  if (filtered.length === 1) return filtered[0]
+  return filtered.map((c, idx) => `${idx + 1}. ${c}`).join('\n')
+}
+
+const presentingComplaintRows = computed(() => {
+  const raw = props.modelValue.presenting_complaints
+  if (Array.isArray(raw) && raw.length > 0) {
+    return raw.map((s) => (typeof s === 'string' ? s : ''))
+  }
+  const legacy = props.modelValue.presenting_complaint
+  if (typeof legacy === 'string' && legacy.trim()) {
+    return [legacy]
+  }
+  return ['']
+})
+
+function commitPresentingComplaints (rows: string[]) {
+  emit('update:modelValue', {
+    ...props.modelValue,
+    presenting_complaints: rows,
+    presenting_complaint: presentingComplaintsToLegacyString(rows) || undefined,
+  })
+}
+
+function updatePresentingComplaintRow (i: number, val: string) {
+  const next = [...presentingComplaintRows.value]
+  next[i] = typeof val === 'string' ? val : ''
+  commitPresentingComplaints(next)
+}
+
+function addPresentingComplaintRow () {
+  commitPresentingComplaints([...presentingComplaintRows.value, ''])
+}
+
+function removePresentingComplaintRow (i: number) {
+  if (presentingComplaintRows.value.length <= 1) return
+  const next = presentingComplaintRows.value.filter((_, j) => j !== i)
+  commitPresentingComplaints(next.length ? next : [''])
+}
 
 const progressPercent = computed(() => {
   if (visibleSteps.value.length === 0) return 0
@@ -1151,6 +1257,25 @@ const progressPercent = computed(() => {
 function onInput (val: string) {
   const key = currentStep.value?.key as StepKey
   if (!key) return
+  if (key === 'outcome_doctor_notes') {
+    const prev = typeof props.modelValue.outcome === 'object' && props.modelValue.outcome
+      ? { ...props.modelValue.outcome }
+      : {}
+    const t = typeof val === 'string' ? val.trim() : ''
+    if (t) {
+      prev.doctor_notes = val
+    } else {
+      delete prev.doctor_notes
+    }
+    const next: ClinicalNotesData = { ...props.modelValue }
+    if (Object.keys(prev).length === 0) {
+      delete next.outcome
+    } else {
+      next.outcome = prev
+    }
+    emit('update:modelValue', next)
+    return
+  }
   const mp = typeof props.modelValue.management_plan === 'object' && props.modelValue.management_plan
     ? { ...props.modelValue.management_plan }
     : {}
@@ -1219,6 +1344,11 @@ function hasAnyContent (data: ClinicalNotesData): boolean {
         }
         if (hasNonEmptyValue(v)) return true
       }
+    } else if (k === 'presenting_complaints' && Array.isArray(v)) {
+      if (v.some((x) => typeof x === 'string' && x.trim().length > 0)) return true
+    } else if (k === 'outcome' && v && typeof v === 'object' && !Array.isArray(v)) {
+      const doc = (v as ClinicalOutcomeNotes).doctor_notes
+      if (typeof doc === 'string' && doc.trim().length > 0) return true
     } else if (v && typeof v === 'string' && v.trim()) {
       return true
     }

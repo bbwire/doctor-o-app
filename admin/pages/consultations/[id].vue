@@ -101,11 +101,13 @@
         </div>
 
         <div v-if="hasClinicalNotes" class="space-y-3 text-sm mb-6">
-          <div v-if="consultation.clinical_notes?.presenting_complaint">
-            <p class="font-medium text-gray-500 dark:text-gray-400">Presenting complaint</p>
-            <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">
-              {{ consultation.clinical_notes.presenting_complaint }}
-            </p>
+          <div v-if="presentingComplaintDisplayLines.length">
+            <p class="font-medium text-gray-500 dark:text-gray-400">Presenting complaint(s)</p>
+            <ol class="list-decimal pl-5 space-y-1 text-gray-900 dark:text-gray-100 whitespace-pre-line">
+              <li v-for="(line, i) in presentingComplaintDisplayLines" :key="i">
+                {{ line }}
+              </li>
+            </ol>
           </div>
           <div v-if="consultation.clinical_notes?.summary_of_history">
             <p class="font-medium text-gray-500 dark:text-gray-400">Summary of history</p>
@@ -157,6 +159,22 @@
             <p class="font-medium text-gray-500 dark:text-gray-400">Final treatment</p>
             <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">
               {{ consultation.clinical_notes.final_treatment }}
+            </p>
+          </div>
+          <div v-if="adminOutcomeDoctorNotes || adminOutcomePatientAnswer !== null" class="space-y-2">
+            <p class="font-medium text-gray-500 dark:text-gray-400">Outcome</p>
+            <p
+              v-if="adminOutcomeDoctorNotes"
+              class="text-gray-900 dark:text-gray-100 whitespace-pre-line pl-2 border-l-2 border-gray-200 dark:border-gray-700"
+            >
+              {{ adminOutcomeDoctorNotes }}
+            </p>
+            <p v-if="adminOutcomePatientAnswer !== null" class="text-sm text-gray-600 dark:text-gray-300">
+              Patient reports improved:
+              <span class="font-medium text-gray-900 dark:text-gray-100">{{ adminOutcomePatientAnswer ? 'Yes' : 'No' }}</span>
+              <span v-if="adminOutcomePatientReportedAt" class="text-gray-500 dark:text-gray-400 text-xs ml-1">
+                ({{ formatAdminOutcomeTime(adminOutcomePatientReportedAt) }})
+              </span>
             </p>
           </div>
           <div v-if="hasStructuredManagementPlan" class="space-y-2">
@@ -465,6 +483,30 @@ const adminIpv = computed(() =>
     : {}
 )
 
+const adminOutcomeBlock = computed(() => {
+  const o = consultation.value?.clinical_notes?.outcome
+  if (o && typeof o === 'object' && !Array.isArray(o)) return o
+  return null
+})
+
+const adminOutcomeDoctorNotes = computed(() => {
+  const v = adminOutcomeBlock.value?.doctor_notes
+  return typeof v === 'string' && v.trim() ? v.trim() : ''
+})
+
+const adminOutcomePatientAnswer = computed(() => {
+  const o = adminOutcomeBlock.value
+  if (!o || !Object.prototype.hasOwnProperty.call(o, 'patient_reports_improved')) return null
+  const v = o.patient_reports_improved
+  if (v === true || v === false) return v
+  return null
+})
+
+const adminOutcomePatientReportedAt = computed(() => {
+  const v = adminOutcomeBlock.value?.patient_reported_at
+  return typeof v === 'string' && v.trim() ? v : ''
+})
+
 function hasGeneralExaminationContent (ge) {
   if (!ge) return false
   if (typeof ge === 'string') return ge.trim().length > 0
@@ -527,6 +569,18 @@ const hasStructuredManagementPlan = computed(() => {
   return hasInPersonVisitContent.value
 })
 
+const presentingComplaintDisplayLines = computed(() => {
+  const notes = consultation.value?.clinical_notes
+  if (!notes) return []
+  const raw = notes.presenting_complaints
+  if (Array.isArray(raw) && raw.length) {
+    return raw.map(s => (typeof s === 'string' ? s.trim() : '')).filter(Boolean)
+  }
+  const legacy = notes.presenting_complaint
+  if (typeof legacy === 'string' && legacy.trim()) return [legacy.trim()]
+  return []
+})
+
 const hasClinicalNotes = computed(() => {
   const notes = consultation.value?.clinical_notes
   if (adminPatientInvestigationUploads.value.length) return true
@@ -534,13 +588,18 @@ const hasClinicalNotes = computed(() => {
   const hasManagementPlan = notes.management_plan && typeof notes.management_plan === 'object'
     ? Object.values(notes.management_plan).some(v => v && String(v).trim())
     : !!notes.management_plan
-  return !!notes.presenting_complaint
+  const oc = notes.outcome
+  const hasOutcome = (typeof oc?.doctor_notes === 'string' && oc.doctor_notes.trim().length > 0)
+    || oc?.patient_reports_improved === true
+    || oc?.patient_reports_improved === false
+  return presentingComplaintDisplayLines.value.length > 0
     || !!notes.summary_of_history
     || !!notes.differential_diagnosis
     || !!notes.investigation_results
     || !!notes.final_treatment
     || hasManagementPlan
     || !!notes.final_diagnosis
+    || hasOutcome
     || hasPrescriptionShape(notes.management_plan?.prescription)
 })
 
@@ -580,6 +639,10 @@ function formatDate (val) {
   } catch (_) {
     return val
   }
+}
+
+function formatAdminOutcomeTime (iso) {
+  return formatDate(iso)
 }
 
 function statusColor (s) {

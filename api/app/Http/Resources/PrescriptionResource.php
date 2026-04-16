@@ -25,6 +25,7 @@ class PrescriptionResource extends JsonResource
             'instructions' => $this->instructions,
             'issued_at' => $this->issued_at?->toISOString(),
             'status' => $this->status,
+            'patient_received_at' => $this->patient_received_at?->toISOString(),
             'consultation' => $this->whenLoaded('consultation', fn () => [
                 'id' => $this->consultation?->id,
                 'consultation_number' => $this->consultation?->consultation_number,

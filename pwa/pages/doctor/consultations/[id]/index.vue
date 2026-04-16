@@ -190,6 +190,14 @@
         </div>
       </div>
       <div v-if="hasClinicalNotes" class="space-y-3 text-sm">
+        <div v-if="presentingComplaintDisplayLines.length">
+          <p class="font-medium text-gray-500 dark:text-gray-400">Presenting complaint(s)</p>
+          <ol class="list-decimal pl-5 space-y-1 text-gray-900 dark:text-gray-100 whitespace-pre-line">
+            <li v-for="(line, i) in presentingComplaintDisplayLines" :key="i">
+              {{ line }}
+            </li>
+          </ol>
+        </div>
         <div v-if="consultation.clinical_notes?.summary_of_history">
           <p class="font-medium text-gray-500 dark:text-gray-400">Summary of history</p>
           <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">
@@ -244,6 +252,25 @@
           <p class="font-medium text-gray-500 dark:text-gray-400">Final treatment</p>
           <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">
             {{ consultation.clinical_notes.final_treatment }}
+          </p>
+        </div>
+        <div v-if="clinicalOutcomeDoctorNotes || clinicalOutcomePatientAnswer !== null" class="space-y-2">
+          <p class="font-medium text-gray-500 dark:text-gray-400">Outcome</p>
+          <p
+            v-if="clinicalOutcomeDoctorNotes"
+            class="text-gray-900 dark:text-gray-100 whitespace-pre-line pl-2 border-l-2 border-gray-200 dark:border-gray-700"
+          >
+            {{ clinicalOutcomeDoctorNotes }}
+          </p>
+          <p
+            v-if="clinicalOutcomePatientAnswer !== null"
+            class="text-sm text-gray-600 dark:text-gray-300"
+          >
+            Patient reports improved:
+            <span class="font-medium text-gray-900 dark:text-gray-100">{{ clinicalOutcomePatientAnswer ? 'Yes' : 'No' }}</span>
+            <span v-if="clinicalOutcomePatientReportedAt" class="text-gray-500 dark:text-gray-400 text-xs ml-1">
+              ({{ formatOutcomePatientTime(clinicalOutcomePatientReportedAt) }})
+            </span>
           </p>
         </div>
         <div v-if="hasStructuredManagementPlan" class="space-y-2">
@@ -337,7 +364,7 @@
         class="space-y-3 max-h-[min(60vh,520px)] overflow-y-auto text-sm"
       >
         <li
-          v-for="m in (consultation.messages || [])"
+          v-for="m in consultationMessagesNewestFirst"
           :key="m.id"
           class="rounded-lg border border-gray-200 dark:border-gray-700 p-3"
         >
@@ -417,6 +444,15 @@
           </ul>
           <p v-if="p.instructions" class="mt-2 text-sm text-gray-500 dark:text-gray-400">
             {{ p.instructions }}
+          </p>
+          <p
+            v-if="p.patient_received_at"
+            class="mt-2 text-xs font-medium text-green-700 dark:text-green-400"
+          >
+            Patient confirmed pharmacy receipt · {{ formatDate(p.patient_received_at) }}
+          </p>
+          <p v-else class="mt-2 text-xs text-amber-700 dark:text-amber-400">
+            Awaiting patient confirmation of pharmacy pickup
           </p>
         </div>
       </div>
@@ -531,6 +567,12 @@ const actionLoading = ref(false)
 const prescriptionLoading = ref(false)
 const errorMessage = ref('')
 const consultation = ref<any | null>(null)
+const consultationMessagesNewestFirst = computed(() => {
+  const arr = consultation.value?.messages
+  if (!arr?.length) return []
+  if (arr.length <= 1) return arr
+  return [...arr].reverse()
+})
 const notesDraft = ref('')
 const showIssuePrescription = ref(false)
 const showClinicalNotesModal = ref(false)
@@ -560,6 +602,48 @@ function formatUploadMetaTime (iso: string) {
   }
 }
 
+function formatOutcomePatientTime (iso: string) {
+  return formatUploadMetaTime(iso)
+}
+
+const clinicalOutcomeBlock = computed((): Record<string, unknown> | null => {
+  const o = consultation.value?.clinical_notes?.outcome
+  if (o && typeof o === 'object' && !Array.isArray(o)) {
+    return o as Record<string, unknown>
+  }
+  return null
+})
+
+const clinicalOutcomeDoctorNotes = computed(() => {
+  const v = clinicalOutcomeBlock.value?.doctor_notes
+  return typeof v === 'string' && v.trim() ? v.trim() : ''
+})
+
+const clinicalOutcomePatientAnswer = computed((): boolean | null => {
+  const o = clinicalOutcomeBlock.value
+  if (!o || !Object.prototype.hasOwnProperty.call(o, 'patient_reports_improved')) return null
+  const v = o.patient_reports_improved
+  if (v === true || v === false) return v
+  return null
+})
+
+const clinicalOutcomePatientReportedAt = computed(() => {
+  const v = clinicalOutcomeBlock.value?.patient_reported_at
+  return typeof v === 'string' && v.trim() ? v : ''
+})
+
+const presentingComplaintDisplayLines = computed(() => {
+  const notes = consultation.value?.clinical_notes
+  if (!notes) return []
+  const raw = notes.presenting_complaints
+  if (Array.isArray(raw) && raw.length) {
+    return raw.map((s) => (typeof s === 'string' ? s.trim() : '')).filter(Boolean)
+  }
+  const legacy = notes.presenting_complaint
+  if (typeof legacy === 'string' && legacy.trim()) return [legacy.trim()]
+  return []
+})
+
 const hasClinicalNotes = computed(() => {
   const notes = consultation.value?.clinical_notes
   if (patientInvestigationUploads.value.length) return true
@@ -567,12 +651,19 @@ const hasClinicalNotes = computed(() => {
   const hasManagementPlan = notes.management_plan && typeof notes.management_plan === 'object'
     ? Object.values(notes.management_plan).some((v) => v && String(v).trim())
     : !!notes.management_plan
-  return !!notes.summary_of_history
+  const oc = (notes as { outcome?: { doctor_notes?: string; patient_reports_improved?: unknown } }).outcome
+  const hasOutcome = (typeof oc?.doctor_notes === 'string' && oc.doctor_notes.trim().length > 0)
+    || oc?.patient_reports_improved === true
+    || oc?.patient_reports_improved === false
+
+  return presentingComplaintDisplayLines.value.length > 0
+    || !!notes.summary_of_history
     || !!notes.differential_diagnosis
     || !!notes.investigation_results
     || !!notes.final_treatment
     || hasManagementPlan
     || !!notes.final_diagnosis
+    || hasOutcome
     || hasPrescriptionShape((notes.management_plan as any)?.prescription)
 })
 

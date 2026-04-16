@@ -443,7 +443,59 @@
               {{ consultation.consultation_summary.management_plan }}
             </p>
           </div>
+          <div v-if="patientSummaryOutcomeDoctorNotes || patientSummaryOutcomePatientLabel">
+            <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Outcome</p>
+            <p
+              v-if="patientSummaryOutcomeDoctorNotes"
+              class="text-sm text-gray-800 dark:text-gray-200 mt-1 whitespace-pre-line"
+            >
+              {{ patientSummaryOutcomeDoctorNotes }}
+            </p>
+            <p v-if="patientSummaryOutcomePatientLabel" class="text-sm text-gray-600 dark:text-gray-300 mt-2">
+              Your follow-up:
+              <span class="font-medium text-gray-800 dark:text-gray-200">{{ patientSummaryOutcomePatientLabel }}</span>
+              <span v-if="patientSummaryOutcomeReportedAt" class="text-xs text-gray-500 dark:text-gray-400 ml-1">
+                · {{ formatOutcomeReportedAt(patientSummaryOutcomeReportedAt) }}
+              </span>
+            </p>
+          </div>
         </div>
+      </UCard>
+
+      <UCard
+        v-if="consultation.status === 'completed'"
+        :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }"
+      >
+        <h3 class="text-base font-semibold text-gray-900 dark:text-white mb-2">
+          How are you feeling?
+        </h3>
+        <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">
+          Your answer helps your care team understand whether your symptoms have improved after this consultation.
+        </p>
+        <div class="flex flex-wrap gap-2">
+          <UButton
+            color="primary"
+            variant="soft"
+            :disabled="outcomeSubmitLoading || isApiOffline"
+            :loading="outcomeSubmitLoading && outcomeSubmitChoice === true"
+            @click="submitOutcomeFeedback(true)"
+          >
+            Yes, improved
+          </UButton>
+          <UButton
+            color="neutral"
+            variant="soft"
+            :disabled="outcomeSubmitLoading || isApiOffline"
+            :loading="outcomeSubmitLoading && outcomeSubmitChoice === false"
+            @click="submitOutcomeFeedback(false)"
+          >
+            Not really / unsure
+          </UButton>
+        </div>
+        <p v-if="patientSummaryOutcomePatientLabel && !outcomeSubmitLoading" class="text-xs text-gray-500 dark:text-gray-400 mt-3">
+          Current answer: {{ patientSummaryOutcomePatientLabel }}.
+          You can update this anytime.
+        </p>
       </UCard>
 
       <UCard
@@ -455,7 +507,7 @@
         </h3>
         <ul class="space-y-3 max-h-[min(60vh,480px)] overflow-y-auto text-sm">
           <li
-            v-for="m in consultation.messages"
+            v-for="m in consultationMessagesNewestFirst"
             :key="m.id"
             class="rounded-lg border border-gray-200 dark:border-gray-700 p-3"
           >
@@ -533,6 +585,12 @@ interface ManagementPlanSummary {
   in_person_visit?: InPersonVisitSummary | string | null
 }
 
+interface ConsultationOutcomeSummary {
+  doctor_notes?: string | null
+  patient_reports_improved?: boolean | null
+  patient_reported_at?: string | null
+}
+
 interface ConsultationSummary {
   summary_of_history?: string | null
   differential_diagnosis?: string | null
@@ -540,6 +598,7 @@ interface ConsultationSummary {
   management_plan?: ManagementPlanSummary | string | null
   final_diagnosis?: string | null
   final_treatment?: string | null
+  outcome?: ConsultationOutcomeSummary | null
 }
 
 interface PatientInvestigationUpload {
@@ -605,10 +664,18 @@ const errorMessage = ref('')
 const retryWhenOnline = ref(false)
 const reconnectRetryInProgress = ref(false)
 const consultation = ref<ConsultationItem | null>(null)
+const consultationMessagesNewestFirst = computed(() => {
+  const arr = consultation.value?.messages
+  if (!arr?.length) return []
+  if (arr.length <= 1) return arr
+  return [...arr].reverse()
+})
 const rescheduleAt = ref('')
 const suggestedSlots = ref<string[]>([])
 const showConsentModal = ref(false)
 const downloadingSummary = ref(false)
+const outcomeSubmitLoading = ref(false)
+const outcomeSubmitChoice = ref<boolean | null>(null)
 
 const investigationCategoryOptions = [
   { label: 'Laboratory (blood tests, urine, etc.)', value: 'laboratory' as const },
@@ -787,14 +854,80 @@ async function submitInvestigationUpload () {
 
 const consultationId = computed(() => route.params.id)
 
+const patientSummaryOutcome = computed(() => consultation.value?.consultation_summary?.outcome)
+
+const patientSummaryOutcomeDoctorNotes = computed(() => {
+  const t = patientSummaryOutcome.value?.doctor_notes
+  return typeof t === 'string' && t.trim() ? t.trim() : ''
+})
+
+const patientSummaryOutcomePatientLabel = computed(() => {
+  const o = patientSummaryOutcome.value
+  if (!o || !Object.prototype.hasOwnProperty.call(o, 'patient_reports_improved')) return ''
+  if (o.patient_reports_improved === true) return 'Symptoms improved'
+  if (o.patient_reports_improved === false) return 'Little or no improvement'
+  return ''
+})
+
+const patientSummaryOutcomeReportedAt = computed(() => {
+  const t = patientSummaryOutcome.value?.patient_reported_at
+  return typeof t === 'string' && t.trim() ? t : ''
+})
+
+function formatOutcomeReportedAt (iso: string) {
+  try {
+    return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+  } catch {
+    return iso
+  }
+}
+
 const hasPatientSummaryContent = computed(() => {
   const s = consultation.value?.consultation_summary
   if (!s) return false
   const hasMp = hasStructuredPatientMp.value
   const hasLegacyMpString = typeof s.management_plan === 'string' && s.management_plan.trim().length > 0
   const summaryText = !!(s?.summary_of_history || s?.differential_diagnosis || s?.investigation_results || s?.final_treatment || s?.final_diagnosis)
-  return summaryText || hasMp || hasLegacyMpString
+  const hasOutcome = !!(patientSummaryOutcomeDoctorNotes.value
+    || patientSummaryOutcomePatientLabel.value)
+  return summaryText || hasMp || hasLegacyMpString || hasOutcome
 })
+
+async function submitOutcomeFeedback (improved: boolean) {
+  if (!consultation.value || isApiOffline.value) return
+  outcomeSubmitChoice.value = improved
+  outcomeSubmitLoading.value = true
+  try {
+    const res = await $fetch<{ data: ConsultationItem }>(
+      `/consultations/${consultationId.value}/outcome`,
+      {
+        method: 'PATCH',
+        baseURL: config.public.apiBase,
+        headers: {
+          Authorization: `Bearer ${tokenCookie.value || ''}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: { patient_reports_improved: improved },
+      }
+    )
+    consultation.value = res.data
+    toast.add({
+      title: 'Thank you',
+      description: 'Your response has been saved for your care team.',
+      color: 'green',
+    })
+  } catch (e: any) {
+    toast.add({
+      title: 'Could not save',
+      description: e?.data?.message || 'Please try again.',
+      color: 'red',
+    })
+  } finally {
+    outcomeSubmitLoading.value = false
+    outcomeSubmitChoice.value = null
+  }
+}
 
 const canDownloadClinicalRecord = computed(() => {
   const c = consultation.value

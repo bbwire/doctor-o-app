@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\DoctorResource;
 use App\Models\User;
 use App\Services\PatientConsultationService;
+use App\Services\SettingsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -18,11 +19,18 @@ class DoctorController extends Controller
     {
         $doctors = User::query()
             ->where('role', 'doctor')
+            ->whereHas('healthcareProfessional', function ($q) {
+                $q->where('is_active', true)->where('is_approved', true);
+            })
             ->with('healthcareProfessional.institution')
             ->orderBy('name')
             ->get();
 
-        return DoctorResource::collection($doctors);
+        return DoctorResource::collection($doctors)->additional([
+            'meta' => [
+                'pricing_by_speciality' => app(SettingsService::class)->getPricingBySpeciality(),
+            ],
+        ]);
     }
 
     public function availability(Request $request, int $doctorId): JsonResponse

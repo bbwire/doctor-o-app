@@ -146,8 +146,8 @@
             class="max-h-72 overflow-y-auto overflow-x-hidden overscroll-contain p-4 space-y-3"
           >
             <div
-              v-for="(msg, i) in messages"
-              :key="msg.id ?? i"
+              v-for="(msg, i) in messagesNewestFirst"
+              :key="msg.id ?? `${msg.at}-${i}`"
               class="flex"
               :class="msg.sender === 'doctor' ? 'justify-start' : 'justify-end'"
             >
@@ -174,7 +174,6 @@
                 No messages yet. Start the conversation below.
               </p>
             </div>
-            <div ref="scrollAnchor" class="h-0" aria-hidden="true" />
           </div>
           <form
             ref="chatFormRef"
@@ -246,8 +245,8 @@
           class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain p-4 pb-32 space-y-4"
         >
           <div
-            v-for="(msg, i) in messages"
-            :key="msg.id ?? i"
+            v-for="(msg, i) in messagesNewestFirst"
+            :key="msg.id ?? `${msg.at}-${i}`"
             class="flex"
             :class="msg.sender === 'doctor' ? 'justify-start' : 'justify-end'"
           >
@@ -275,7 +274,6 @@
               <span class="text-sm">Type below to start the conversation.</span>
             </p>
           </div>
-          <div ref="scrollAnchor" class="h-0" aria-hidden="true" />
         </div>
 
         <!-- Input bar - fixed at bottom, adjusts for keyboard on mobile -->
@@ -398,6 +396,9 @@ function chatAttachmentSrc (url: string | null | undefined) {
 
 const id = route.params.id as string
 
+/** Must match API `ConsultationMessageController` image max (kilobytes → bytes). */
+const MAX_CHAT_IMAGE_BYTES = 2 * 1024 * 1024
+
 const isVideoOrAudio = computed(() => {
   const t = consultation.value?.consultation_type
   return t === 'video' || t === 'audio'
@@ -408,11 +409,11 @@ const errorMessage = ref('')
 const consultation = ref<any | null>(null)
 const newMessage = ref('')
 const messagesContainer = ref<HTMLElement | null>(null)
-const scrollAnchor = ref<HTMLElement | null>(null)
 const sending = ref(false)
 const gettingLocation = ref(false)
 
 const messages = ref<Array<{ id?: number; text: string; sender: 'doctor' | 'patient'; at: string; attachment_url?: string | null }>>([])
+const messagesNewestFirst = useMessagesNewestFirst(messages)
 const chatInputRef = ref<HTMLTextAreaElement | null>(null)
 const chatFormRef = ref<HTMLFormElement | null>(null)
 const imageInputRef = ref<HTMLInputElement | null>(null)
@@ -493,29 +494,33 @@ function formatTime (iso: string) {
   return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 }
 
-function scrollToBottom () {
+/** Newest messages are at the top; keep scroll pinned there when user was already reading latest. */
+function scrollToLatest (opts?: { smooth?: boolean }) {
   nextTick(() => {
-    scrollAnchor.value?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    const el = messagesContainer.value
+    if (!el) return
+    const behavior = opts?.smooth === false ? 'auto' : 'smooth'
+    el.scrollTo({ top: 0, behavior })
   })
 }
 
-function isNearBottom () {
+function isNearLatest () {
   const el = messagesContainer.value
   if (!el) return true
   const threshold = 80
-  return el.scrollHeight - el.scrollTop - el.clientHeight < threshold
+  return el.scrollTop < threshold
 }
 
 async function fetchMessages () {
   if (!id) return
-  const wasAtBottom = isNearBottom()
+  const wasViewingLatest = isNearLatest()
   try {
     const res = await $fetch(`/consultations/${id}/messages`, {
       baseURL: config.public.apiBase,
       headers: getHeaders()
     })
     messages.value = ((res as any)?.data ?? []) as typeof messages.value
-    if (wasAtBottom) scrollToBottom()
+    if (wasViewingLatest) scrollToLatest()
   } catch {
     // ignore fetch errors for polling
   }
@@ -548,6 +553,15 @@ function onImageSelect (e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file || !file.type.startsWith('image/')) return
+  if (file.size > MAX_CHAT_IMAGE_BYTES) {
+    toast.add({
+      title: 'Image too large',
+      description: 'Chat images must be 2 MB or smaller.',
+      color: 'red'
+    })
+    input.value = ''
+    return
+  }
   selectedImage.value = file
   imagePreview.value = URL.createObjectURL(file)
   input.value = ''
@@ -569,7 +583,7 @@ async function sendMessage () {
     let res: any
     if (image) {
       const formData = new FormData()
-      formData.append('text', text || ' ')
+      formData.append('text', text)
       formData.append('image', image)
       res = await $fetch(`/consultations/${id}/messages`, {
         baseURL: config.public.apiBase,
@@ -589,12 +603,20 @@ async function sendMessage () {
         body: { text }
       })
     }
-    const msg = (res as any)?.data ?? { text: text || ' ', sender: 'patient' as const, at: new Date().toISOString() }
+    const msg = (res as any)?.data ?? { text, sender: 'patient' as const, at: new Date().toISOString() }
     messages.value = [...messages.value, msg]
     newMessage.value = ''
-    scrollToBottom()
+    scrollToLatest()
   } catch (e: any) {
-    toast.add({ title: 'Failed to send', description: e?.data?.message || 'Please try again.', color: 'red' })
+    const d = e?.data
+    const fieldErr = d?.errors && typeof d.errors === 'object'
+      ? (Object.values(d.errors).flat().find((x): x is string => typeof x === 'string'))
+      : undefined
+    toast.add({
+      title: 'Failed to send',
+      description: (typeof d?.message === 'string' ? d.message : fieldErr) || 'Please try again.',
+      color: 'red'
+    })
   } finally {
     sending.value = false
   }
@@ -622,7 +644,7 @@ async function shareLocation () {
     })
     const msg = (res as any)?.data ?? { text, sender: 'patient' as const, at: new Date().toISOString() }
     messages.value = [...messages.value, msg]
-    scrollToBottom()
+    scrollToLatest()
   } catch (e: any) {
     const msg = e?.message || ''
     if (/denied|permission/i.test(msg)) {
@@ -654,7 +676,7 @@ async function fetchConsultation () {
 onMounted(async () => {
   await fetchConsultation()
   await fetchMessages()
-  scrollToBottom()
+  scrollToLatest({ smooth: false })
   pollInterval = setInterval(fetchMessages, 3000)
   updateKeyboardOffset()
   window.visualViewport?.addEventListener('resize', updateKeyboardOffset)

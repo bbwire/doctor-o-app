@@ -45,8 +45,33 @@
 @endif
 
 @php
+    $presentingComplaintLines = [];
+    if (!empty($notes['presenting_complaints']) && is_array($notes['presenting_complaints'])) {
+        foreach ($notes['presenting_complaints'] as $line) {
+            if (is_string($line) && trim($line) !== '') {
+                $presentingComplaintLines[] = trim($line);
+            }
+        }
+    }
+@endphp
+@if(count($presentingComplaintLines) > 0)
+    <div class="section">
+        <h2>Presenting complaint(s)</h2>
+        <ol style="margin: 4px 0 0 18px; padding: 0;">
+            @foreach($presentingComplaintLines as $line)
+                <li style="white-space: pre-wrap; margin-top: 3px;">{{ $line }}</li>
+            @endforeach
+        </ol>
+    </div>
+@elseif(!empty($notes['presenting_complaint']) && is_string($notes['presenting_complaint']) && trim($notes['presenting_complaint']) !== '')
+    <div class="section">
+        <h2>Presenting complaint</h2>
+        <div class="section-content">{{ $notes['presenting_complaint'] }}</div>
+    </div>
+@endif
+
+@php
     $simpleTextFields = [
-        'presenting_complaint' => 'Presenting complaint',
         'history_of_presenting_complaint' => 'History of presenting complaint',
         'review_of_systems' => 'Review of systems',
         'past_medical_history' => 'Past medical history',
@@ -189,6 +214,39 @@
     <div class="section">
         <h2>Management plan</h2>
         <div class="section-content">{{ $mp }}</div>
+    </div>
+@endif
+
+@php
+    $oc = $notes['outcome'] ?? null;
+    $hasOutcome = is_array($oc) && (
+        (!empty($oc['doctor_notes']) && is_string($oc['doctor_notes']) && trim($oc['doctor_notes']) !== '')
+        || array_key_exists('patient_reports_improved', $oc)
+    );
+@endphp
+@if($hasOutcome)
+    <div class="section">
+        <h2>Outcome</h2>
+        @if(!empty($oc['doctor_notes']) && is_string($oc['doctor_notes']) && trim($oc['doctor_notes']) !== '')
+            <p style="font-weight: bold; margin-top: 4px;">Clinician</p>
+            <div class="section-content">{{ $oc['doctor_notes'] }}</div>
+        @endif
+        @if(array_key_exists('patient_reports_improved', $oc))
+            <p style="font-weight: bold; margin-top: 8px;">Patient follow-up</p>
+            <p class="section-content">
+                Reports improved:
+                @if($oc['patient_reports_improved'] === true)
+                    Yes
+                @elseif($oc['patient_reports_improved'] === false)
+                    No
+                @else
+                    Not recorded
+                @endif
+                @if(!empty($oc['patient_reported_at']))
+                    <span style="color:#666;font-size:9px;"> ({{ $oc['patient_reported_at'] }})</span>
+                @endif
+            </p>
+        @endif
     </div>
 @endif
 

@@ -4,11 +4,13 @@ namespace Tests\Feature;
 
 use App\Models\Consultation;
 use App\Models\ConsultationSettlement;
-use App\Models\User;
 use App\Models\HealthcareProfessional;
 use App\Models\Institution;
+use App\Models\User;
 use App\Models\WalletTransaction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -245,7 +247,61 @@ class PatientConsultationsApiTest extends TestCase
         $this->patchJson('/api/v1/consultations/999/reschedule', [
             'scheduled_at' => now()->addDay()->toISOString(),
         ])->assertForbidden();
+        $this->patchJson('/api/v1/consultations/999/outcome', [
+            'patient_reports_improved' => true,
+        ])->assertForbidden();
         $this->postJson('/api/v1/consultations/book', [])->assertForbidden();
+    }
+
+    public function test_patient_can_submit_outcome_on_completed_consultation(): void
+    {
+        $patient = User::factory()->patient()->create();
+        $doctor = User::factory()->doctor()->create();
+
+        $consultation = Consultation::factory()->create([
+            'patient_id' => $patient->id,
+            'doctor_id' => $doctor->id,
+            'status' => 'completed',
+            'clinical_notes' => [
+                'summary_of_history' => 'Brief history',
+                'outcome' => [
+                    'doctor_notes' => 'Expected recovery in a few days',
+                ],
+            ],
+        ]);
+
+        Sanctum::actingAs($patient);
+
+        $this->patchJson("/api/v1/consultations/{$consultation->id}/outcome", [
+            'patient_reports_improved' => true,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.consultation_summary.outcome.patient_reports_improved', true)
+            ->assertJsonPath('data.consultation_summary.outcome.doctor_notes', 'Expected recovery in a few days');
+
+        $consultation->refresh();
+        $this->assertTrue($consultation->clinical_notes['outcome']['patient_reports_improved']);
+        $this->assertArrayHasKey('patient_reported_at', $consultation->clinical_notes['outcome']);
+    }
+
+    public function test_patient_cannot_submit_outcome_before_consultation_completed(): void
+    {
+        $patient = User::factory()->patient()->create();
+        $doctor = User::factory()->doctor()->create();
+
+        $consultation = Consultation::factory()->create([
+            'patient_id' => $patient->id,
+            'doctor_id' => $doctor->id,
+            'status' => 'scheduled',
+            'scheduled_at' => now()->addDay(),
+        ]);
+
+        Sanctum::actingAs($patient);
+
+        $this->patchJson("/api/v1/consultations/{$consultation->id}/outcome", [
+            'patient_reports_improved' => false,
+        ])
+            ->assertStatus(422);
     }
 
     public function test_patient_booking_without_doctor_creates_waiting_consultation(): void
@@ -315,5 +371,57 @@ class PatientConsultationsApiTest extends TestCase
         $this->assertTrue(ConsultationSettlement::query()->count() > $settlementBefore);
         $this->assertTrue(WalletTransaction::query()->count() > $walletTxBefore);
         $this->assertSame(900.0, (float) $patient->refresh()->wallet_balance);
+    }
+
+    public function test_patient_can_post_chat_message_with_image_only(): void
+    {
+        Storage::fake('public');
+
+        $patient = User::factory()->patient()->create();
+        $doctor = User::factory()->doctor()->create();
+
+        $consultation = Consultation::factory()->create([
+            'patient_id' => $patient->id,
+            'doctor_id' => $doctor->id,
+        ]);
+
+        Sanctum::actingAs($patient);
+
+        $tinyPng = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', true);
+        $this->assertNotFalse($tinyPng);
+        $image = UploadedFile::fake()->createWithContent('chat.png', $tinyPng);
+
+        $response = $this->post("/api/v1/consultations/{$consultation->id}/messages", [
+            'text' => '',
+            'image' => $image,
+        ]);
+
+        $response->assertCreated();
+        $response->assertJsonPath('data.text', '');
+        $this->assertNotNull($response->json('data.attachment_url'));
+
+        $this->assertDatabaseHas('consultation_messages', [
+            'consultation_id' => $consultation->id,
+            'user_id' => $patient->id,
+            'sender' => 'patient',
+            'text' => '',
+        ]);
+    }
+
+    public function test_chat_message_rejects_empty_text_without_image(): void
+    {
+        $patient = User::factory()->patient()->create();
+        $doctor = User::factory()->doctor()->create();
+
+        $consultation = Consultation::factory()->create([
+            'patient_id' => $patient->id,
+            'doctor_id' => $doctor->id,
+        ]);
+
+        Sanctum::actingAs($patient);
+
+        $this->postJson("/api/v1/consultations/{$consultation->id}/messages", [
+            'text' => '   ',
+        ])->assertUnprocessable();
     }
 }

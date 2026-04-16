@@ -59,6 +59,36 @@ class PatientDashboardApiTest extends TestCase
             ->assertJsonPath('data.next_consultation.doctor.id', $doctor->id);
     }
 
+    public function test_dashboard_prescription_count_excludes_received(): void
+    {
+        $patient = User::factory()->patient()->create();
+        $doctor = User::factory()->doctor()->create();
+        $consultation = Consultation::factory()->create([
+            'patient_id' => $patient->id,
+            'doctor_id' => $doctor->id,
+        ]);
+
+        Prescription::factory()->create([
+            'consultation_id' => $consultation->id,
+            'patient_id' => $patient->id,
+            'doctor_id' => $doctor->id,
+            'patient_received_at' => now(),
+        ]);
+
+        Prescription::factory()->create([
+            'consultation_id' => $consultation->id,
+            'patient_id' => $patient->id,
+            'doctor_id' => $doctor->id,
+            'patient_received_at' => null,
+        ]);
+
+        Sanctum::actingAs($patient);
+
+        $this->getJson('/api/v1/dashboard/summary')
+            ->assertOk()
+            ->assertJsonPath('data.prescriptions', 1);
+    }
+
     public function test_non_patient_cannot_access_dashboard_summary(): void
     {
         $doctor = User::factory()->doctor()->create();

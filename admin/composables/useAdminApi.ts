@@ -62,8 +62,11 @@ export const useAdminApi = () => {
   }
 
   /** GET binary (e.g. PDF) with Bearer auth; triggers browser download. */
-  const downloadBlob = async (path: string, filename: string) => {
-    const p = path.startsWith('http') ? path : `${baseURL}${path.startsWith('/') ? path : `/${path}`}`
+  const downloadBlob = async (path: string, filename: string, query?: Record<string, string>) => {
+    const raw = path.startsWith('http') ? path : `${baseURL}${path.startsWith('/') ? path : `/${path}`}`
+    const p = query && Object.keys(query).length
+      ? `${raw}${raw.includes('?') ? '&' : '?'}${new URLSearchParams(query).toString()}`
+      : raw
     const res = await fetch(p, {
       method: 'GET',
       headers: { Authorization: `Bearer ${token.value || ''}` }

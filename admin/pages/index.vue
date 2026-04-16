@@ -106,6 +106,31 @@
 
     <div class="grid gap-6 lg:grid-cols-2">
       <UCard :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+            Clinical summaries export
+          </h2>
+          <NuxtLink to="/consultations" class="text-sm font-medium text-primary-600 hover:underline dark:text-primary-400">
+            Open consultations
+          </NuxtLink>
+        </div>
+        <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">
+          Export all clinical summary columns for reporting in JSON, Excel, or PDF.
+        </p>
+        <div class="flex flex-wrap gap-2">
+          <UButton size="sm" variant="soft" icon="i-lucide-file-json" :loading="exportingFormat === 'json'" @click="exportClinicalSummaries('json')">
+            Export JSON
+          </UButton>
+          <UButton size="sm" variant="soft" icon="i-lucide-file-spreadsheet" :loading="exportingFormat === 'excel'" @click="exportClinicalSummaries('excel')">
+            Export Excel
+          </UButton>
+          <UButton size="sm" variant="soft" icon="i-lucide-file-text" :loading="exportingFormat === 'pdf'" @click="exportClinicalSummaries('pdf')">
+            Export PDF
+          </UButton>
+        </div>
+      </UCard>
+
+      <UCard :ui="{ background: 'bg-white dark:bg-gray-900', ring: 'ring-1 ring-gray-200 dark:ring-gray-800' }">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
             Recent consultations
@@ -175,7 +200,8 @@ definePageMeta({
   middleware: 'auth-admin'
 })
 
-const { fetchDashboardSummary, get } = useAdminApi()
+const { fetchDashboardSummary, get, downloadBlob } = useAdminApi()
+const toast = useToast()
 
 const summary = ref({
   users: 0,
@@ -189,10 +215,32 @@ const recentConsultations = ref([])
 const recentConsultationsLoading = ref(true)
 const recentPrescriptions = ref([])
 const recentPrescriptionsLoading = ref(true)
+const exportingFormat = ref(null)
 
 function consultationStatusColor (s) {
   const map = { scheduled: 'blue', completed: 'green', cancelled: 'red' }
   return map[s] || 'gray'
+}
+
+async function exportClinicalSummaries (format) {
+  exportingFormat.value = format
+  try {
+    const date = new Date().toISOString().slice(0, 10)
+    const ext = format === 'excel' ? 'xls' : format
+    await downloadBlob(
+      `admin/consultations/clinical-summaries/export/${format}`,
+      `clinical-summaries-${date}.${ext}`
+    )
+    toast.add({ title: `Clinical summaries ${format.toUpperCase()} export started`, color: 'green' })
+  } catch (e) {
+    toast.add({
+      title: 'Export failed',
+      description: e?.message || 'Unable to export clinical summaries.',
+      color: 'red'
+    })
+  } finally {
+    exportingFormat.value = null
+  }
 }
 
 onMounted(async () => {

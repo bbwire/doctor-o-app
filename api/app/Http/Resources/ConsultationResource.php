@@ -17,6 +17,7 @@ class ConsultationResource extends JsonResource
     {
         $notes = $this->clinical_notes ?? [];
         $isPatientView = $request->user() && (int) $request->user()->id === (int) $this->patient_id;
+        $outcome = is_array($notes['outcome'] ?? null) ? $notes['outcome'] : [];
 
         return [
             'id' => $this->id,
@@ -37,6 +38,13 @@ class ConsultationResource extends JsonResource
                 'differential_diagnosis' => $notes['differential_diagnosis'] ?? null,
                 'management_plan' => $notes['management_plan'] ?? null,
                 'final_diagnosis' => $notes['final_diagnosis'] ?? null,
+                'outcome' => [
+                    'doctor_notes' => $outcome['doctor_notes'] ?? null,
+                    'patient_reports_improved' => array_key_exists('patient_reports_improved', $outcome)
+                        ? $outcome['patient_reports_improved']
+                        : null,
+                    'patient_reported_at' => $outcome['patient_reported_at'] ?? null,
+                ],
             ] : null,
             'patient' => $this->whenLoaded('patient', fn () => [
                 'id' => $this->patient?->id,
@@ -53,14 +61,22 @@ class ConsultationResource extends JsonResource
                 'email' => $this->doctor?->email,
                 'role' => $this->doctor?->role,
             ]),
-            'prescriptions' => $this->whenLoaded('prescriptions', fn () => $this->prescriptions->map(fn ($p) => [
-                'id' => $p->id,
-                'prescription_number' => $p->prescription_number,
-                'medications' => $p->medications,
-                'instructions' => $p->instructions,
-                'issued_at' => $p->issued_at?->toISOString(),
-                'status' => $p->status,
-            ])),
+            'prescriptions' => $this->whenLoaded('prescriptions', function () use ($isPatientView) {
+                $rx = $this->prescriptions;
+                if ($isPatientView) {
+                    $rx = $rx->filter(fn ($p) => $p->patient_received_at === null)->values();
+                }
+
+                return $rx->map(fn ($p) => [
+                    'id' => $p->id,
+                    'prescription_number' => $p->prescription_number,
+                    'medications' => $p->medications,
+                    'instructions' => $p->instructions,
+                    'issued_at' => $p->issued_at?->toISOString(),
+                    'status' => $p->status,
+                    'patient_received_at' => $p->patient_received_at?->toISOString(),
+                ]);
+            }),
             'messages' => ConsultationMessageResource::collection($this->whenLoaded('messages')),
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),

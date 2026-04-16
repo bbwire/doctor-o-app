@@ -19,6 +19,7 @@ class Prescription extends Model
         'instructions',
         'issued_at',
         'status',
+        'patient_received_at',
     ];
 
     protected function casts(): array
@@ -26,6 +27,7 @@ class Prescription extends Model
         return [
             'medications' => 'array',
             'issued_at' => 'datetime',
+            'patient_received_at' => 'datetime',
         ];
     }
 

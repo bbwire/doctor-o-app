@@ -12,9 +12,9 @@ use App\Services\NotificationService;
 use App\Services\SettingsService;
 use App\Services\WalletService;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -91,6 +91,8 @@ class ConsultationController extends Controller
             'metadata' => ['nullable', 'array'],
             'clinical_notes' => ['nullable', 'array'],
             'clinical_notes.presenting_complaint' => ['nullable', 'string', 'max:65535'],
+            'clinical_notes.presenting_complaints' => ['nullable', 'array'],
+            'clinical_notes.presenting_complaints.*' => ['nullable', 'string', 'max:65535'],
             'clinical_notes.history_of_presenting_complaint' => ['nullable', 'string', 'max:65535'],
             'clinical_notes.review_of_systems' => ['nullable', 'string', 'max:65535'],
             'clinical_notes.past_medical_history' => ['nullable', 'string', 'max:65535'],
@@ -114,11 +116,13 @@ class ConsultationController extends Controller
             'clinical_notes.management_plan.in_person_visit.general_examination' => [
                 'nullable',
                 function ($attribute, $value, $fail) {
-                    if ($value === null) return;
-                    if (!is_string($value) && !is_array($value)) {
-                        $fail('The ' . $attribute . ' must be a string or an object.');
+                    if ($value === null) {
+                        return;
                     }
-                }
+                    if (! is_string($value) && ! is_array($value)) {
+                        $fail('The '.$attribute.' must be a string or an object.');
+                    }
+                },
             ],
             'clinical_notes.management_plan.in_person_visit.general_examination.appearance' => ['nullable', 'string', 'in:Good,Sick,Very sick'],
             'clinical_notes.management_plan.in_person_visit.general_examination.jaundice' => ['nullable', 'string', 'in:Nil,Mild,Severe'],
@@ -138,7 +142,24 @@ class ConsultationController extends Controller
             'clinical_notes.differential_diagnoses_icd11.*.code' => ['nullable', 'string', 'max:64'],
             'clinical_notes.differential_diagnoses_icd11.*.title' => ['nullable', 'string', 'max:65535'],
             'clinical_notes.final_diagnosis' => ['nullable', 'string', 'max:65535'],
+            'clinical_notes.outcome' => ['nullable', 'array'],
+            'clinical_notes.outcome.doctor_notes' => ['nullable', 'string', 'max:65535'],
         ]);
+
+        if (isset($validated['clinical_notes']) && is_array($validated['clinical_notes'])) {
+            $prevNotes = is_array($consultation->clinical_notes) ? $consultation->clinical_notes : [];
+            $prevOutcome = is_array($prevNotes['outcome'] ?? null) ? $prevNotes['outcome'] : [];
+            $incoming = $validated['clinical_notes'];
+            if (! array_key_exists('outcome', $incoming)) {
+                if ($prevOutcome !== []) {
+                    $validated['clinical_notes']['outcome'] = $prevOutcome;
+                }
+            } elseif (is_array($incoming['outcome'])) {
+                $incOutcome = $incoming['outcome'];
+                unset($incOutcome['patient_reports_improved'], $incOutcome['patient_reported_at']);
+                $validated['clinical_notes']['outcome'] = array_merge($prevOutcome, $incOutcome);
+            }
+        }
 
         $oldStatus = $consultation->status;
         $consultation->update($validated);
@@ -160,7 +181,7 @@ class ConsultationController extends Controller
             app(AuditLogService::class)->log(
                 $request->user(),
                 $action,
-                'Doctor marked consultation #' . $consultation->id . ' as ' . $validated['status'],
+                'Doctor marked consultation #'.$consultation->id.' as '.$validated['status'],
                 Consultation::class,
                 $consultation->id,
                 ['old_status' => $oldStatus, 'new_status' => $validated['status']]
@@ -298,27 +319,27 @@ class ConsultationController extends Controller
                 $locked->patient_id,
                 'consultation_booked',
                 'Appointment confirmed',
-                'Your consultation has been assigned to a doctor for ' . $locked->scheduled_at->format('M j, Y \a\t g:i A') . '.',
+                'Your consultation has been assigned to a doctor for '.$locked->scheduled_at->format('M j, Y \a\t g:i A').'.',
                 ['consultation_id' => $locked->id]
             );
             $notificationService->createForUser(
                 $doctor->id,
                 'consultation_booked',
                 'New appointment',
-                'A new consultation has been assigned to you for ' . $locked->scheduled_at->format('M j, Y \a\t g:i A') . '.',
+                'A new consultation has been assigned to you for '.$locked->scheduled_at->format('M j, Y \a\t g:i A').'.',
                 ['consultation_id' => $locked->id]
             );
             $notificationService->notifyAdmins(
                 'consultation_booked',
                 'New consultation booked',
-                'A patient has been matched with a doctor for ' . $locked->scheduled_at->format('M j, Y \a\t g:i A') . '.',
+                'A patient has been matched with a doctor for '.$locked->scheduled_at->format('M j, Y \a\t g:i A').'.',
                 ['consultation_id' => $locked->id, 'patient_id' => $locked->patient_id, 'doctor_id' => $doctor->id]
             );
 
             app(AuditLogService::class)->log(
                 $doctor,
                 'consultation.claimed',
-                'Doctor claimed consultation #' . $locked->id . ' for ' . $locked->scheduled_at,
+                'Doctor claimed consultation #'.$locked->id.' for '.$locked->scheduled_at,
                 Consultation::class,
                 $locked->id,
                 ['doctor_id' => $doctor->id]
@@ -328,4 +349,3 @@ class ConsultationController extends Controller
         });
     }
 }
-
