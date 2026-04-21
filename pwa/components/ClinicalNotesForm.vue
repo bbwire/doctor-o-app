@@ -1,16 +1,30 @@
 <template>
   <div class="clinical-notes-form flex flex-col h-full min-h-0 flex-1">
-    <!-- Progress -->
-    <div class="shrink-0 flex items-center gap-1 px-2 py-2 border-b border-gray-700">
-      <span class="text-xs text-gray-400">
-        Step {{ visibleStepIndex + 1 }} of {{ visibleSteps.length }}
-      </span>
-      <div class="flex-1 h-1.5 rounded-full bg-gray-800 overflow-hidden">
-        <div
-          class="h-full bg-primary-500 transition-all duration-300"
-          :style="{ width: `${progressPercent}%` }"
-        />
+    <!-- Progress + jump to section -->
+    <div class="shrink-0 space-y-2 px-2 py-2 border-b border-gray-700">
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-gray-400 shrink-0 tabular-nums">
+          Step {{ visibleStepIndex + 1 }} / {{ visibleSteps.length }}
+        </span>
+        <div class="flex-1 min-w-0 h-1.5 rounded-full bg-gray-800 overflow-hidden">
+          <div
+            class="h-full bg-primary-500 transition-all duration-300"
+            :style="{ width: `${progressPercent}%` }"
+          />
+        </div>
       </div>
+      <USelectMenu
+        :model-value="visibleStepIndex"
+        :options="stepJumpOptions"
+        value-attribute="value"
+        option-attribute="label"
+        searchable
+        searchable-placeholder="Filter sections…"
+        placeholder="Jump to section…"
+        size="xs"
+        class="w-full"
+        @update:model-value="onJumpToStep"
+      />
     </div>
 
     <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
@@ -23,7 +37,7 @@
         </p>
       </div>
 
-      <div class="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-3">
+      <div ref="stepBodyScrollEl" class="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-3">
       <!-- Multi-select for management plan categories -->
       <div v-if="currentStep?.key === 'management_plan_select'" class="space-y-3 pb-2">
         <p class="text-xs text-gray-400 mb-3">Select one or more options. You can edit later.</p>
@@ -394,12 +408,12 @@
 
       <div v-else-if="currentStep?.key === 'presenting_complaints'" class="pb-2 space-y-3">
         <p class="text-xs text-gray-400">
-          Add one complaint per field. Use &quot;Add another complaint&quot; if the patient has more than one.
+          Enter each presenting complaint and how long it has been present. Add another row if there is more than one complaint.
         </p>
         <div
-          v-for="(line, i) in presentingComplaintRows"
+          v-for="(row, i) in presentingComplaintRows"
           :key="i"
-          class="rounded-lg border border-gray-700 p-3 space-y-2"
+          class="rounded-lg border border-gray-700 p-3 space-y-3"
         >
           <div class="flex items-center justify-between gap-2">
             <span class="text-xs text-gray-500">Complaint {{ i + 1 }}</span>
@@ -412,13 +426,23 @@
               @click.prevent="removePresentingComplaintRow(i)"
             />
           </div>
-          <UTextarea
-            :model-value="line"
-            :placeholder="currentStep?.placeholder"
-            :rows="4"
-            class="w-full min-h-[96px] resize-none"
-            @update:model-value="updatePresentingComplaintRow(i, $event)"
-          />
+          <UFormGroup label="Complaint" :ui="{ label: { base: 'text-xs text-gray-400' } }">
+            <UTextarea
+              :model-value="row.complaint"
+              :placeholder="currentStep?.placeholder"
+              :rows="3"
+              class="w-full min-h-[72px] resize-none"
+              @update:model-value="updatePresentingComplaintField(i, 'complaint', $event)"
+            />
+          </UFormGroup>
+          <UFormGroup label="Duration" :ui="{ label: { base: 'text-xs text-gray-400' } }">
+            <UInput
+              :model-value="row.duration"
+              placeholder="e.g. 3 days, 2 weeks, since childhood"
+              class="w-full"
+              @update:model-value="updatePresentingComplaintField(i, 'duration', $event)"
+            />
+          </UFormGroup>
         </div>
         <UButton
           variant="outline"
@@ -428,6 +452,27 @@
         >
           Add another complaint
         </UButton>
+      </div>
+
+      <div v-else-if="currentStep?.key === 'review_of_systems'" class="pb-2 space-y-3">
+        <p class="text-xs text-gray-400">
+          Enter findings for each system. Leave blank if not applicable.
+        </p>
+        <div
+          v-for="row in reviewOfSystemsFieldDefs"
+          :key="row.key"
+          class="rounded-lg border border-gray-700 p-3 space-y-2"
+        >
+          <UFormGroup :label="row.label" :ui="{ label: { base: 'text-xs text-gray-400' } }">
+            <UTextarea
+              :model-value="getReviewOfSystemsField(row.key)"
+              :placeholder="row.placeholder"
+              :rows="3"
+              class="w-full min-h-[72px] resize-none"
+              @update:model-value="setReviewOfSystemsField(row.key, $event)"
+            />
+          </UFormGroup>
+        </div>
       </div>
 
       <div v-else class="pb-2">
@@ -552,12 +597,40 @@ export interface ClinicalOutcomeNotes {
   patient_reported_at?: string | null
 }
 
+/** One presenting complaint with its duration (stored in clinical_notes.presenting_complaints). */
+export interface PresentingComplaintRow {
+  complaint?: string
+  duration?: string
+}
+
+/** Structured review of systems (stored in clinical_notes.review_of_systems). */
+export type ReviewOfSystemsFieldKey =
+  | 'cns'
+  | 'respiratory'
+  | 'cardiovascular'
+  | 'digestive'
+  | 'genitourinary'
+  | 'locomotor'
+  | 'other'
+
+export interface ReviewOfSystemsFields {
+  cns?: string
+  respiratory?: string
+  cardiovascular?: string
+  digestive?: string
+  genitourinary?: string
+  locomotor?: string
+  other?: string
+}
+
 export interface ClinicalNotesData {
   /** @deprecated Prefer presenting_complaints; kept in sync for exports and legacy readers */
   presenting_complaint?: string
-  presenting_complaints?: string[]
+  /** Each entry is { complaint, duration } or legacy plain string. */
+  presenting_complaints?: Array<string | PresentingComplaintRow>
   history_of_presenting_complaint?: string
-  review_of_systems?: string
+  /** Structured fields per system, or legacy single string (normalized on save). */
+  review_of_systems?: string | ReviewOfSystemsFields
   past_medical_history?: string
   past_surgical_history?: string
   growth_and_development?: string
@@ -1079,9 +1152,9 @@ const BASE_STEP_DEFINITIONS: Array<{
   required?: boolean
   showWhen?: (ctx: { patientAgeYears: number | null }) => boolean
 }> = [
-  { key: 'presenting_complaints', label: 'Presenting complaint(s)', required: true, placeholder: 'Chief complaint or reason for visit...' },
+  { key: 'presenting_complaints', label: 'Presenting complaint(s)', required: true, placeholder: 'Describe the complaint…' },
   { key: 'history_of_presenting_complaint', label: 'History of presenting complaint', hint: 'Optional - if applicable', placeholder: 'History, onset, duration, associated symptoms...' },
-  { key: 'review_of_systems', label: 'Review of Systems', required: true, placeholder: 'Relevant systems review...' },
+  { key: 'review_of_systems', label: 'Review of Systems', required: true, placeholder: '' },
   { key: 'past_medical_history', label: 'Past medical history', required: true, placeholder: 'Chronic conditions, previous diagnoses...' },
   { key: 'past_surgical_history', label: 'Past surgical history', required: true, placeholder: 'Previous surgeries, procedures...' },
   { key: 'growth_and_development', label: 'Growth and Development', showWhen: (ctx) => ctx.patientAgeYears !== null && ctx.patientAgeYears <= 5, placeholder: 'Milestones, growth parameters (if child ≤5 years)...' },
@@ -1169,8 +1242,38 @@ const visibleSteps = computed(() => {
   return result
 })
 
-const currentStepIndex = ref(0)
 const visibleStepIndex = ref(0)
+
+const stepJumpOptions = computed(() =>
+  visibleSteps.value.map((s, i) => ({
+    value: i,
+    label: `${i + 1}. ${s.label}`,
+  }))
+)
+
+const stepBodyScrollEl = ref<HTMLElement | null>(null)
+
+function onJumpToStep (val: unknown) {
+  let i: number
+  if (typeof val === 'number') {
+    i = val
+  } else if (val && typeof val === 'object' && 'value' in val && typeof (val as { value: unknown }).value === 'number') {
+    i = (val as { value: number }).value
+  } else {
+    return
+  }
+  if (!Number.isFinite(i) || i < 0 || i >= visibleSteps.value.length) return
+  visibleStepIndex.value = i
+  void nextTick(() => {
+    stepBodyScrollEl.value?.scrollTo({ top: 0 })
+  })
+}
+
+watch(visibleSteps, (steps) => {
+  if (visibleStepIndex.value >= steps.length) {
+    visibleStepIndex.value = Math.max(0, steps.length - 1)
+  }
+})
 
 const currentStep = computed(() => visibleSteps.value[visibleStepIndex.value])
 
@@ -1199,54 +1302,144 @@ function getValueForKey (key: StepKey): string {
     const mv = (mp as ManagementPlanData)?.[subKey]
     return typeof mv === 'string' ? mv : ''
   }
-  if (key === 'presenting_complaints') return ''
+  if (key === 'presenting_complaints' || key === 'review_of_systems') return ''
   const plain = props.modelValue[key as keyof ClinicalNotesData]
   return typeof plain === 'string' ? plain : ''
 }
 
 const currentValue = computed(() => getValueForKey(currentStep.value?.key as StepKey))
 
-function presentingComplaintsToLegacyString (rows: string[]): string {
-  const filtered = rows.map((s) => (typeof s === 'string' ? s.trim() : '')).filter(Boolean)
-  if (filtered.length === 0) return ''
-  if (filtered.length === 1) return filtered[0]
-  return filtered.map((c, idx) => `${idx + 1}. ${c}`).join('\n')
+function normalizePresentingComplaintRows (raw: ClinicalNotesData['presenting_complaints'], legacySingle?: string): PresentingComplaintRow[] {
+  if (Array.isArray(raw) && raw.length > 0) {
+    return raw.map((item) => {
+      if (typeof item === 'string') {
+        return { complaint: item, duration: '' }
+      }
+      if (item && typeof item === 'object' && !Array.isArray(item)) {
+        const o = item as Record<string, unknown>
+        return {
+          complaint: typeof o.complaint === 'string' ? o.complaint : '',
+          duration: typeof o.duration === 'string' ? o.duration : '',
+        }
+      }
+      return { complaint: '', duration: '' }
+    })
+  }
+  if (typeof legacySingle === 'string' && legacySingle.trim()) {
+    return [{ complaint: legacySingle.trim(), duration: '' }]
+  }
+  return [{ complaint: '', duration: '' }]
 }
 
-const presentingComplaintRows = computed(() => {
-  const raw = props.modelValue.presenting_complaints
-  if (Array.isArray(raw) && raw.length > 0) {
-    return raw.map((s) => (typeof s === 'string' ? s : ''))
-  }
-  const legacy = props.modelValue.presenting_complaint
-  if (typeof legacy === 'string' && legacy.trim()) {
-    return [legacy]
-  }
-  return ['']
+function presentingComplaintsToLegacyString (rows: PresentingComplaintRow[]): string {
+  const lines = rows
+    .map((r) => {
+      const c = (r.complaint ?? '').trim()
+      const d = (r.duration ?? '').trim()
+      if (!c && !d) return ''
+      if (!d) return c
+      if (!c) return `(duration: ${d})`
+      return `${c} (duration: ${d})`
+    })
+    .filter(Boolean)
+  if (lines.length === 0) return ''
+  if (lines.length === 1) return lines[0]
+  return lines.map((line, idx) => `${idx + 1}. ${line}`).join('\n')
+}
+
+const presentingComplaintRows = computed((): PresentingComplaintRow[] => {
+  return normalizePresentingComplaintRows(
+    props.modelValue.presenting_complaints,
+    props.modelValue.presenting_complaint
+  )
 })
 
-function commitPresentingComplaints (rows: string[]) {
+function commitPresentingComplaints (rows: PresentingComplaintRow[]) {
+  const stored: Array<PresentingComplaintRow> = rows.map(r => ({
+    complaint: (r.complaint ?? '').trim(),
+    duration: (r.duration ?? '').trim(),
+  }))
   emit('update:modelValue', {
     ...props.modelValue,
-    presenting_complaints: rows,
-    presenting_complaint: presentingComplaintsToLegacyString(rows) || undefined,
+    presenting_complaints: stored,
+    presenting_complaint: presentingComplaintsToLegacyString(stored) || undefined,
   })
 }
 
-function updatePresentingComplaintRow (i: number, val: string) {
-  const next = [...presentingComplaintRows.value]
-  next[i] = typeof val === 'string' ? val : ''
+function updatePresentingComplaintField (i: number, field: 'complaint' | 'duration', val: string) {
+  const next = presentingComplaintRows.value.map((r, j) =>
+    j === i ? { ...r, [field]: typeof val === 'string' ? val : '' } : { ...r }
+  )
   commitPresentingComplaints(next)
 }
 
 function addPresentingComplaintRow () {
-  commitPresentingComplaints([...presentingComplaintRows.value, ''])
+  commitPresentingComplaints([...presentingComplaintRows.value, { complaint: '', duration: '' }])
 }
 
 function removePresentingComplaintRow (i: number) {
   if (presentingComplaintRows.value.length <= 1) return
   const next = presentingComplaintRows.value.filter((_, j) => j !== i)
-  commitPresentingComplaints(next.length ? next : [''])
+  commitPresentingComplaints(next.length ? next : [{ complaint: '', duration: '' }])
+}
+
+const reviewOfSystemsFieldDefs: Array<{
+  key: ReviewOfSystemsFieldKey
+  label: string
+  placeholder: string
+}> = [
+  { key: 'cns', label: 'Central nervous system', placeholder: 'Headache, weakness, sensory changes, seizures…' },
+  { key: 'respiratory', label: 'Respiratory system', placeholder: 'Cough, dyspnea, wheeze, chest pain…' },
+  { key: 'cardiovascular', label: 'Cardiovascular system', placeholder: 'Chest pain, palpitations, edema, claudication…' },
+  { key: 'digestive', label: 'Digestive system', placeholder: 'Nausea, vomiting, abdominal pain, change in bowel habit…' },
+  { key: 'genitourinary', label: 'Genital–urinary system', placeholder: 'Dysuria, hematuria, discharge, menstrual…' },
+  { key: 'locomotor', label: 'Locomotor system', placeholder: 'Joint pain, swelling, back pain, stiffness…' },
+  { key: 'other', label: 'Other systems', placeholder: 'Endocrine, skin, HEENT, or other relevant systems…' },
+]
+
+function emptyReviewOfSystems (): ReviewOfSystemsFields {
+  return {
+    cns: '',
+    respiratory: '',
+    cardiovascular: '',
+    digestive: '',
+    genitourinary: '',
+    locomotor: '',
+    other: '',
+  }
+}
+
+function normalizeReviewOfSystemsFields (raw: ClinicalNotesData['review_of_systems']): ReviewOfSystemsFields {
+  const e = emptyReviewOfSystems()
+  if (typeof raw === 'string') {
+    if (raw.trim()) e.other = raw
+    return e
+  }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return e
+  const o = raw as Record<string, unknown>
+  for (const k of Object.keys(e) as ReviewOfSystemsFieldKey[]) {
+    const v = o[k]
+    if (typeof v === 'string') e[k] = v
+  }
+  return e
+}
+
+function getReviewOfSystemsField (key: ReviewOfSystemsFieldKey): string {
+  return normalizeReviewOfSystemsFields(props.modelValue.review_of_systems)[key] ?? ''
+}
+
+function setReviewOfSystemsField (key: ReviewOfSystemsFieldKey, val: string) {
+  const merged = normalizeReviewOfSystemsFields(props.modelValue.review_of_systems)
+  merged[key] = typeof val === 'string' ? val : ''
+  const trimmed: ReviewOfSystemsFields = {}
+  for (const k of Object.keys(merged) as ReviewOfSystemsFieldKey[]) {
+    const t = (merged[k] ?? '').trim()
+    if (t) trimmed[k] = t
+  }
+  emit('update:modelValue', {
+    ...props.modelValue,
+    review_of_systems: Object.keys(trimmed).length ? trimmed : undefined,
+  })
 }
 
 const progressPercent = computed(() => {
@@ -1345,7 +1538,21 @@ function hasAnyContent (data: ClinicalNotesData): boolean {
         if (hasNonEmptyValue(v)) return true
       }
     } else if (k === 'presenting_complaints' && Array.isArray(v)) {
-      if (v.some((x) => typeof x === 'string' && x.trim().length > 0)) return true
+      const hasRow = v.some((x) => {
+        if (typeof x === 'string') return x.trim().length > 0
+        if (x && typeof x === 'object' && !Array.isArray(x)) {
+          const c = (x as PresentingComplaintRow).complaint
+          const d = (x as PresentingComplaintRow).duration
+          return (typeof c === 'string' && c.trim().length > 0)
+            || (typeof d === 'string' && d.trim().length > 0)
+        }
+        return false
+      })
+      if (hasRow) return true
+    } else if (k === 'review_of_systems' && v && typeof v === 'object' && !Array.isArray(v)) {
+      if (Object.values(v as Record<string, unknown>).some(
+        x => typeof x === 'string' && x.trim().length > 0
+      )) return true
     } else if (k === 'outcome' && v && typeof v === 'object' && !Array.isArray(v)) {
       const doc = (v as ClinicalOutcomeNotes).doctor_notes
       if (typeof doc === 'string' && doc.trim().length > 0) return true

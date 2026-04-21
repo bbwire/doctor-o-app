@@ -50,6 +50,19 @@
         foreach ($notes['presenting_complaints'] as $line) {
             if (is_string($line) && trim($line) !== '') {
                 $presentingComplaintLines[] = trim($line);
+            } elseif (is_array($line)) {
+                $c = isset($line['complaint']) && is_string($line['complaint']) ? trim($line['complaint']) : '';
+                $d = isset($line['duration']) && is_string($line['duration']) ? trim($line['duration']) : '';
+                if ($c === '' && $d === '') {
+                    continue;
+                }
+                if ($c === '') {
+                    $presentingComplaintLines[] = '(duration: '.$d.')';
+                } elseif ($d === '') {
+                    $presentingComplaintLines[] = $c;
+                } else {
+                    $presentingComplaintLines[] = $c.' — Duration: '.$d;
+                }
             }
         }
     }
@@ -71,9 +84,43 @@
 @endif
 
 @php
+    $ros = $notes['review_of_systems'] ?? null;
+    $rosBlocks = [];
+    if (is_string($ros) && trim($ros) !== '') {
+        $rosBlocks[] = ['label' => null, 'text' => trim($ros)];
+    } elseif (is_array($ros)) {
+        $rosDefs = [
+            'cns' => 'Central nervous system',
+            'respiratory' => 'Respiratory system',
+            'cardiovascular' => 'Cardiovascular system',
+            'digestive' => 'Digestive system',
+            'genitourinary' => 'Genital–urinary system',
+            'locomotor' => 'Locomotor system',
+            'other' => 'Other systems',
+        ];
+        foreach ($rosDefs as $rk => $rlabel) {
+            $t = isset($ros[$rk]) && is_string($ros[$rk]) ? trim($ros[$rk]) : '';
+            if ($t !== '') {
+                $rosBlocks[] = ['label' => $rlabel, 'text' => $t];
+            }
+        }
+    }
+@endphp
+@if(count($rosBlocks) > 0)
+    <div class="section">
+        <h2>Review of systems</h2>
+        @foreach($rosBlocks as $rb)
+            @if(!empty($rb['label']))
+                <p style="font-weight:600;margin:10px 0 4px;font-size:11px;color:#444;">{{ $rb['label'] }}</p>
+            @endif
+            <div class="section-content" style="margin-bottom:6px;">{{ $rb['text'] }}</div>
+        @endforeach
+    </div>
+@endif
+
+@php
     $simpleTextFields = [
         'history_of_presenting_complaint' => 'History of presenting complaint',
-        'review_of_systems' => 'Review of systems',
         'past_medical_history' => 'Past medical history',
         'past_surgical_history' => 'Past surgical history',
         'growth_and_development' => 'Growth and development',

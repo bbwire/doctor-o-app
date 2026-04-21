@@ -109,6 +109,21 @@
               </li>
             </ol>
           </div>
+          <div v-if="reviewOfSystemsBlocks.length" class="space-y-2">
+            <p class="font-medium text-gray-500 dark:text-gray-400">Review of systems</p>
+            <div
+              v-for="(block, ri) in reviewOfSystemsBlocks"
+              :key="ri"
+              class="pl-2 border-l-2 border-gray-200 dark:border-gray-700 space-y-1"
+            >
+              <p v-if="block.label" class="text-xs font-medium text-gray-600 dark:text-gray-300">
+                {{ block.label }}
+              </p>
+              <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">
+                {{ block.text }}
+              </p>
+            </div>
+          </div>
           <div v-if="consultation.clinical_notes?.summary_of_history">
             <p class="font-medium text-gray-500 dark:text-gray-400">Summary of history</p>
             <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">
@@ -466,6 +481,63 @@ function hasPrescriptionShape (p) {
   return meds.some(m => typeof m?.name === 'string' && m.name.trim().length > 0)
 }
 
+function presentingComplaintLinesFromClinicalNotes (notes) {
+  if (!notes) return []
+  const raw = notes.presenting_complaints
+  if (Array.isArray(raw) && raw.length) {
+    const out = []
+    for (const item of raw) {
+      if (typeof item === 'string') {
+        const t = item.trim()
+        if (t) out.push(t)
+      } else if (item && typeof item === 'object' && !Array.isArray(item)) {
+        const c = typeof item.complaint === 'string' ? item.complaint.trim() : ''
+        const d = typeof item.duration === 'string' ? item.duration.trim() : ''
+        if (!c && !d) continue
+        if (!c) out.push(`(duration: ${d})`)
+        else if (!d) out.push(c)
+        else out.push(`${c} (duration: ${d})`)
+      }
+    }
+    return out
+  }
+  const legacy = notes.presenting_complaint
+  if (typeof legacy === 'string' && legacy.trim()) return [legacy.trim()]
+  return []
+}
+
+const REVIEW_OF_SYSTEMS_DISPLAY_ORDER = [
+  { key: 'cns', label: 'Central nervous system' },
+  { key: 'respiratory', label: 'Respiratory system' },
+  { key: 'cardiovascular', label: 'Cardiovascular system' },
+  { key: 'digestive', label: 'Digestive system' },
+  { key: 'genitourinary', label: 'Genital–urinary system' },
+  { key: 'locomotor', label: 'Locomotor system' },
+  { key: 'other', label: 'Other systems' },
+]
+
+function hasReviewOfSystemsContent (ros) {
+  if (typeof ros === 'string') return ros.trim().length > 0
+  if (ros && typeof ros === 'object' && !Array.isArray(ros)) {
+    return Object.values(ros).some(v => typeof v === 'string' && v.trim().length > 0)
+  }
+  return false
+}
+
+function reviewOfSystemsDisplayBlocks (ros) {
+  if (typeof ros === 'string' && ros.trim()) {
+    return [{ label: '', text: ros.trim() }]
+  }
+  if (!ros || typeof ros !== 'object' || Array.isArray(ros)) return []
+  const o = ros
+  const blocks = []
+  for (const { key, label } of REVIEW_OF_SYSTEMS_DISPLAY_ORDER) {
+    const t = o[key]
+    if (typeof t === 'string' && t.trim()) blocks.push({ label, text: t.trim() })
+  }
+  return blocks
+}
+
 const adminPatientInvestigationUploads = computed(() => {
   const list = consultation.value?.patient_investigation_uploads
   if (!Array.isArray(list)) return []
@@ -569,17 +641,13 @@ const hasStructuredManagementPlan = computed(() => {
   return hasInPersonVisitContent.value
 })
 
-const presentingComplaintDisplayLines = computed(() => {
-  const notes = consultation.value?.clinical_notes
-  if (!notes) return []
-  const raw = notes.presenting_complaints
-  if (Array.isArray(raw) && raw.length) {
-    return raw.map(s => (typeof s === 'string' ? s.trim() : '')).filter(Boolean)
-  }
-  const legacy = notes.presenting_complaint
-  if (typeof legacy === 'string' && legacy.trim()) return [legacy.trim()]
-  return []
-})
+const presentingComplaintDisplayLines = computed(() =>
+  presentingComplaintLinesFromClinicalNotes(consultation.value?.clinical_notes)
+)
+
+const reviewOfSystemsBlocks = computed(() =>
+  reviewOfSystemsDisplayBlocks(consultation.value?.clinical_notes?.review_of_systems)
+)
 
 const hasClinicalNotes = computed(() => {
   const notes = consultation.value?.clinical_notes
@@ -593,6 +661,7 @@ const hasClinicalNotes = computed(() => {
     || oc?.patient_reports_improved === true
     || oc?.patient_reports_improved === false
   return presentingComplaintDisplayLines.value.length > 0
+    || hasReviewOfSystemsContent(notes.review_of_systems)
     || !!notes.summary_of_history
     || !!notes.differential_diagnosis
     || !!notes.investigation_results

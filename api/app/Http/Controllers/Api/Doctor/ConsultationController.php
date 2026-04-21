@@ -85,6 +85,22 @@ class ConsultationController extends Controller
             'You do not have access to this consultation.'
         );
 
+        $clinicalNotesInput = $request->input('clinical_notes');
+        if (is_array($clinicalNotesInput) && array_key_exists('presenting_complaints', $clinicalNotesInput)
+            && is_array($clinicalNotesInput['presenting_complaints'])) {
+            $clinicalNotesInput['presenting_complaints'] = self::normalizePresentingComplaintsPayload(
+                $clinicalNotesInput['presenting_complaints']
+            );
+            $request->merge(['clinical_notes' => $clinicalNotesInput]);
+        }
+
+        if (is_array($clinicalNotesInput) && array_key_exists('review_of_systems', $clinicalNotesInput)) {
+            $clinicalNotesInput['review_of_systems'] = self::normalizeReviewOfSystemsPayload(
+                $clinicalNotesInput['review_of_systems']
+            );
+            $request->merge(['clinical_notes' => $clinicalNotesInput]);
+        }
+
         $validated = $request->validate([
             'status' => ['sometimes', Rule::in(['scheduled', 'completed', 'cancelled'])],
             'notes' => ['nullable', 'string', 'max:65535'],
@@ -92,9 +108,17 @@ class ConsultationController extends Controller
             'clinical_notes' => ['nullable', 'array'],
             'clinical_notes.presenting_complaint' => ['nullable', 'string', 'max:65535'],
             'clinical_notes.presenting_complaints' => ['nullable', 'array'],
-            'clinical_notes.presenting_complaints.*' => ['nullable', 'string', 'max:65535'],
+            'clinical_notes.presenting_complaints.*.complaint' => ['nullable', 'string', 'max:65535'],
+            'clinical_notes.presenting_complaints.*.duration' => ['nullable', 'string', 'max:512'],
             'clinical_notes.history_of_presenting_complaint' => ['nullable', 'string', 'max:65535'],
-            'clinical_notes.review_of_systems' => ['nullable', 'string', 'max:65535'],
+            'clinical_notes.review_of_systems' => ['nullable', 'array'],
+            'clinical_notes.review_of_systems.cns' => ['nullable', 'string', 'max:16384'],
+            'clinical_notes.review_of_systems.respiratory' => ['nullable', 'string', 'max:16384'],
+            'clinical_notes.review_of_systems.cardiovascular' => ['nullable', 'string', 'max:16384'],
+            'clinical_notes.review_of_systems.digestive' => ['nullable', 'string', 'max:16384'],
+            'clinical_notes.review_of_systems.genitourinary' => ['nullable', 'string', 'max:16384'],
+            'clinical_notes.review_of_systems.locomotor' => ['nullable', 'string', 'max:16384'],
+            'clinical_notes.review_of_systems.other' => ['nullable', 'string', 'max:16384'],
             'clinical_notes.past_medical_history' => ['nullable', 'string', 'max:65535'],
             'clinical_notes.past_surgical_history' => ['nullable', 'string', 'max:65535'],
             'clinical_notes.growth_and_development' => ['nullable', 'string', 'max:65535'],
@@ -158,6 +182,24 @@ class ConsultationController extends Controller
                 $incOutcome = $incoming['outcome'];
                 unset($incOutcome['patient_reports_improved'], $incOutcome['patient_reported_at']);
                 $validated['clinical_notes']['outcome'] = array_merge($prevOutcome, $incOutcome);
+            }
+
+            if (array_key_exists('presenting_complaints', $validated['clinical_notes'])
+                && is_array($validated['clinical_notes']['presenting_complaints'])) {
+                $flat = self::flattenPresentingComplaintsForLegacy($validated['clinical_notes']['presenting_complaints']);
+                $validated['clinical_notes']['presenting_complaint'] = $flat === '' ? null : $flat;
+            }
+
+            if (array_key_exists('review_of_systems', $validated['clinical_notes'])
+                && is_array($validated['clinical_notes']['review_of_systems'])) {
+                $ros = $validated['clinical_notes']['review_of_systems'];
+                $trimmed = [];
+                foreach ($ros as $k => $v) {
+                    if (is_string($v) && trim($v) !== '') {
+                        $trimmed[$k] = trim($v);
+                    }
+                }
+                $validated['clinical_notes']['review_of_systems'] = $trimmed === [] ? null : $trimmed;
             }
         }
 
@@ -347,5 +389,95 @@ class ConsultationController extends Controller
 
             return new ConsultationResource($locked);
         });
+    }
+
+    /**
+     * @param  array<int, mixed>  $rows
+     * @return array<int, array{complaint: string, duration: string}>
+     */
+    private static function normalizePresentingComplaintsPayload(array $rows): array
+    {
+        $out = [];
+        foreach ($rows as $item) {
+            if (is_string($item)) {
+                $out[] = ['complaint' => $item, 'duration' => ''];
+            } elseif (is_array($item)) {
+                $c = isset($item['complaint']) && is_string($item['complaint']) ? $item['complaint'] : '';
+                $d = isset($item['duration']) && is_string($item['duration']) ? $item['duration'] : '';
+                $out[] = ['complaint' => $c, 'duration' => $d];
+            } else {
+                $out[] = ['complaint' => '', 'duration' => ''];
+            }
+        }
+
+        return array_values($out);
+    }
+
+    /**
+     * @param  array<int, mixed>  $rows
+     */
+    /**
+     * @param  mixed  $value  Legacy string or partial array
+     * @return array<string, string>
+     */
+    private static function normalizeReviewOfSystemsPayload(mixed $value): array
+    {
+        $keys = ['cns', 'respiratory', 'cardiovascular', 'digestive', 'genitourinary', 'locomotor', 'other'];
+        $empty = array_fill_keys($keys, '');
+        if (is_string($value)) {
+            $t = trim($value);
+            $out = $empty;
+            if ($t !== '') {
+                $out['other'] = $value;
+            }
+
+            return $out;
+        }
+        if (! is_array($value)) {
+            return $empty;
+        }
+        $out = $empty;
+        foreach ($keys as $k) {
+            if (isset($value[$k]) && is_string($value[$k])) {
+                $out[$k] = $value[$k];
+            }
+        }
+
+        return $out;
+    }
+
+    private static function flattenPresentingComplaintsForLegacy(array $rows): string
+    {
+        $lines = [];
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $c = isset($row['complaint']) && is_string($row['complaint']) ? trim($row['complaint']) : '';
+            $d = isset($row['duration']) && is_string($row['duration']) ? trim($row['duration']) : '';
+            if ($c === '' && $d === '') {
+                continue;
+            }
+            if ($c === '') {
+                $lines[] = '(duration: '.$d.')';
+            } elseif ($d === '') {
+                $lines[] = $c;
+            } else {
+                $lines[] = $c.' (duration: '.$d.')';
+            }
+        }
+        if ($lines === []) {
+            return '';
+        }
+        if (count($lines) === 1) {
+            return $lines[0];
+        }
+
+        $numbered = [];
+        foreach ($lines as $i => $line) {
+            $numbered[] = ($i + 1).'. '.$line;
+        }
+
+        return implode("\n", $numbered);
     }
 }

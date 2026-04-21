@@ -189,28 +189,81 @@
           </UButton>
         </div>
       </div>
+      <div
+        v-if="hasClinicalNotes && clinicalNotesNavItems.length"
+        class="mb-3 flex flex-wrap gap-1.5 items-center"
+      >
+        <span class="text-xs text-gray-500 dark:text-gray-400 shrink-0">Jump to:</span>
+        <UButton
+          v-for="item in clinicalNotesNavItems"
+          :key="item.id"
+          size="xs"
+          variant="soft"
+          color="gray"
+          class="max-w-[11rem] truncate"
+          :title="item.label"
+          @click="scrollToClinicalNoteSection(item.id)"
+        >
+          {{ item.label }}
+        </UButton>
+      </div>
       <div v-if="hasClinicalNotes" class="space-y-3 text-sm">
-        <div v-if="presentingComplaintDisplayLines.length">
+        <div
+          v-if="presentingComplaintDisplayLines.length"
+          id="cn-presenting"
+          class="scroll-mt-24"
+        >
           <p class="font-medium text-gray-500 dark:text-gray-400">Presenting complaint(s)</p>
           <ol class="list-decimal pl-5 space-y-1 text-gray-900 dark:text-gray-100 whitespace-pre-line">
             <li v-for="(line, i) in presentingComplaintDisplayLines" :key="i">
               {{ line }}
             </li>
-          </ol>
+            </ol>
         </div>
-        <div v-if="consultation.clinical_notes?.summary_of_history">
+        <div
+          v-if="reviewOfSystemsBlocks.length"
+          id="cn-review-of-systems"
+          class="scroll-mt-24 space-y-2"
+        >
+          <p class="font-medium text-gray-500 dark:text-gray-400">Review of systems</p>
+          <div
+            v-for="(block, ri) in reviewOfSystemsBlocks"
+            :key="ri"
+            class="pl-2 border-l-2 border-gray-200 dark:border-gray-700 space-y-1"
+          >
+            <p v-if="block.label" class="text-xs font-medium text-gray-600 dark:text-gray-300">
+              {{ block.label }}
+            </p>
+            <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">
+              {{ block.text }}
+            </p>
+          </div>
+        </div>
+        <div
+          v-if="consultation.clinical_notes?.summary_of_history"
+          id="cn-summary"
+          class="scroll-mt-24"
+        >
           <p class="font-medium text-gray-500 dark:text-gray-400">Summary of history</p>
           <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">
             {{ consultation.clinical_notes.summary_of_history }}
           </p>
         </div>
-        <div v-if="consultation.clinical_notes?.differential_diagnosis">
+        <div
+          v-if="consultation.clinical_notes?.differential_diagnosis"
+          id="cn-differential"
+          class="scroll-mt-24"
+        >
           <p class="font-medium text-gray-500 dark:text-gray-400">Differential diagnosis</p>
           <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">
             {{ consultation.clinical_notes.differential_diagnosis }}
           </p>
         </div>
-        <div v-if="consultation.clinical_notes?.investigation_results || patientInvestigationUploads.length">
+        <div
+          v-if="consultation.clinical_notes?.investigation_results || patientInvestigationUploads.length"
+          id="cn-investigations"
+          class="scroll-mt-24"
+        >
           <p class="font-medium text-gray-500 dark:text-gray-400">Investigation results</p>
           <div v-if="patientInvestigationUploads.length" class="mt-2 space-y-2">
             <p class="text-xs text-gray-500 dark:text-gray-400">Patient-uploaded files</p>
@@ -242,19 +295,31 @@
             {{ consultation.clinical_notes.investigation_results }}
           </p>
         </div>
-        <div v-if="consultation.clinical_notes?.final_diagnosis">
+        <div
+          v-if="consultation.clinical_notes?.final_diagnosis"
+          id="cn-final-diagnosis"
+          class="scroll-mt-24"
+        >
           <p class="font-medium text-gray-500 dark:text-gray-400">Final diagnosis</p>
           <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">
             {{ consultation.clinical_notes.final_diagnosis }}
           </p>
         </div>
-        <div v-if="consultation.clinical_notes?.final_treatment">
+        <div
+          v-if="consultation.clinical_notes?.final_treatment"
+          id="cn-final-treatment"
+          class="scroll-mt-24"
+        >
           <p class="font-medium text-gray-500 dark:text-gray-400">Final treatment</p>
           <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">
             {{ consultation.clinical_notes.final_treatment }}
           </p>
         </div>
-        <div v-if="clinicalOutcomeDoctorNotes || clinicalOutcomePatientAnswer !== null" class="space-y-2">
+        <div
+          v-if="clinicalOutcomeDoctorNotes || clinicalOutcomePatientAnswer !== null"
+          id="cn-outcome"
+          class="scroll-mt-24 space-y-2"
+        >
           <p class="font-medium text-gray-500 dark:text-gray-400">Outcome</p>
           <p
             v-if="clinicalOutcomeDoctorNotes"
@@ -273,7 +338,11 @@
             </span>
           </p>
         </div>
-        <div v-if="hasStructuredManagementPlan" class="space-y-2">
+        <div
+          v-if="hasStructuredManagementPlan"
+          id="cn-management"
+          class="scroll-mt-24 space-y-2"
+        >
           <p class="font-medium text-gray-500 dark:text-gray-400">Management plan</p>
           <div v-if="hasClinicalNotesPrescription" class="pl-2 border-l-2 border-gray-200 dark:border-gray-700">
             <p class="text-xs text-gray-500 dark:text-gray-400">Prescription (clinical notes)</p>
@@ -321,7 +390,11 @@
             </div>
           </div>
         </div>
-        <div v-else-if="consultation.clinical_notes?.management_plan && typeof consultation.clinical_notes.management_plan === 'string'" class="pl-2 border-l-2 border-gray-200 dark:border-gray-700">
+        <div
+          v-else-if="consultation.clinical_notes?.management_plan && typeof consultation.clinical_notes.management_plan === 'string'"
+          id="cn-management"
+          class="scroll-mt-24 pl-2 border-l-2 border-gray-200 dark:border-gray-700"
+        >
           <p class="font-medium text-gray-500 dark:text-gray-400">Management plan</p>
           <p class="text-gray-900 dark:text-gray-100 whitespace-pre-line">{{ consultation.clinical_notes.management_plan }}</p>
         </div>
@@ -588,6 +661,66 @@ function hasPrescriptionShape (p: unknown): boolean {
   return meds.some((m: any) => typeof m?.name === 'string' && m.name.trim().length > 0)
 }
 
+function presentingComplaintLinesFromClinicalNotes (notes: ClinicalNotesData | Record<string, unknown> | null | undefined): string[] {
+  if (!notes) return []
+  const raw = notes.presenting_complaints
+  if (Array.isArray(raw) && raw.length) {
+    const out: string[] = []
+    for (const item of raw) {
+      if (typeof item === 'string') {
+        const t = item.trim()
+        if (t) out.push(t)
+      } else if (item && typeof item === 'object' && !Array.isArray(item)) {
+        const o = item as Record<string, unknown>
+        const c = typeof o.complaint === 'string' ? o.complaint.trim() : ''
+        const d = typeof o.duration === 'string' ? o.duration.trim() : ''
+        if (!c && !d) continue
+        if (!c) out.push(`(duration: ${d})`)
+        else if (!d) out.push(c)
+        else out.push(`${c} (duration: ${d})`)
+      }
+    }
+    return out
+  }
+  const legacy = notes.presenting_complaint
+  if (typeof legacy === 'string' && legacy.trim()) return [legacy.trim()]
+  return []
+}
+
+const REVIEW_OF_SYSTEMS_DISPLAY_ORDER: { key: string; label: string }[] = [
+  { key: 'cns', label: 'Central nervous system' },
+  { key: 'respiratory', label: 'Respiratory system' },
+  { key: 'cardiovascular', label: 'Cardiovascular system' },
+  { key: 'digestive', label: 'Digestive system' },
+  { key: 'genitourinary', label: 'Genital–urinary system' },
+  { key: 'locomotor', label: 'Locomotor system' },
+  { key: 'other', label: 'Other systems' },
+]
+
+function hasReviewOfSystemsContent (ros: unknown): boolean {
+  if (typeof ros === 'string') return ros.trim().length > 0
+  if (ros && typeof ros === 'object' && !Array.isArray(ros)) {
+    return Object.values(ros as Record<string, unknown>).some(
+      v => typeof v === 'string' && v.trim().length > 0
+    )
+  }
+  return false
+}
+
+function reviewOfSystemsDisplayBlocks (ros: unknown): { label: string; text: string }[] {
+  if (typeof ros === 'string' && ros.trim()) {
+    return [{ label: '', text: ros.trim() }]
+  }
+  if (!ros || typeof ros !== 'object' || Array.isArray(ros)) return []
+  const o = ros as Record<string, unknown>
+  const blocks: { label: string; text: string }[] = []
+  for (const { key, label } of REVIEW_OF_SYSTEMS_DISPLAY_ORDER) {
+    const t = o[key]
+    if (typeof t === 'string' && t.trim()) blocks.push({ label, text: t.trim() })
+  }
+  return blocks
+}
+
 const patientInvestigationUploads = computed(() => {
   const list = consultation.value?.patient_investigation_uploads
   if (!Array.isArray(list)) return []
@@ -632,17 +765,13 @@ const clinicalOutcomePatientReportedAt = computed(() => {
   return typeof v === 'string' && v.trim() ? v : ''
 })
 
-const presentingComplaintDisplayLines = computed(() => {
-  const notes = consultation.value?.clinical_notes
-  if (!notes) return []
-  const raw = notes.presenting_complaints
-  if (Array.isArray(raw) && raw.length) {
-    return raw.map((s) => (typeof s === 'string' ? s.trim() : '')).filter(Boolean)
-  }
-  const legacy = notes.presenting_complaint
-  if (typeof legacy === 'string' && legacy.trim()) return [legacy.trim()]
-  return []
-})
+const presentingComplaintDisplayLines = computed(() =>
+  presentingComplaintLinesFromClinicalNotes(consultation.value?.clinical_notes)
+)
+
+const reviewOfSystemsBlocks = computed(() =>
+  reviewOfSystemsDisplayBlocks(consultation.value?.clinical_notes?.review_of_systems)
+)
 
 const hasClinicalNotes = computed(() => {
   const notes = consultation.value?.clinical_notes
@@ -657,6 +786,7 @@ const hasClinicalNotes = computed(() => {
     || oc?.patient_reports_improved === false
 
   return presentingComplaintDisplayLines.value.length > 0
+    || hasReviewOfSystemsContent(notes.review_of_systems)
     || !!notes.summary_of_history
     || !!notes.differential_diagnosis
     || !!notes.investigation_results
@@ -749,6 +879,49 @@ const hasStructuredManagementPlan = computed(() => {
   if (hasPrescriptionShape(m.prescription)) return true
   return hasInPersonVisitContent.value
 })
+
+/** Sections currently shown in the clinical notes card (for “Jump to” chips). */
+const clinicalNotesNavItems = computed((): { id: string; label: string }[] => {
+  const c = consultation.value
+  if (!c?.clinical_notes) return []
+  const n = c.clinical_notes as Record<string, unknown>
+  const items: { id: string; label: string }[] = []
+  if (presentingComplaintDisplayLines.value.length) {
+    items.push({ id: 'cn-presenting', label: 'Presenting complaints' })
+  }
+  if (reviewOfSystemsBlocks.value.length) {
+    items.push({ id: 'cn-review-of-systems', label: 'Review of systems' })
+  }
+  if (n.summary_of_history) {
+    items.push({ id: 'cn-summary', label: 'Summary of history' })
+  }
+  if (n.differential_diagnosis) {
+    items.push({ id: 'cn-differential', label: 'Differential diagnosis' })
+  }
+  if (n.investigation_results || patientInvestigationUploads.value.length) {
+    items.push({ id: 'cn-investigations', label: 'Investigation results' })
+  }
+  if (n.final_diagnosis) {
+    items.push({ id: 'cn-final-diagnosis', label: 'Final diagnosis' })
+  }
+  if (n.final_treatment) {
+    items.push({ id: 'cn-final-treatment', label: 'Final treatment' })
+  }
+  if (clinicalOutcomeDoctorNotes.value || clinicalOutcomePatientAnswer.value !== null) {
+    items.push({ id: 'cn-outcome', label: 'Outcome' })
+  }
+  if (hasStructuredManagementPlan.value) {
+    items.push({ id: 'cn-management', label: 'Management plan' })
+  } else if (n.management_plan && typeof n.management_plan === 'string') {
+    items.push({ id: 'cn-management', label: 'Management plan' })
+  }
+  return items
+})
+
+function scrollToClinicalNoteSection (id: string) {
+  if (typeof document === 'undefined') return
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
 
 const formOptions = [
   { label: 'Tablet', value: 'Tablet' },

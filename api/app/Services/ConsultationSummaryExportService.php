@@ -40,9 +40,9 @@ class ConsultationSummaryExportService
                 'reason' => $consultation->reason,
                 'notes' => $consultation->notes,
                 'presenting_complaint' => $notes['presenting_complaint'] ?? null,
-                'presenting_complaints' => $this->stringify($notes['presenting_complaints'] ?? null),
+                'presenting_complaints' => $this->formatPresentingComplaintsForExport($notes['presenting_complaints'] ?? null),
                 'history_of_presenting_complaint' => $notes['history_of_presenting_complaint'] ?? null,
-                'review_of_systems' => $notes['review_of_systems'] ?? null,
+                'review_of_systems' => $this->formatReviewOfSystemsForExport($notes['review_of_systems'] ?? null),
                 'past_medical_history' => $notes['past_medical_history'] ?? null,
                 'past_surgical_history' => $notes['past_surgical_history'] ?? null,
                 'growth_and_development' => $notes['growth_and_development'] ?? null,
@@ -153,6 +153,80 @@ class ConsultationSummaryExportService
             ->when(! empty($filters['status']), fn (Builder $q) => $q->where('status', $filters['status']))
             ->when(! empty($filters['consultation_type']), fn (Builder $q) => $q->where('consultation_type', $filters['consultation_type']))
             ->latest('scheduled_at');
+    }
+
+    private function formatPresentingComplaintsForExport(mixed $value): ?string
+    {
+        if (! is_array($value) || $value === []) {
+            return null;
+        }
+        $lines = [];
+        foreach ($value as $item) {
+            if (is_string($item)) {
+                $t = trim($item);
+                if ($t !== '') {
+                    $lines[] = $t;
+                }
+
+                continue;
+            }
+            if (is_array($item)) {
+                $c = isset($item['complaint']) && is_string($item['complaint']) ? trim($item['complaint']) : '';
+                $d = isset($item['duration']) && is_string($item['duration']) ? trim($item['duration']) : '';
+                if ($c === '' && $d === '') {
+                    continue;
+                }
+                if ($c === '') {
+                    $lines[] = '(duration: '.$d.')';
+                } elseif ($d === '') {
+                    $lines[] = $c;
+                } else {
+                    $lines[] = $c.' (duration: '.$d.')';
+                }
+            }
+        }
+        if ($lines === []) {
+            return null;
+        }
+        if (count($lines) === 1) {
+            return $lines[0];
+        }
+        $numbered = [];
+        foreach ($lines as $i => $line) {
+            $numbered[] = ($i + 1).'. '.$line;
+        }
+
+        return implode("\n", $numbered);
+    }
+
+    private function formatReviewOfSystemsForExport(mixed $value): ?string
+    {
+        if (is_string($value)) {
+            $t = trim($value);
+
+            return $t === '' ? null : $t;
+        }
+        if (! is_array($value) || $value === []) {
+            return null;
+        }
+        $defs = [
+            'cns' => 'Central nervous system',
+            'respiratory' => 'Respiratory system',
+            'cardiovascular' => 'Cardiovascular system',
+            'digestive' => 'Digestive system',
+            'genitourinary' => 'Genital–urinary system',
+            'locomotor' => 'Locomotor system',
+            'other' => 'Other systems',
+        ];
+        $parts = [];
+        foreach ($defs as $key => $label) {
+            $t = isset($value[$key]) && is_string($value[$key]) ? trim($value[$key]) : '';
+            if ($t !== '') {
+                $parts[] = $label.': '.$t;
+            }
+        }
+
+        return $parts === [] ? null : implode("\n\n", $parts);
     }
 
     private function stringify(mixed $value): ?string
