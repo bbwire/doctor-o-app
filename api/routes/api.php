@@ -171,6 +171,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/consultations/{consultationId}', [PatientConsultationController::class, 'show']);
             Route::get('/consultations/{consultation}/messages', [ConsultationMessageController::class, 'index']);
             Route::post('/consultations/{consultation}/messages', [ConsultationMessageController::class, 'store']);
+            Route::post('/consultations/{consultation}/chat-presence', [ConsultationMessageController::class, 'updatePresence']);
             Route::get('/consultations/{consultation}/webrtc-signals', [ConsultationWebrtcSignalController::class, 'index']);
             Route::post('/consultations/{consultation}/webrtc-signals', [ConsultationWebrtcSignalController::class, 'store']);
             Route::patch('/consultations/{consultationId}/cancel', [PatientConsultationController::class, 'cancel']);
@@ -204,6 +205,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/icd11/search', [Icd11Controller::class, 'search']);
             Route::get('/consultations/{consultation}/messages', [ConsultationMessageController::class, 'index']);
             Route::post('/consultations/{consultation}/messages', [ConsultationMessageController::class, 'store']);
+            Route::post('/consultations/{consultation}/chat-presence', [ConsultationMessageController::class, 'updatePresence']);
             Route::get('/consultations/{consultation}/webrtc-signals', [ConsultationWebrtcSignalController::class, 'index']);
             Route::post('/consultations/{consultation}/webrtc-signals', [ConsultationWebrtcSignalController::class, 'store']);
             Route::get('/prescriptions', [\App\Http\Controllers\Api\Doctor\PrescriptionController::class, 'index']);

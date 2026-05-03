@@ -145,6 +145,9 @@
             ref="messagesContainer"
             class="max-h-72 overflow-y-auto overflow-x-hidden overscroll-contain p-4 space-y-3"
           >
+            <div v-if="counterpartTyping" class="flex justify-end mb-1">
+              <ChatTypingIndicator label="Doctor is typing…" />
+            </div>
             <div
               v-for="(msg, i) in messagesNewestFirst"
               :key="msg.id ?? `${msg.at}-${i}`"
@@ -166,7 +169,14 @@
                 <p v-if="msg.text && msg.text.trim()" class="whitespace-pre-wrap text-xs sm:text-sm break-words">
                   <ChatMessageText :text="msg.text" />
                 </p>
-                <p class="text-[10px] mt-0.5 opacity-70 text-right">{{ formatTime(msg.at) }}</p>
+                <div class="flex items-center justify-end gap-1 mt-0.5">
+                  <p class="text-[10px] opacity-70">{{ formatTime(msg.at) }}</p>
+                  <ChatDeliveryTicks
+                    :is-mine="msg.sender === 'patient'"
+                    :message-id="msg.id"
+                    :counterpart-last-read-message-id="counterpartLastReadMessageId"
+                  />
+                </div>
               </div>
             </div>
             <div v-if="!messages.length" class="flex items-center justify-center py-6">
@@ -209,6 +219,7 @@
                 class="w-full min-h-[36px] max-h-24 py-2 px-3 rounded-2xl bg-gray-800 border border-gray-700 text-xs sm:text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-500/50 placeholder:text-gray-500"
                 @keydown.enter.exact.prevent="sendMessage"
                 @focus="scrollInputIntoView"
+                @blur="stopTypingIndicator"
               />
             </div>
             <button
@@ -244,6 +255,9 @@
           ref="messagesContainer"
           class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain p-4 pb-32 space-y-4"
         >
+          <div v-if="counterpartTyping" class="flex justify-end">
+            <ChatTypingIndicator label="Doctor is typing…" />
+          </div>
           <div
             v-for="(msg, i) in messagesNewestFirst"
             :key="msg.id ?? `${msg.at}-${i}`"
@@ -265,7 +279,14 @@
               <p v-if="msg.text && msg.text.trim()" class="whitespace-pre-wrap text-sm break-words">
                 <ChatMessageText :text="msg.text" />
               </p>
-              <p class="text-xs mt-1 opacity-70 text-right">{{ formatTime(msg.at) }}</p>
+              <div class="flex items-center justify-end gap-1 mt-1">
+                <p class="text-xs opacity-70">{{ formatTime(msg.at) }}</p>
+                <ChatDeliveryTicks
+                  :is-mine="msg.sender === 'patient'"
+                  :message-id="msg.id"
+                  :counterpart-last-read-message-id="counterpartLastReadMessageId"
+                />
+              </div>
             </div>
           </div>
           <div v-if="!messages.length" class="flex items-center justify-center py-16">
@@ -344,6 +365,7 @@
                 class="w-full min-h-[44px] max-h-28 py-3 px-4 rounded-2xl bg-gray-800 border border-gray-700 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-500/50 placeholder:text-gray-500"
                 @keydown.enter.exact.prevent="sendMessage"
                 @focus="scrollInputIntoView"
+                @blur="stopTypingIndicator"
               />
             </div>
             <button
@@ -376,6 +398,14 @@
 </template>
 
 <script setup lang="ts">
+import type { ConsultationChatMeta } from '~/utils/consultationChat'
+import {
+  CHAT_TYPING_TTL_MS,
+  counterpartLastReadMessageId as getCounterpartLastReadMessageId,
+  isCounterpartTyping,
+  parseConsultationMessagesResponse,
+} from '~/utils/consultationChat'
+
 definePageMeta({
   middleware: 'auth',
   layout: false
@@ -395,6 +425,7 @@ function chatAttachmentSrc (url: string | null | undefined) {
 }
 
 const id = route.params.id as string
+const isDoctorParticipant = false
 
 /** Must match API `ConsultationMessageController` image max (kilobytes → bytes). */
 const MAX_CHAT_IMAGE_BYTES = 2 * 1024 * 1024
@@ -414,6 +445,7 @@ const gettingLocation = ref(false)
 
 const messages = ref<Array<{ id?: number; text: string; sender: 'doctor' | 'patient'; at: string; attachment_url?: string | null }>>([])
 const messagesNewestFirst = useMessagesNewestFirst(messages)
+const chatMeta = ref<ConsultationChatMeta>({})
 const chatInputRef = ref<HTMLTextAreaElement | null>(null)
 const chatFormRef = ref<HTMLFormElement | null>(null)
 const imageInputRef = ref<HTMLInputElement | null>(null)
@@ -493,6 +525,56 @@ function getHeaders () {
 function formatTime (iso: string) {
   return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 }
+
+const counterpartLastReadMessageId = computed(() =>
+  getCounterpartLastReadMessageId(chatMeta.value, isDoctorParticipant)
+)
+
+const counterpartTyping = computed(() =>
+  isCounterpartTyping(chatMeta.value, isDoctorParticipant, presenceNow.value, CHAT_TYPING_TTL_MS)
+)
+
+function clearTypingHeartbeat () {
+  if (typingHeartbeat) {
+    clearInterval(typingHeartbeat)
+    typingHeartbeat = null
+  }
+}
+
+async function postChatPresence (body: { typing?: boolean; last_read_message_id?: number }) {
+  try {
+    const res = await $fetch(`/consultations/${id}/chat-presence`, {
+      baseURL: config.public.apiBase,
+      method: 'POST',
+      headers: {
+        ...getHeaders(),
+        Accept: 'application/json',
+      },
+      body,
+    })
+    const m = (res as { meta?: ConsultationChatMeta })?.meta
+    if (m && typeof m === 'object') {
+      chatMeta.value = { ...chatMeta.value, ...m }
+    }
+  } catch {
+    // non-fatal
+  }
+}
+
+function stopTypingIndicator () {
+  clearTypingHeartbeat()
+  void postChatPresence({ typing: false })
+}
+
+watch(newMessage, (v) => {
+  if (v.trim()) {
+    void postChatPresence({ typing: true })
+    clearTypingHeartbeat()
+    typingHeartbeat = setInterval(() => void postChatPresence({ typing: true }), 2000)
+  } else {
+    stopTypingIndicator()
+  }
+})
 
 /** Newest messages are at the top; keep scroll pinned there when user was already reading latest. */
 function scrollToLatest (opts?: { smooth?: boolean }) {
@@ -678,13 +760,16 @@ onMounted(async () => {
   await fetchMessages()
   scrollToLatest({ smooth: false })
   pollInterval = setInterval(fetchMessages, 3000)
+  presenceTickInterval = setInterval(() => { presenceNow.value = Date.now() }, 1000)
   updateKeyboardOffset()
   window.visualViewport?.addEventListener('resize', updateKeyboardOffset)
   window.visualViewport?.addEventListener('scroll', updateKeyboardOffset)
 })
 
 onUnmounted(() => {
+  stopTypingIndicator()
   if (pollInterval) clearInterval(pollInterval)
+  if (presenceTickInterval) clearInterval(presenceTickInterval)
   window.visualViewport?.removeEventListener('resize', updateKeyboardOffset)
   window.visualViewport?.removeEventListener('scroll', updateKeyboardOffset)
 })

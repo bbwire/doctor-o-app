@@ -2,7 +2,10 @@
   <div class="space-y-12">
     <section class="relative overflow-hidden rounded-2xl border border-primary-200/60 dark:border-primary-900/50 bg-gradient-to-br from-primary-50 via-white to-indigo-50 dark:from-primary-950/40 dark:via-gray-900 dark:to-indigo-950/30 text-center py-12 px-6">
       <div class="absolute inset-0 pointer-events-none opacity-50 dark:opacity-40 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.18),_transparent_40%)]" />
-      <p class="relative inline-flex items-center rounded-full border border-primary-200 dark:border-primary-800 bg-white/80 dark:bg-gray-900/80 px-3 py-1 text-xs font-medium text-primary-700 dark:text-primary-300">
+      <div class="relative flex justify-center">
+        <AppLogo height-class="h-16 sm:h-20 md:h-24" width-class="w-auto max-w-[min(94vw,30rem)]" />
+      </div>
+      <p class="relative mt-5 inline-flex items-center rounded-full border border-primary-200 dark:border-primary-800 bg-white/80 dark:bg-gray-900/80 px-3 py-1 text-xs font-medium text-primary-700 dark:text-primary-300">
         Virtual care platform
       </p>
       <h1 class="relative mt-4 text-3xl md:text-5xl font-bold tracking-tight text-gray-900 dark:text-white">

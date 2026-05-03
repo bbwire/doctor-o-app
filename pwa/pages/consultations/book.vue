@@ -262,6 +262,36 @@
               </div>
             </UFormGroup>
 
+            <UFormGroup label="Review of systems (optional)">
+              <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-4 space-y-3">
+                <p class="text-sm text-gray-600 dark:text-gray-300 leading-snug">
+                  Add a quick symptom checklist if you like. It opens in a separate panel so this form stays short.
+                </p>
+                <div class="flex flex-wrap items-center gap-2">
+                  <UButton
+                    type="button"
+                    variant="soft"
+                    color="primary"
+                    size="sm"
+                    icon="i-lucide-list-checks"
+                    @click="rosModalOpen = true"
+                  >
+                    {{ rosCheckedCount ? `Edit checklist (${rosCheckedCount} yes)` : 'Add checklist' }}
+                  </UButton>
+                  <UBadge
+                    v-if="rosCheckedCount"
+                    color="primary"
+                    variant="soft"
+                    size="xs"
+                  >
+                    Included when you submit
+                  </UBadge>
+                </div>
+              </div>
+            </UFormGroup>
+
+            <BookingReviewOfSystemsModal v-model:open="rosModalOpen" v-model:state="rosState" />
+
             <UFormGroup name="consent" label="">
               <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-4">
                 <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
@@ -298,6 +328,12 @@
 </template>
 
 <script setup lang="ts">
+import {
+  buildBookingRosPayload,
+  countCheckedRosItems,
+  createEmptyBookingRosState,
+} from '~/utils/bookingRosState'
+
 definePageMeta({
   middleware: 'auth'
 })
@@ -342,6 +378,10 @@ const state = reactive({
   reason: ''
 })
 const consent = ref(false)
+
+const rosModalOpen = ref(false)
+const rosState = ref(createEmptyBookingRosState())
+const rosCheckedCount = computed(() => countCheckedRosItems(rosState.value))
 
 const categoryOptions = ref([
   { label: 'General Doctor', value: 'General Doctor' },
@@ -636,17 +676,23 @@ const onSubmit = async () => {
   suggestedSlots.value = []
 
   try {
+    const body: Record<string, unknown> = {
+      category: state.category,
+      doctor_id: state.doctor_id,
+      scheduled_at: new Date(state.scheduled_at).toISOString(),
+      consultation_type: state.consultation_type,
+      reason: state.reason
+    }
+    const rosPayload = buildBookingRosPayload(rosState.value)
+    if (rosPayload) {
+      body.review_of_systems = rosPayload
+    }
+
     await $fetch('/consultations/book', {
       method: 'POST',
       baseURL: config.public.apiBase,
       headers: apiHeaders.value,
-      body: {
-        category: state.category,
-        doctor_id: state.doctor_id,
-        scheduled_at: new Date(state.scheduled_at).toISOString(),
-        consultation_type: state.consultation_type,
-        reason: state.reason
-      }
+      body
     })
 
     toast.add({

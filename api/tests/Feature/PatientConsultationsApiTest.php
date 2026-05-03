@@ -44,6 +44,45 @@ class PatientConsultationsApiTest extends TestCase
             ->assertJsonPath('data.status', 'scheduled');
     }
 
+    public function test_patient_can_store_review_of_systems_when_booking(): void
+    {
+        $patient = User::factory()->patient()->create();
+        $doctor = User::factory()->doctor()->create();
+        HealthcareProfessional::factory()->create([
+            'user_id' => $doctor->id,
+            'institution_id' => Institution::factory()->create()->id,
+        ]);
+
+        Sanctum::actingAs($patient);
+
+        $capturedAt = now()->toISOString();
+        $ros = [
+            'summary' => 'ROS positive for cough and chest pain; otherwise negative on this checklist.',
+            'captured_at' => $capturedAt,
+            'positive' => [
+                ['id' => 'resp-cough', 'label' => 'Cough', 'details' => '1 week'],
+                ['id' => 'cv-chest-pain', 'label' => 'Chest pain', 'details' => null],
+            ],
+        ];
+
+        $response = $this->postJson('/api/v1/consultations/book', [
+            'doctor_id' => $doctor->id,
+            'category' => 'General Doctor',
+            'scheduled_at' => now()->addDay()->toISOString(),
+            'consultation_type' => 'video',
+            'reason' => 'Follow-up checkup',
+            'review_of_systems' => $ros,
+        ]);
+
+        $response->assertCreated();
+
+        $consultation = Consultation::query()->where('patient_id', $patient->id)->firstOrFail();
+        $meta = $consultation->metadata ?? [];
+        $this->assertArrayHasKey('patient_review_of_systems', $meta);
+        $this->assertSame($ros['summary'], $meta['patient_review_of_systems']['summary']);
+        $this->assertCount(2, $meta['patient_review_of_systems']['positive']);
+    }
+
     public function test_patient_cannot_book_conflicting_scheduled_slot_for_same_doctor(): void
     {
         $patient = User::factory()->patient()->create();

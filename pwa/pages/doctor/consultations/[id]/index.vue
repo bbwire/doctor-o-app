@@ -105,6 +105,33 @@
               {{ consultation.notes || '–' }}
             </dd>
           </div>
+          <div
+            v-if="patientBookingRosBlock"
+            class="sm:col-span-2 rounded-xl border border-violet-200 bg-violet-50/80 p-4 dark:border-violet-800 dark:bg-violet-950/30"
+          >
+            <dt class="text-xs font-semibold uppercase tracking-wide text-violet-800 dark:text-violet-200">
+              Patient review of systems (at booking)
+            </dt>
+            <dd class="mt-2 text-sm text-gray-900 dark:text-gray-100 leading-snug">
+              {{ patientBookingRosBlock.summary }}
+            </dd>
+            <details
+              v-if="patientBookingRosBlock.items.length"
+              class="mt-3 text-sm"
+            >
+              <summary class="cursor-pointer text-xs font-medium text-violet-700 dark:text-violet-300">
+                Symptom details
+              </summary>
+              <ul class="mt-2 space-y-1.5 text-gray-800 dark:text-gray-200 list-disc list-inside">
+                <li
+                  v-for="(it, idx) in patientBookingRosBlock.items"
+                  :key="`${it.label}-${idx}`"
+                >
+                  {{ it.label }}<template v-if="it.details"><span class="text-gray-600 dark:text-gray-400"> — {{ it.details }}</span></template>
+                </li>
+              </ul>
+            </details>
+          </div>
         </dl>
 
         <div v-if="consultation.status === 'scheduled'" class="flex flex-col gap-2 shrink-0 w-full sm:w-auto">
@@ -415,6 +442,7 @@
               :patient-date-of-birth="consultation?.patient?.date_of_birth"
               :consultation-id="id"
               :patient-investigation-uploads="patientInvestigationUploads"
+              :patient-booking-ros="patientBookingRosClinicalImport"
               :on-save="saveClinicalNotes"
               @done="showClinicalNotesModal = false; fetchConsultation()"
             />
@@ -624,6 +652,7 @@ definePageMeta({
 })
 
 import type { ClinicalNotesData } from '~/components/ClinicalNotesForm.vue'
+import { parsePatientBookingRosFromMetadata } from '~/utils/bookingRosToClinicalRos'
 
 const route = useRoute()
 const router = useRouter()
@@ -725,6 +754,23 @@ const patientInvestigationUploads = computed(() => {
   const list = consultation.value?.patient_investigation_uploads
   if (!Array.isArray(list)) return []
   return list.filter((u: any) => u && typeof u.id === 'string' && typeof u.file_url === 'string')
+})
+
+const patientBookingRosClinicalImport = computed(() =>
+  parsePatientBookingRosFromMetadata(consultation.value?.metadata)
+)
+
+const patientBookingRosBlock = computed((): { summary: string; items: { label: string; details: string }[] } | null => {
+  const p = patientBookingRosClinicalImport.value
+  if (!p?.positive?.length) return null
+  const summary = (p.summary && p.summary.trim())
+    ? p.summary.trim()
+    : `Patient reported ${p.positive.length} symptom(s) at booking.`
+  const items = p.positive.map(row => ({
+    label: row.label,
+    details: typeof row.details === 'string' && row.details.trim() ? row.details.trim() : '',
+  }))
+  return { summary, items }
 })
 
 function formatUploadMetaTime (iso: string) {

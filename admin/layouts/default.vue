@@ -14,8 +14,13 @@
       :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
     >
       <div class="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 px-4 dark:border-gray-800">
-        <NuxtLink to="/" class="text-xl font-bold tracking-tight text-primary-600 dark:text-primary-400">
-          Dr. O Admin
+        <NuxtLink
+          to="/"
+          class="flex min-w-0 items-center gap-2 text-primary-600 dark:text-primary-400"
+          aria-label="Dr. O Admin — Home"
+        >
+          <AppLogo height-class="h-9 sm:h-10" width-class="w-auto max-w-[10rem]" />
+          <span class="truncate text-sm font-semibold tracking-tight text-gray-700 dark:text-gray-200">Admin</span>
         </NuxtLink>
         <UButton
           icon="i-lucide-x"

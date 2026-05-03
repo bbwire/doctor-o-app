@@ -50,10 +50,7 @@ class PatientConsultationService
                 'status' => 'waiting',
                 'reason' => $validated['reason'],
                 'notes' => $validated['notes'] ?? null,
-                'metadata' => [
-                    'requested_category' => $validated['category'],
-                    'auto_assigned' => false,
-                ],
+                'metadata' => $this->baseConsultationMetadata($validated),
             ]);
 
             $consultation->refresh();
@@ -114,10 +111,7 @@ class PatientConsultationService
             'status' => 'scheduled',
             'reason' => $validated['reason'],
             'notes' => $validated['notes'] ?? null,
-            'metadata' => [
-                'requested_category' => $validated['category'],
-                'auto_assigned' => false,
-            ],
+            'metadata' => $this->baseConsultationMetadata($validated),
         ]);
 
         $consultation->refresh();
@@ -226,6 +220,23 @@ class PatientConsultationService
         ]);
 
         return $consultation->refresh()->load(['doctor.healthcareProfessional.institution', 'prescriptions']);
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function baseConsultationMetadata(array $validated): array
+    {
+        $meta = [
+            'requested_category' => $validated['category'],
+            'auto_assigned' => false,
+        ];
+        if (isset($validated['review_of_systems']) && is_array($validated['review_of_systems'])) {
+            $meta['patient_review_of_systems'] = $validated['review_of_systems'];
+        }
+
+        return $meta;
     }
 
     private function assertCanManageConsultation(Consultation $consultation): void

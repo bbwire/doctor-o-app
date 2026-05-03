@@ -23,6 +23,10 @@ class Consultation extends Model
         'notes',
         'metadata',
         'clinical_notes',
+        'patient_last_read_message_id',
+        'doctor_last_read_message_id',
+        'patient_typing_at',
+        'doctor_typing_at',
     ];
 
     protected function casts(): array
@@ -31,6 +35,8 @@ class Consultation extends Model
             'scheduled_at' => 'datetime',
             'metadata' => 'array',
             'clinical_notes' => 'array',
+            'patient_typing_at' => 'datetime',
+            'doctor_typing_at' => 'datetime',
         ];
     }
 

@@ -455,8 +455,32 @@
       </div>
 
       <div v-else-if="currentStep?.key === 'review_of_systems'" class="pb-2 space-y-3">
+        <div
+          v-if="patientBookingRosPanel"
+          class="rounded-lg border border-violet-500/35 bg-violet-950/35 p-3 space-y-2"
+        >
+          <p class="text-xs font-semibold text-violet-200">
+            Patient pre-booking checklist
+          </p>
+          <p class="text-xs text-gray-400 leading-snug">
+            {{ patientBookingRosPanel.summary }}
+          </p>
+          <p v-if="patientBookingRosPanel.capturedAtLabel" class="text-[11px] text-gray-500">
+            {{ patientBookingRosPanel.capturedAtLabel }}
+          </p>
+          <UButton
+            size="xs"
+            color="primary"
+            variant="soft"
+            icon="i-lucide-file-input"
+            class="mt-1"
+            @click="insertPatientBookingRosIntoClinicalFields"
+          >
+            Insert into ROS fields below
+          </UButton>
+        </div>
         <p class="text-xs text-gray-400">
-          Enter findings for each system. Leave blank if not applicable.
+          Enter findings for each system. Leave blank if not applicable. Use the button above to start from the patient’s booking checklist, then edit or add your clinical review.
         </p>
         <div
           v-for="row in reviewOfSystemsFieldDefs"
@@ -522,6 +546,8 @@
 </template>
 
 <script setup lang="ts">
+import { buildClinicalRosPatchesFromPatientBooking, type PatientBookingRosPayload } from '~/utils/bookingRosToClinicalRos'
+
 export interface GeneralExaminationData {
   appearance?: 'Good' | 'Sick' | 'Very sick'
   jaundice?: 'Nil' | 'Mild' | 'Severe'
@@ -657,8 +683,10 @@ const props = withDefaults(
     compact?: boolean
     /** Patient-uploaded lab/radiology files (from consultation metadata); shown on Investigation results step. */
     patientInvestigationUploads?: PatientInvestigationUpload[]
+    /** From consultation metadata; used to prefill structured ROS during the visit. */
+    patientBookingRos?: PatientBookingRosPayload | null
   }>(),
-  { compact: false, patientInvestigationUploads: () => [] }
+  { compact: false, patientInvestigationUploads: () => [], patientBookingRos: null }
 )
 
 function formatUploadTime (iso: string) {
@@ -1431,6 +1459,45 @@ function getReviewOfSystemsField (key: ReviewOfSystemsFieldKey): string {
 function setReviewOfSystemsField (key: ReviewOfSystemsFieldKey, val: string) {
   const merged = normalizeReviewOfSystemsFields(props.modelValue.review_of_systems)
   merged[key] = typeof val === 'string' ? val : ''
+  const trimmed: ReviewOfSystemsFields = {}
+  for (const k of Object.keys(merged) as ReviewOfSystemsFieldKey[]) {
+    const t = (merged[k] ?? '').trim()
+    if (t) trimmed[k] = t
+  }
+  emit('update:modelValue', {
+    ...props.modelValue,
+    review_of_systems: Object.keys(trimmed).length ? trimmed : undefined,
+  })
+}
+
+const patientBookingRosPanel = computed(() => {
+  const p = props.patientBookingRos
+  if (!p?.positive?.length) return null
+  const summary = (p.summary && p.summary.trim())
+    ? p.summary.trim()
+    : `Patient reported ${p.positive.length} symptom(s) at booking.`
+  let capturedAtLabel = ''
+  if (p.captured_at && typeof p.captured_at === 'string' && p.captured_at.trim()) {
+    try {
+      capturedAtLabel = `Submitted ${new Date(p.captured_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}`
+    } catch {
+      capturedAtLabel = ''
+    }
+  }
+  return { summary, capturedAtLabel }
+})
+
+function insertPatientBookingRosIntoClinicalFields () {
+  const patches = buildClinicalRosPatchesFromPatientBooking(props.patientBookingRos)
+  if (Object.keys(patches).length === 0) return
+  const merged = normalizeReviewOfSystemsFields(props.modelValue.review_of_systems)
+  for (const entry of Object.entries(patches)) {
+    const key = entry[0] as ReviewOfSystemsFieldKey
+    const patch = entry[1]
+    if (!patch) continue
+    const cur = (merged[key] ?? '').trim()
+    merged[key] = cur ? `${cur}\n\n${patch}` : patch
+  }
   const trimmed: ReviewOfSystemsFields = {}
   for (const k of Object.keys(merged) as ReviewOfSystemsFieldKey[]) {
     const t = (merged[k] ?? '').trim()

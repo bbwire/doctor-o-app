@@ -55,6 +55,13 @@ class StoreConsultationRequest extends FormRequest
             'consultation_type' => ['required', Rule::in(['text', 'audio', 'video'])],
             'reason' => ['required', 'string', 'max:5000'],
             'notes' => ['nullable', 'string'],
+            'review_of_systems' => ['sometimes', 'nullable', 'array'],
+            'review_of_systems.summary' => ['required_with:review_of_systems', 'string', 'max:5000'],
+            'review_of_systems.captured_at' => ['required_with:review_of_systems', 'date'],
+            'review_of_systems.positive' => ['required_with:review_of_systems', 'array', 'min:1', 'max:200'],
+            'review_of_systems.positive.*.id' => ['required', 'string', 'max:200'],
+            'review_of_systems.positive.*.label' => ['required', 'string', 'max:500'],
+            'review_of_systems.positive.*.details' => ['nullable', 'string', 'max:2000'],
         ];
     }
 }

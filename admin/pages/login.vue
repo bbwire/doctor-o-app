@@ -2,6 +2,9 @@
   <div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 dark:bg-gray-950">
     <div class="max-w-md w-full space-y-8">
       <div>
+        <div class="flex justify-center">
+          <AppLogo height-class="h-12 sm:h-14 md:h-16" width-class="w-auto max-w-[min(92vw,20rem)]" />
+        </div>
         <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
           Admin Login
         </h2>

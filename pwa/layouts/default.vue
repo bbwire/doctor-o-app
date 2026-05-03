@@ -2,8 +2,8 @@
   <div class="min-h-screen min-h-[100dvh] bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100">
     <header class="sticky top-0 z-50 flex h-14 items-center justify-center border-b border-gray-200/80 bg-white/80 backdrop-blur dark:border-gray-800 dark:bg-gray-900/80 safe-area-top safe-area-top-balance">
       <div class="w-full max-w-6xl mx-auto px-4 sm:px-6 flex h-14 items-center justify-between gap-3 sm:gap-4">
-        <NuxtLink to="/" class="flex items-center space-x-2 shrink-0">
-          <span class="text-xl font-bold text-primary-600">Dr. O</span>
+        <NuxtLink to="/" class="flex items-center shrink-0" aria-label="Dr. O — Home">
+          <AppLogo height-class="h-11 sm:h-12" width-class="w-auto max-w-[min(88vw,16rem)] sm:max-w-[17rem]" />
         </NuxtLink>
 
         <nav v-if="user" class="hidden md:flex items-center gap-1 flex-1">
@@ -200,7 +200,10 @@
 
     <footer class="border-t border-gray-200 dark:border-gray-800 py-4 mt-6 sm:mt-10 safe-area-bottom" :class="user ? 'mb-20 md:mb-0' : ''">
       <div class="max-w-6xl mx-auto px-4 sm:px-6 text-sm text-gray-500 dark:text-gray-400 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
-        <span>Dr. O Medical Services</span>
+        <div class="flex items-center gap-2">
+          <AppLogo height-class="h-8 sm:h-9" width-class="w-auto max-w-[12rem]" />
+          <span class="sr-only">Dr. O Medical Services</span>
+        </div>
         <span class="hidden sm:inline">·</span>
         <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
           <NuxtLink to="/about" class="hover:text-primary-600 dark:hover:text-primary-400 transition-colors">About Us</NuxtLink>

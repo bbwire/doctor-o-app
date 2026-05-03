@@ -6,6 +6,11 @@
           <UIcon name="i-lucide-arrow-left" class="w-4 h-4 mr-1" />
           Back to home
         </NuxtLink>
+        <div class="mt-5 flex justify-center">
+          <NuxtLink to="/" aria-label="Dr. O — Home">
+            <AppLogo height-class="h-12 sm:h-14 md:h-16" width-class="w-auto max-w-[min(92vw,20rem)]" />
+          </NuxtLink>
+        </div>
         <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
           Reset your password
         </h2>
