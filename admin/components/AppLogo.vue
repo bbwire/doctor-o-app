@@ -1,5 +1,5 @@
 <template>
-  <span class="inline-grid w-max shrink-0 grid-cols-1">
+  <span class="inline-grid w-max shrink-0 grid-cols-1 overflow-visible">
     <img
       :src="logoUrl"
       alt="Dr. O"
@@ -11,7 +11,7 @@
       :src="logoUrlDark"
       alt="Dr. O"
       :class="[heightClass, widthClass, 'col-start-1 row-start-1 max-h-none hidden dark:block']"
-      class="object-contain object-left"
+      class="object-contain object-left origin-left dark:scale-110 dark:[filter:brightness(1.18)_contrast(1.12)_drop-shadow(0_1px_2px_rgba(0,0,0,0.85))_drop-shadow(0_0_2px_rgba(255,255,255,0.35))]"
       decoding="async"
     >
   </span>

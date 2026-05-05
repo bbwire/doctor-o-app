@@ -13,13 +13,15 @@ export default defineNuxtConfig({
       short_name: 'Dr. O',
       description: 'Connect with healthcare professionals through secure text, audio, and video consultations.',
       theme_color: '#0f172a',
-      background_color: '#0f172a',
+      /** Match launcher icon (white mark on black) for install splash */
+      background_color: '#000000',
       display: 'standalone',
       scope: '/',
       start_url: '/',
       icons: [
-        { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
-        { src: '/icon.svg', sizes: '512x512', type: 'image/svg+xml', purpose: 'maskable' }
+        { src: '/pwa-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: '/pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: '/pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
       ]
     },
     client: {

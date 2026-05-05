@@ -40,8 +40,8 @@ useHead({
     { name: 'mobile-web-app-capable', content: 'yes' }
   ],
   link: [
-    { rel: 'icon', href: '/favicon.ico' },
-    { rel: 'apple-touch-icon', href: '/icon.svg' }
+    { rel: 'icon', type: 'image/png', sizes: '48x48', href: '/favicon.png' },
+    { rel: 'apple-touch-icon', type: 'image/png', sizes: '180x180', href: '/apple-touch-icon.png' }
   ],
   htmlAttrs: {
     lang: 'en'
